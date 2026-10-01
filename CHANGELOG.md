@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.1
+- The addon now lists only Forever's interface numbers (16001 to 16003), so the addon list and Wago no longer show a Retail version.
+
 ## 0.6.0
 - Work from a craft straight to its materials. In the results window: **click** a row to search the Auction House for that craft's materials, **shift-click** to search for the finished item, **right-click** to track it. Searches go to Auctionator's Shopping list when it is installed, otherwise to the Auction House's own search bar, otherwise to a copyable list of names.
 - Tracked crafts are pinned to the top of the list with a gold `*` and ignore the minimum-profit and minimum-listings filters.

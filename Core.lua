@@ -1,7 +1,7 @@
 local ADDON, CP = ...
 _G.Profiteer = CP
 
-CP.version = "0.6.0"
+CP.version = "0.6.1"
 
 ------------------------------------------------------------------------
 -- Saved variables (account-wide, so every alt sees the same data)

@@ -1,8 +1,8 @@
-## Interface: 16001, 16002, 16003, 116001
+## Interface: 16001, 16002, 16003
 ## Title: Profiteer
 ## Notes: Full AH scan, price history and tooltips, plus a ranking of what all your characters can craft by profit and ROI. Built for WoW Forever.
 ## Author: David
-## Version: 0.6.0
+## Version: 0.6.1
 ## IconTexture: Interface\AddOns\Profiteer\Media\icon
 ## SavedVariables: ProfiteerDB
 
