@@ -1,0 +1,13 @@
+package-as: Profiteer
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+ignore:
+  - README.md
+  - LICENSE
+  - logo.png
+  - .github
+  - release.ps1
+  - RELEASING.md
