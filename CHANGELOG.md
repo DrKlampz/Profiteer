@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.2
+- The TOC now carries the Wago project ID, so the Wago app recognizes a manually installed copy of Profiteer and offers updates for it.
+
 ## 0.6.1
 - The addon now lists only Forever's interface numbers (16001 to 16003), so the addon list and Wago no longer show a Retail version.
 
