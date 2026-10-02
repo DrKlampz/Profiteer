@@ -77,9 +77,12 @@ local function CaptureModern()
         end
         if #reagents > 0 then
           local lo, hi = sch.quantityMin or 1, sch.quantityMax or sch.quantityMin or 1
-          local name = info.name or CP.ItemName(outID)
-          CP.db.names[outID] = name
-          list[#list + 1] = { id = outID, name = name, yield = (lo + hi) / 2, reagents = reagents }
+          -- The recipe's name is not the item's name ("Smelt Copper" makes Copper Bar).
+          -- Only the game's real item name is saved as the item's name.
+          local itemName = CP.RealItemName(outID)
+          if itemName then CP.db.names[outID] = itemName end
+          local name = itemName or info.name or ("item " .. outID)
+          list[#list + 1] = { id = outID, name = name, rname = info.name, yield = (lo + hi) / 2, reagents = reagents }
         else
           skipped = skipped + 1
         end
@@ -129,8 +132,9 @@ local function CaptureLegacy()
           else ok = false end
         end
         if ok and #reagents > 0 then
-          CP.db.names[outID] = name
-          list[#list + 1] = { id = outID, name = name, yield = (lo + hi) / 2, reagents = reagents }
+          local itemName = CP.RealItemName(outID)
+          if itemName then CP.db.names[outID] = itemName end
+          list[#list + 1] = { id = outID, name = itemName or name, rname = name, yield = (lo + hi) / 2, reagents = reagents }
         else skipped = skipped + 1 end
       end
     end

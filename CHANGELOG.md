@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.3
+- Fixed click-through searching for the wrong item name. Profiteer was saving a recipe's name as the item's name, so crafts that use smelted bars searched for "Smelt Copper" instead of "Copper Bar". It now uses the game's real item names everywhere, and repairs names saved by earlier versions on the first login.
+- `/pf why` and `/pf track` still find a craft by its recipe name (for example "smelt copper").
+
 ## 0.6.2
 - The TOC now carries the Wago project ID, so the Wago app recognizes a manually installed copy of Profiteer and offers updates for it.
 

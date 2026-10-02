@@ -11,11 +11,11 @@ CP.Shop = Shop
 
 local CALLER = "Profiteer"
 
+-- Always the game's real item name when the client has it; a saved name is only a fallback.
 local function ItemNameOrNil(id)
-  local n = CP.db.names[id]
+  local n = CP.RealItemName(id)
   if n then return n end
-  if C_Item and C_Item.GetItemNameByID then return C_Item.GetItemNameByID(id) end
-  return nil
+  return CP.db.names[id]
 end
 
 -- Names of the materials for one craft (cheapest option per slot)
@@ -99,7 +99,7 @@ function Shop.ForCraft(g)
 end
 
 function Shop.ForOutput(g)
-  return Shop.Search({ CP.db.names[g.id] or g.name }, g.name)
+  return Shop.Search({ ItemNameOrNil(g.id) or g.name }, g.name)
 end
 
 function Shop.ForList(list, label)
@@ -136,9 +136,9 @@ local function FindRecipe(query)
   for _, profs in pairs(CP.db.recipes) do
     for prof, recs in pairs(profs) do
       for _, r in ipairs(recs) do
-        local name = r.name:lower()
-        if name == query then return r, prof end
-        if not best and name:find(query, 1, true) then best, bestProf = r, prof end
+        local m = CP.RecipeMatch(r, query)
+        if m == 2 then return r, prof end
+        if m == 1 and not best then best, bestProf = r, prof end
       end
     end
   end

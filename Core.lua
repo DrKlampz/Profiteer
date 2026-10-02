@@ -1,7 +1,7 @@
 local ADDON, CP = ...
 _G.Profiteer = CP
 
-CP.version = "0.6.2"
+CP.version = "0.6.3"
 
 ------------------------------------------------------------------------
 -- Saved variables (account-wide, so every alt sees the same data)
@@ -61,11 +61,74 @@ function CP.ItemID(link)
   return tonumber(link:match("item:(%d+)"))
 end
 
-function CP.ItemName(id)
-  local n = CP.db and CP.db.names[id]
-  if n then return n end
+-- The game's own name for an item (nil until the client has the item data).
+function CP.RealItemName(id)
+  local n
   if C_Item and C_Item.GetItemNameByID then n = C_Item.GetItemNameByID(id) end
+  if not n and GetItemInfo then n = GetItemInfo(id) end
+  if type(n) ~= "string" or n == "" then return nil end
+  return n
+end
+
+-- Prefer the real item name. A recipe name ("Smelt Copper") is not an item name ("Copper Bar").
+function CP.ItemName(id)
+  local n = CP.RealItemName(id)
+  if n then
+    if CP.db and CP.db.names[id] ~= n then CP.db.names[id] = n end
+    return n
+  end
+  n = CP.db and CP.db.names[id]
   return n or ("item " .. id)
+end
+
+-- Record the real name for an item and rename any saved craft that produces it.
+function CP.ApplyItemName(id, real)
+  if not (CP.db and real) then return end
+  CP.db.names[id] = real
+  for _, profs in pairs(CP.db.recipes) do
+    for _, recs in pairs(profs) do
+      for _, r in ipairs(recs) do
+        if r.id == id and r.name ~= real then
+          r.rname = r.rname or r.name
+          r.name = real
+        end
+      end
+    end
+  end
+end
+
+-- Make sure every item we care about has its real name, and ask the client for any it lacks.
+function CP.WarmNames()
+  if not CP.db then return end
+  local want = {}
+  for _, profs in pairs(CP.db.recipes) do
+    for _, recs in pairs(profs) do
+      for _, r in ipairs(recs) do
+        want[r.id] = true
+        for _, rg in ipairs(r.reagents or {}) do
+          for _, id in ipairs(rg.ids or { rg.id }) do want[id] = true end
+        end
+      end
+    end
+  end
+  for id in pairs(want) do
+    local real = CP.RealItemName(id)
+    if real then
+      CP.ApplyItemName(id, real)
+    elseif C_Item and C_Item.RequestLoadItemDataByID then
+      pcall(C_Item.RequestLoadItemDataByID, id)
+    end
+  end
+end
+
+-- Match a saved recipe against a search string: 2 = exact, 1 = partial, 0 = none.
+-- Matches the item name and the recipe's own name ("Smelt Copper" finds Copper Bar).
+function CP.RecipeMatch(r, query)
+  local a = (r.name or ""):lower()
+  local b = (r.rname or ""):lower()
+  if a == query or b == query then return 2 end
+  if a:find(query, 1, true) or b:find(query, 1, true) then return 1 end
+  return 0
 end
 
 function CP.ShortName(charKey)
@@ -159,7 +222,8 @@ end
 local f = CreateFrame("Frame")
 CP.Register(f, "ADDON_LOADED")
 CP.Register(f, "PLAYER_LOGIN")
-f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1)
+CP.Register(f, "ITEM_DATA_LOAD_RESULT")
+f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1, arg2)
   if event == "ADDON_LOADED" and arg1 == ADDON then
     ProfiteerDB = ProfiteerDB or {}
     CopyDefaults(ProfiteerDB, DEFAULTS)
@@ -180,6 +244,23 @@ f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1)
       if CP.db.settings.minListed == 1 then CP.db.settings.minListed = 3 end
       CP.db.schema = 3
     end
+    -- schema 4: earlier versions saved recipe names as item names ("Smelt Copper" for Copper Bar).
+    -- Drop the saved names; WarmNames rebuilds them from the game's real item names.
+    if (CP.db.schema or 0) < 4 then
+      CP.db.names = {}
+      CP.db.schema = 4
+    end
+  elseif event == "ITEM_DATA_LOAD_RESULT" then
+    if CP.db and arg1 and arg2 ~= false then
+      local real = CP.RealItemName(arg1)
+      if real then
+        CP.ApplyItemName(arg1, real)
+        if not CP.nameRefreshQueued then
+          CP.nameRefreshQueued = true
+          CP.After(1, function() CP.nameRefreshQueued = false; CP:Refresh() end)
+        end
+      end
+    end
   elseif event == "PLAYER_LOGIN" then
     CP.charKey = UnitName("player") .. "-" .. GetRealmName()
     local _, class = UnitClass("player")
@@ -187,6 +268,7 @@ f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1)
     if CP.migrated then
       CP:Print("Earlier versions misread AH prices, so old price data was cleared. Open the Auction House to rescan.")
     end
+    CP.After(3, CP.WarmNames)
   end
 end))
 
@@ -232,17 +314,17 @@ local function Explain(query)
   query = (query or ""):lower()
   if query == "" then CP:Print("usage: /pf why <craft name>   e.g. /pf why bolt of linen cloth"); return end
 
-  local best, bestChar, bestProf
+  local best, bestChar, bestProf, exact
   for charKey, profs in pairs(CP.db.recipes) do
     for prof, recs in pairs(profs) do
       for _, r in ipairs(recs) do
-        local name = r.name:lower()
-        if name == query then best, bestChar, bestProf = r, charKey, prof; break end
-        if not best and name:find(query, 1, true) then best, bestChar, bestProf = r, charKey, prof end
+        local m = CP.RecipeMatch(r, query)
+        if m == 2 then best, bestChar, bestProf, exact = r, charKey, prof, true; break end
+        if m == 1 and not best then best, bestChar, bestProf = r, charKey, prof end
       end
-      if best and best.name:lower() == query then break end
+      if exact then break end
     end
-    if best and best.name:lower() == query then break end
+    if exact then break end
   end
   if not best then CP:Print("No captured recipe matches '" .. query .. "'. Try /pf chars.") return end
 
