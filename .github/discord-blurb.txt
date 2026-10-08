@@ -1,0 +1,1 @@
+Scans the auction house and ranks your crafts by profit across all of your characters.
