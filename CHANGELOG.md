@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.2
+- Release packaging fix: the Wago upload now runs from GitHub.
+
 ## 0.7.1
 - The Profiteer window now opens beside the Auction House instead of on top of it, and can be dragged anywhere; it remembers where you put it (/pf ahbutton resets button and window).
 - The AH "Profiteer" button drags more reliably (left or right button) and sits above the other AH widgets.
