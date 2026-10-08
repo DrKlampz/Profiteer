@@ -36,7 +36,22 @@ local function ShowTooltip(self)
   for _, rg in ipairs(g.reagents) do
     local c, src, id = CP:SlotCost(rg)
     GameTooltip:AddDoubleLine(rg.count .. "x " .. CP.ItemName(id),
-      CP.Money(c and c * rg.count) .. " |cff888888(" .. (src or "?") .. ")|r", 1, 1, 1, 1, 1, 1)
+      CP.Money(c and c * rg.count) .. " |cff888888(" .. (src == "made" and "from raw materials" or src or "?") .. ")|r", 1, 1, 1, 1, 1, 1)
+    if CP:MakePlan(id) then
+      local parts = {}
+      for _, raw in ipairs(CP:RawMaterials(id)) do
+        local rc = CP:DirectCost(raw.id)
+        local cnt = raw.count * rg.count
+        cnt = (cnt == math.floor(cnt)) and cnt or tonumber(string.format("%.1f", cnt))
+        parts[#parts + 1] = cnt .. "x " .. CP.ItemName(raw.id) .. (rc and (" " .. CP.Money(rc * cnt)) or " (no price)")
+      end
+      local direct, made = CP:DirectCost(id), CP:MakeCost(id)
+      local note = ""
+      if made and direct then
+        note = made < direct and "  |cff55ff55cheaper than the bar|r" or "  |cff888888bar is cheaper|r"
+      end
+      GameTooltip:AddLine("   or buy " .. table.concat(parts, ", ") .. note, 0.7, 0.7, 0.7, true)
+    end
   end
   GameTooltip:AddLine(" ")
   local p = CP.db.prices[g.id]
@@ -208,8 +223,16 @@ function UI.Create()
   f:EnableMouse(true)
   f:SetMovable(true)
   f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", function(self) if not self.docked then self:StartMoving() end end)
-  f:SetScript("OnDragStop", f.StopMovingOrSizing)
+  f:SetClampedToScreen(true)
+  f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+  f:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    -- remember where the user put it (offset from screen's bottom-left)
+    local l, b = self:GetLeft(), self:GetBottom()
+    if type(l) == "number" and type(b) == "number" and CP.db then
+      CP.db.settings.winX, CP.db.settings.winY = l, b
+    end
+  end)
   f:SetScript("OnShow", UI.Rebuild)
   f:EnableMouseWheel(true)
   f:SetScript("OnMouseWheel", function(_, delta)
@@ -329,13 +352,20 @@ end
 local function Num(v, default) if type(v) == "number" then return v end return default end
 
 local function Dock()
+  -- Open BESIDE the AH (never over it) unless the user has moved the window.
   local ah = AuctionHouseFrame
   local f = UI.frame
-  if not ah or not f then return false end
+  if not f then return false end
+  local st = CP.db and CP.db.settings or {}
   f:ClearAllPoints()
-  f:SetPoint("TOPLEFT", ah, "TOPLEFT", 0, 0)
+  if type(st.winX) == "number" and type(st.winY) == "number" then
+    f:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", st.winX, st.winY)
+  elseif ah then
+    f:SetPoint("TOPLEFT", ah, "TOPRIGHT", 4, 0)
+  else
+    f:SetPoint("CENTER")
+  end
   f:SetFrameStrata("HIGH")
-  f:SetFrameLevel(Num(ah:GetFrameLevel(), 0) + 50)
   f.docked = true
   return true
 end
@@ -346,6 +376,11 @@ local function Undock()
   f.docked = false
   f:ClearAllPoints()
   f:SetPoint("CENTER")
+end
+
+function UI.ResetWindow()
+  if CP.db then CP.db.settings.winX, CP.db.settings.winY = nil, nil end
+  if UI.frame and UI.frame:IsShown() then Dock() end
 end
 
 function UI.ShowDocked()
@@ -369,8 +404,8 @@ local function CreateAHButton()
   b:SetSize(96, 22)
   b:SetText("Profiteer")
   b:SetFrameLevel(Num(AuctionHouseFrame:GetFrameLevel(), 0) + 20)
-  b:RegisterForDrag("LeftButton")
-  b:SetMovable(true)
+  b:RegisterForDrag("LeftButton", "RightButton")
+  b:SetFrameStrata("DIALOG")
   b:SetScript("OnClick", function()
     if UI.frame and UI.frame:IsShown() and UI.frame.docked then
       UI.frame:Hide()
@@ -378,23 +413,31 @@ local function CreateAHButton()
       UI.ShowDocked()
     end
   end)
-  b:SetScript("OnDragStart", function(self) self:StartMoving() end)
+  b:SetScript("OnDragStart", function(self)
+    local cx, cy = GetCursorPosition()
+    local sc = self:GetEffectiveScale()
+    local r, t = self:GetRight(), self:GetTop()
+    if type(cx) ~= "number" or type(r) ~= "number" or type(sc) ~= "number" or sc == 0 then return end
+    self.dragDX, self.dragDY = r - cx / sc, t - cy / sc
+    self:SetScript("OnUpdate", function(me)
+      local ah = AuctionHouseFrame
+      local x, y = GetCursorPosition()
+      local s2 = me:GetEffectiveScale()
+      local ar, at = ah:GetRight(), ah:GetTop()
+      if type(ar) ~= "number" or type(at) ~= "number" then return end
+      -- offset of button's top-right from the AH's top-right, following the cursor
+      CP.db.settings.ahBtnX = (x / s2 + me.dragDX) - ar
+      CP.db.settings.ahBtnY = (y / s2 + me.dragDY) - at
+      PlaceAHButton()
+    end)
+  end)
   b:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    -- remember the offset from the AH window's top-right corner
-    local ah = AuctionHouseFrame
-    local right, top = self:GetRight(), self:GetTop()
-    local ar, at = ah:GetRight(), ah:GetTop()
-    if type(right) == "number" and type(ar) == "number" then
-      CP.db.settings.ahBtnX = right - ar
-      CP.db.settings.ahBtnY = top - at
-    end
-    PlaceAHButton()
+    self:SetScript("OnUpdate", nil)
   end)
   b:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
     GameTooltip:AddLine("Profiteer", 1, 0.82, 0)
-    GameTooltip:AddLine("Craft profits and price info. Drag to move this button.", 1, 1, 1)
+    GameTooltip:AddLine("Craft profits and price info. Drag to move this button; drag the Profiteer window by its frame.", 1, 1, 1)
     GameTooltip:Show()
   end)
   b:SetScript("OnLeave", function() GameTooltip:Hide() end)

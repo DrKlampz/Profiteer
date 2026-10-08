@@ -484,7 +484,7 @@ SlashCmdList["PROFITEER"] = function(msg)
     if arg == "on" or arg == "off" then s.ahAutoOpen = (arg == "on"); CP:Print("Open with the AH: " .. arg)
     else CP:Print("usage: /pf ahopen on|off (now " .. (s.ahAutoOpen and "on" or "off") .. ")") end
   elseif cmd == "ahbutton" then
-    CP.UI.ResetAHButton()
+    CP.UI.ResetAHButton(); CP.UI.ResetWindow()
     CP:Print("AH button moved back to its default spot. Drag it to place it elsewhere.")
   elseif cmd == "minimap" then
     CP.Minimap.Command(arg)

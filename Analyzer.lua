@@ -1,7 +1,7 @@
 local ADDON, CP = ...
 
--- Reagent cost: cheapest of AH lowest buyout and a known vendor price.
-function CP:ReagentCost(id)
+-- Cost of buying an item as-is: cheapest of AH lowest buyout and a known vendor price.
+function CP:DirectCost(id)
   local p = self.db.prices[id]
   local ah = p and p.min
   -- A single lowball listing can't supply a real craft run. If the cheapest listing is
@@ -15,6 +15,33 @@ function CP:ReagentCost(id)
   if v then return v, "vendor" end
   if ah then return ah, "AH" end
   return nil
+end
+
+-- Cost of making one of an item from its materials (bar from ore, bolt from cloth ...),
+-- each material costed the cheapest way. nil if any material has no price.
+function CP:MakeCost(id, depth, seen)
+  depth, seen = depth or 0, seen or {}
+  if depth >= 4 or seen[id] then return nil end
+  local plan = self:MakePlan(id)
+  if not plan then return nil end
+  seen[id] = true
+  local total = 0
+  for _, i in ipairs(plan.inputs) do
+    local c = self:ReagentCost(i.id, depth + 1, seen)
+    if not c then seen[id] = nil return nil end
+    total = total + c * i.count
+  end
+  seen[id] = nil
+  return total / plan.yield
+end
+
+-- Reagent cost: the cheaper of buying it and making it from its materials.
+-- Returns cost, source ("AH", "vendor" or "made"), as before.
+function CP:ReagentCost(id, depth, seen)
+  local c, src = self:DirectCost(id)
+  local made = self:MakeCost(id, depth, seen)
+  if made and (not c or made < c) then return made, "made" end
+  return c, src
 end
 
 -- Price we expect to sell an item at. "safe" (default) uses the lower of the
@@ -85,6 +112,7 @@ end
 -- Returns results (sorted, filtered), skippedCount, totalDistinctCrafts
 function CP:BuildResults()
   local db, s = self.db, self.db.settings
+  self:IndexMakers()
 
   -- Group identical crafts known by several characters into one row
   local groups, order = {}, {}

@@ -19,12 +19,23 @@ local function ItemNameOrNil(id)
 end
 
 -- Names of the materials for one craft (cheapest option per slot)
+-- Intermediates are searched both ways: the bar and the ore it is smelted from, so you can
+-- buy whichever is cheaper.
 function Shop.Materials(g)
-  local names, unresolved = {}, 0
+  local names, unresolved, seen = {}, 0, {}
+  local function add(id)
+    local n = ItemNameOrNil(id)
+    if not n then unresolved = unresolved + 1 return end
+    if not seen[n] then seen[n] = true; names[#names + 1] = n end
+  end
+  CP:IndexMakers()
   for _, rg in ipairs(g.reagents) do
     local _, _, id = CP:SlotCost(rg)
-    local n = ItemNameOrNil(id or rg.id)
-    if n then names[#names + 1] = n else unresolved = unresolved + 1 end
+    id = id or rg.id
+    add(id)
+    if CP:MakePlan(id) then
+      for _, raw in ipairs(CP:RawMaterials(id)) do add(raw.id) end
+    end
   end
   return names, unresolved
 end

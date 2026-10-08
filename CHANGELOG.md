@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1
+- The Profiteer window now opens beside the Auction House instead of on top of it, and can be dragged anywhere; it remembers where you put it (/pf ahbutton resets button and window).
+- The AH "Profiteer" button drags more reliably (left or right button) and sits above the other AH widgets.
+
+## 0.7.0
+- Every craft now counts its materials both ways. A bar can be bought or smelted from ore, cloth bolts can be bought or made from cloth: whichever is cheaper is the cost used for the craft's profit, and the tooltip shows "or buy" with the ore/cloth prices and whether it beats the bar.
+- Clicking a craft searches the AH for the bar and the ore (Handful of Copper Bolts: Copper Bar, Copper Ore), including crafts several steps deep (Bronze Bar: Copper Ore, Tin Ore).
+- Works for any intermediate your characters' recipes make, plus a built-in list of the common bars and bolts.
+
 ## 0.6.3
 - Fixed click-through searching for the wrong item name. Profiteer was saving a recipe's name as the item's name, so crafts that use smelted bars searched for "Smelt Copper" instead of "Copper Bar". It now uses the game's real item names everywhere, and repairs names saved by earlier versions on the first login.
 - `/pf why` and `/pf track` still find a craft by its recipe name (for example "smelt copper").
