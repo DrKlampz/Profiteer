@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.3
+- Release packaging: Wago upload fix.
+
 ## 0.7.2
 - Release packaging fix: the Wago upload now runs from GitHub.
 
