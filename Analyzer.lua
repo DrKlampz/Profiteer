@@ -1,17 +1,14 @@
 local ADDON, CP = ...
 
--- Cost of buying an item as-is: cheapest of AH lowest buyout and a known vendor price.
+-- Cost of buying an item as-is: the vendor price when a vendor sells it, else the AH lowest buyout.
 function CP:DirectCost(id)
   local p = self.db.prices[id]
   local ah = p and p.min
   -- A single lowball listing can't supply a real craft run. If the cheapest listing is
   -- less than half the next-cheapest price, cost the reagent at the reference price.
   if ah and p.ref and ah < p.ref * 0.5 then ah = p.ref end
+  -- A vendor sells it in unlimited supply, so its price is the price (no need to look at the AH).
   local v = self.db.vendor[id]
-  if ah and v then
-    if v <= ah then return v, "vendor" end
-    return ah, "AH"
-  end
   if v then return v, "vendor" end
   if ah then return ah, "AH" end
   return nil

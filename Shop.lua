@@ -24,16 +24,17 @@ end
 function Shop.Materials(g)
   local names, unresolved, seen = {}, 0, {}
   local function add(id)
+    if CP.db.vendor[id] then return end   -- a vendor sells it: buy it there, no AH search
     local n = ItemNameOrNil(id)
     if not n then unresolved = unresolved + 1 return end
     if not seen[n] then seen[n] = true; names[#names + 1] = n end
   end
   CP:IndexMakers()
   for _, rg in ipairs(g.reagents) do
-    local _, _, id = CP:SlotCost(rg)
+    local _, src, id = CP:SlotCost(rg)
     id = id or rg.id
     add(id)
-    if CP:MakePlan(id) then
+    if src ~= "vendor" and CP:MakePlan(id) then
       for _, raw in ipairs(CP:RawMaterials(id)) do add(raw.id) end
     end
   end

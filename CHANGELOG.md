@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.9
+- Items a vendor sells are now costed at the vendor price (even when an Auction House listing is cheaper, since vendor stock is unlimited) and are left out of the AH search when you click a craft. Vendor prices are learned whenever you open a vendor that sells the item in unlimited stock; the tooltip shows "Vendor buy price".
+
 ## 0.7.8
 - Windows no longer bleed through each other: clicking a Profiteer window raises it, with its text and rows, above other addon windows (Baggie, etc.).
 
