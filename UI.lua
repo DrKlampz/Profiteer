@@ -225,6 +225,7 @@ function UI.Create()
   f:SetSize(TOTAL_W + 62, 470)
   f:SetPoint("CENTER")
   f:SetFrameStrata("HIGH")
+  f:SetToplevel(true)   -- clicking raises the window with all its contents above other addon windows
   f:SetBackdrop({
     bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
     edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",

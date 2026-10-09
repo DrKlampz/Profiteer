@@ -106,6 +106,7 @@ function R.Open(title, lines, hint)
     f:SetSize(640, 360)
     f:SetPoint("CENTER")
     f:SetFrameStrata("DIALOG")
+    f:SetToplevel(true)
     f:SetBackdrop({
       bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
       edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",

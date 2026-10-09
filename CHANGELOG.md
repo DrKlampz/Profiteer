@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.8
+- Windows no longer bleed through each other: clicking a Profiteer window raises it, with its text and rows, above other addon windows (Baggie, etc.).
+
 ## 0.7.7
 - Clicking a craft now searches for the finished item as well as its materials.
 
