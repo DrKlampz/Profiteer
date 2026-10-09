@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.7
+- Clicking a craft now searches for the finished item as well as its materials.
+
 ## 0.7.6
 - The Profiteer window no longer closes when you click a craft to search the AH, so you can keep clicking down the list.
 

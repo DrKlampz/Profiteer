@@ -107,7 +107,9 @@ function Shop.ForCraft(g)
   if unresolved > 0 then
     CP:Print(("%d material name(s) aren't known yet, so they were left out. Open the profession window again."):format(unresolved))
   end
-  return Shop.Search(names, g.name .. " materials")
+  -- the finished item goes in too, so the product and its ingredients are searched together
+  table.insert(names, 1, ItemNameOrNil(g.id) or g.name)
+  return Shop.Search(names, g.name .. " and its materials")
 end
 
 function Shop.ForOutput(g)
