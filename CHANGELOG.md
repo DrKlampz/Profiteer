@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.6
+- The Profiteer window no longer closes when you click a craft to search the AH, so you can keep clicking down the list.
+
 ## 0.7.5
 - Crafts that lose money are shown again (they were hidden because the minimum profit was 0). New "Hide money-losing" checkbox; `/pf minprofit` turns it on.
 

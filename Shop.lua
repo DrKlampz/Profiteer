@@ -42,7 +42,8 @@ end
 
 local function HidePanel()
   local f = CP.UI and CP.UI.frame
-  if f and f.docked and f:IsShown() then f:Hide() end
+  -- stays open by default so you can keep clicking crafts; settings.hideOnSearch restores the old behaviour
+  if CP.db.settings.hideOnSearch and f and f.docked and f:IsShown() then f:Hide() end
 end
 
 function Shop.Search(terms, label)
