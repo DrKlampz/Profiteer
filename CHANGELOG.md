@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.5
+- Crafts that lose money are shown again (they were hidden because the minimum profit was 0). New "Hide money-losing" checkbox; `/pf minprofit` turns it on.
+
 ## 0.7.4
 - Crafts with no AH price (nothing listed, reagent price missing) are no longer hidden: they show at the bottom of the list in grey with a "-" for profit, and the tooltip says why they are not ranked. The header counts priced and unpriced crafts.
 

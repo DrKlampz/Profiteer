@@ -22,6 +22,7 @@ local DEFAULTS = {
     minProfit = 0,         -- copper
     minListed = 3,         -- hide outputs with fewer units listed than this (one listing isn't a market)
     craftableOnly = false,
+    hideLosses = false,     -- true hides crafts whose profit is below minProfit
     sortKey = "ratio",
     sortDesc = true,
     minimapHide = false,
@@ -458,7 +459,7 @@ SlashCmdList["PROFITEER"] = function(msg)
     else CP:Print("usage: /pf cut 5") end
   elseif cmd == "minprofit" then
     local v = tonumber(arg)
-    if v then s.minProfit = v * 10000; CP:Print("Min profit set to " .. v .. "g"); CP:Refresh()
+    if v then s.minProfit = v * 10000; s.hideLosses = true; CP:Print("Min profit set to " .. v .. "g"); CP:Refresh()
     else CP:Print("usage: /pf minprofit 2") end
   elseif cmd == "minlisted" then
     local v = tonumber(arg)

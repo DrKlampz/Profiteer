@@ -330,6 +330,16 @@ function UI.Create()
   end)
   UI.onlyCraftable = cb
 
+  local cb2 = CreateFrame("CheckButton", "ProfiteerShowLosses", f, "UICheckButtonTemplate")
+  cb2:SetPoint("LEFT", cb, "RIGHT", 90, 0)
+  local cb2Text = _G["ProfiteerShowLossesText"] or cb2.Text
+  if cb2Text then pcall(function() cb2Text:SetText("Hide money-losing") end) end
+  cb2:SetScript("OnClick", function(self)
+    CP.db.settings.hideLosses = self:GetChecked() and true or false
+    UI.Rebuild()
+  end)
+  UI.hideLosses = cb2
+
   local shopTop = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   shopTop:SetSize(110, 24)
   shopTop:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 44)
@@ -355,6 +365,7 @@ function UI.Toggle()
     UI.frame:Hide()
   else
     UI.onlyCraftable:SetChecked(CP.db.settings.craftableOnly)
+    UI.hideLosses:SetChecked(CP.db.settings.hideLosses)
     UI.frame:Show()
   end
 end
@@ -405,6 +416,7 @@ function UI.ShowDocked()
   if UI.frame:IsShown() then UI.frame:Hide() end
   if not Dock() then Undock() end
   UI.onlyCraftable:SetChecked(CP.db.settings.craftableOnly)
+  UI.hideLosses:SetChecked(CP.db.settings.hideLosses)
   UI.frame:Show()
 end
 

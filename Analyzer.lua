@@ -200,7 +200,7 @@ function CP:BuildResults()
       end
 
       g.tracked = (s.tracked and s.tracked[g.key]) and true or false
-      local keep = g.profit >= s.minProfit
+      local keep = (not s.hideLosses or g.profit >= s.minProfit)
         and g.listed >= s.minListed
         and (not s.craftableOnly or g.best > 0)
         and (s.minSales <= 0 or not g.perDay or g.perDay >= s.minSales)
