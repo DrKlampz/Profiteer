@@ -31,6 +31,7 @@ local function ShowTooltip(self)
   GameTooltip:SetOwner(self, onRight and "ANCHOR_LEFT" or "ANCHOR_RIGHT")
   GameTooltip:AddLine(g.name, 1, 1, 1)
   GameTooltip:AddLine(g.prof, 0.6, 0.8, 1)
+  if g.unpriced then GameTooltip:AddLine("Not ranked: " .. (g.why or "no price data"), 1, 0.6, 0.3, true) end
   GameTooltip:AddLine(" ")
   GameTooltip:AddLine("Reagents", 1, 0.82, 0)
   for _, rg in ipairs(g.reagents) do
@@ -65,7 +66,7 @@ local function ShowTooltip(self)
   if st and st.perDay then
     GameTooltip:AddDoubleLine("Est. sales/day", string.format("%.1f", st.perDay), 1, 1, 1, 1, 1, 1)
   end
-  GameTooltip:AddDoubleLine("Sell price used", CP.Money(g.sell), 1, 1, 1, 1, 1, 1)
+  GameTooltip:AddDoubleLine("Sell price used", g.sell and CP.Money(g.sell) or "none", 1, 1, 1, 1, 1, 1)
   GameTooltip:AddDoubleLine("Price data", CP.Age(p and p.time), 1, 1, 1, 0.7, 0.7, 0.7)
   GameTooltip:AddLine(" ")
   GameTooltip:AddLine("Can craft", 1, 0.82, 0)
@@ -149,7 +150,18 @@ function UI.Update()
     local row = rows[i]
     local g = res[i + UI.offset]
     row.data = g
-    if g then
+    if g and g.unpriced then
+      row.cols.name:SetText((g.tracked and "|cffffd100*|r " or "") .. "|cff9d9d9d" .. g.name .. "|r")
+      row.cols.crafters:SetText(CraftersText(g))
+      row.cols.cost:SetText(g.cost and CP.Money(g.cost) or "|cff888888?|r")
+      row.cols.revenue:SetText("|cff888888-|r")
+      row.cols.profit:SetText("|cff888888-|r")
+      row.cols.ratio:SetText("|cff888888-|r")
+      row.cols.listed:SetText("|cff8888880|r")
+      row.cols.perday:SetText("|cff888888?|r")
+      row.cols.make:SetText(g.best > 0 and ("|cff40ff40" .. g.best .. "|r") or "|cff888888-|r")
+      row:Show()
+    elseif g then
       local profitColor = g.profit > 0 and "|cff40ff40" or "|cffff4040"
       row.cols.name:SetText((g.tracked and "|cffffd100*|r " or "") .. g.name)
       row.cols.crafters:SetText(CraftersText(g))
@@ -174,12 +186,17 @@ end
 function UI.Rebuild()
   if not CP.db then return end
   local results, skipped, total = CP:BuildResults()
-  UI.results = results
+  UI.nPriced = #results
+  local all = {}
+  for _, g in ipairs(results) do all[#all + 1] = g end
+  for _, g in ipairs(CP.unpriced or {}) do all[#all + 1] = g end
+  results = all
+  UI.results = all
   if UI.frame and UI.frame:IsShown() then
     UI.Update()
     if not CP.Scanner:IsRunning() then
-      UI.SetStatus(("%d shown, %d of %d crafts lack prices (scan the AH). Last scan: %s")
-        :format(#results, skipped, total, CP.Age(CP.db.lastScan)))
+      UI.SetStatus(("%d priced, %d more with no AH price (grey, at the bottom) of %d crafts. Last scan: %s")
+        :format(UI.nPriced or 0, #results - (UI.nPriced or 0), total, CP.Age(CP.db.lastScan)))
     end
   end
 end

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.4
+- Crafts with no AH price (nothing listed, reagent price missing) are no longer hidden: they show at the bottom of the list in grey with a "-" for profit, and the tooltip says why they are not ranked. The header counts priced and unpriced crafts.
+
 ## 0.7.3
 - Release packaging: Wago upload fix.
 

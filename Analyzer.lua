@@ -135,6 +135,7 @@ function CP:BuildResults()
 
   local results, skipped = {}, 0
   self.skippedList = {}
+  self.unpriced = {}
   for _, g in ipairs(order) do
     local p = db.prices[g.id]
     local sell = self:SellPrice(g.id)
@@ -163,6 +164,24 @@ function CP:BuildResults()
       local vs = VendorSell(g.id)
       if vs then extra = extra .. " | vendor sell " .. CP.MoneyPlain(vs) .. " each" end
       self.skippedList[#self.skippedList + 1] = g.name .. " (" .. g.prof .. "): " .. why .. extra
+
+      -- still show the craft in the window (below the priced ones), so every craft you know is visible
+      g.unpriced, g.why = true, why
+      g.cost = (not missing and cost > 0) and cost or nil
+      g.sell = sell
+      g.listed = p and p.qty or 0
+      local st = CP.History.Stats(g.id)
+      g.perDay = st and st.perDay
+      g.best = 0
+      for _, charKey in ipairs(g.chars) do
+        local n = self:CanMake(charKey, g.reagents)
+        g.make[charKey] = n
+        if n > g.best then g.best = n end
+      end
+      g.tracked = (s.tracked and s.tracked[g.key]) and true or false
+      if not s.craftableOnly or g.best > 0 then
+        self.unpriced[#self.unpriced + 1] = g
+      end
     else
       g.cost = cost
       g.sell = sell
@@ -200,6 +219,11 @@ function CP:BuildResults()
     return x < y
   end)
 
+  table.sort(self.unpriced, function(x, y)
+    if x.tracked ~= y.tracked then return x.tracked end
+    if (x.best > 0) ~= (y.best > 0) then return x.best > 0 end
+    return x.name < y.name
+  end)
   return results, skipped, #order
 end
 
