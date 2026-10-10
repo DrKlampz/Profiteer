@@ -267,6 +267,12 @@ function UI.Create()
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", -6, -6)
 
+  local ledger = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  ledger:SetSize(70, 22)
+  ledger:SetPoint("RIGHT", close, "LEFT", -2, 0)
+  ledger:SetText("Ledger")
+  ledger:SetScript("OnClick", function() CP.Ledger.Show("week") end)
+
   -- Column headers
   local x = 0
   for _, c in ipairs(COLS) do

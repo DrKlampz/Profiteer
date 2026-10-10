@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0
+- New gold ledger: Profiteer now tracks every copper in and out, across all your characters, by source. Coming in: AH sales, returned deposits, vendor sales, quest rewards, looted coin, mail gold. Going out: AH deposits, the AH cut, AH purchases, vendor purchases, repairs, postage/COD, training, flights.
+- Overhead and net profit are worked out for you (deposits kept after refunds + sale fees + repairs + flights + training).
+- `/pf ledger [today|week|month|all]` or the new Ledger button on the Profiteer window; `/pf ledger reset` clears it. Adding a new file: restart the game once.
+
 ## 0.7.9
 - Items a vendor sells are now costed at the vendor price (even when an Auction House listing is cheaper, since vendor stock is unlimited) and are left out of the AH search when you click a craft. Vendor prices are learned whenever you open a vendor that sells the item in unlimited stock; the tooltip shows "Vendor buy price".
 

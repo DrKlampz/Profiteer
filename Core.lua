@@ -14,6 +14,8 @@ local DEFAULTS = {
   inventory = {},  -- [charKey] = { bags = {[id]=n}, bank = {[id]=n}, time }
   chars = {},      -- [charKey] = { class, seen }
   history = {},    -- [itemID] = { snapshot, ... }  (see History.lua)
+  ledger = {},     -- [YYYY-MM-DD][category] = copper (see Ledger.lua)
+  ledgerChars = {},-- [charKey][category] = copper, all time
   listings = {},   -- [itemID] = { t, sigs }  last scan's listings, for sales tracking
   lastScan = 0,
   sessions = 0,    -- how many times this file has been loaded (persistence check)
@@ -380,6 +382,7 @@ local function PrintHelp()
   CP:Print("  /pf minimap radius <n>  push the button further out (now " .. (s.minimapOffset or 12) .. ")   /pf minimap reset")
   CP:Print("  /pf shop [tracked]   send the materials for the top 10 (or your tracked) crafts to the AH search")
   CP:Print("  /pf track <craft>    pin / unpin a craft at the top of the list (or right-click its row)")
+  CP:Print("  /pf ledger [today|week|month|all]  gold in and out by source, with overhead and net   /pf ledger reset")
   CP:Print("  /pf missing          list the crafts left out for lack of prices, and why")
   CP:Print("  /pf why <craft>      show how one craft's cost and price were worked out")
   CP:Print("  /pf report           copyable diagnostic report (use this when something's wrong)")
@@ -510,6 +513,8 @@ SlashCmdList["PROFITEER"] = function(msg)
   elseif cmd == "errors" then
     if #CP.errors == 0 then CP:Print("No errors captured this session.") end
     for i, e in ipairs(CP.errors) do CP:Print(i .. ". " .. e) end
+  elseif cmd == "ledger" or cmd == "gold" then
+    if arg == "reset" then CP.Ledger.Reset() CP:Print("Gold ledger cleared.") else CP.Ledger.Show(arg) end
   elseif cmd == "reset" and arg == "prices" then
     CP.db.prices = {}
     CP.db.history = {}

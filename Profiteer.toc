@@ -2,7 +2,7 @@
 ## Title: Profiteer
 ## Notes: Full AH scan, price history and tooltips, plus a ranking of what all your characters can craft by profit and ROI. Built for WoW Forever.
 ## Author: David
-## Version: 0.7.9
+## Version: 0.8.0
 ## IconTexture: Interface\AddOns\Profiteer\Media\icon
 ## SavedVariables: ProfiteerDB
 ## X-License: MIT
@@ -15,6 +15,7 @@ Recipes.lua
 Intermediates.lua
 Inventory.lua
 Scanner.lua
+Ledger.lua
 Analyzer.lua
 Shop.lua
 UI.lua
