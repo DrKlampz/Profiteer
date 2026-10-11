@@ -81,7 +81,7 @@ function H.AddDivider(row)
   local d = row:CreateTexture(nil, "ARTWORK")
   d:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
   d:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
-  d:SetHeight(1)
+  d:SetHeight(1.5)
   dividers[#dividers + 1] = d
   H.ApplyDividers()
 end
@@ -91,6 +91,18 @@ function H.ApplyDividers()
   for _, d in ipairs(dividers) do
     d:SetColorTexture(a[1], a[2], a[3], 0.35)
     d:SetShown(on)
+  end
+end
+
+-- after a list scrolls, the row under the mouse changed: drop the old tooltip and show the new row's
+function H.Rehover(rows)
+  if GameTooltip then GameTooltip:Hide() end
+  for _, r in ipairs(rows) do
+    if r:IsShown() and r:IsMouseOver() then
+      local f = r:GetScript("OnEnter")
+      if f then pcall(f, r) end
+      break
+    end
   end
 end
 
@@ -120,6 +132,7 @@ function H.RowList(parent, rows, rowH, make)
     local max = math.max(0, L.n - rows)
     L.offset = math.max(0, math.min(max, L.offset - delta * 3))
     if L.refresh then L.refresh() end
+    H.Rehover(L.rows)
   end)
   return L
 end

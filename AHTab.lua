@@ -137,7 +137,16 @@ local function Create()
     t:SetText(k[2])
     local tw = (t.Text and t.Text.GetStringWidth and t.Text:GetStringWidth()) or 60
     if t.Text and t.Text.SetWidth then t.Text:SetWidth(tw + 12) if t.Text.SetWordWrap then t.Text:SetWordWrap(false) end end
-    t:SetWidth(math.max(96, tw + 44))
+    local tabW = math.max(112, math.floor(tw * 1.25 + 50))
+    t:SetWidth(tabW)
+    if t.Text and t.Text.SetWidth then
+      if t.Text.GetNumPoints and t.Text:GetNumPoints() > 1 then
+        t.Text:ClearAllPoints()
+        t.Text:SetPoint("CENTER", t, "CENTER", 0, -3)
+      end
+      t.Text:SetWidth(tabW - 16)
+      t:HookScript("OnShow", function() t:SetWidth(tabW) t.Text:SetWidth(tabW - 16) end)
+    end
     if i == 1 then
       if keep then
         t:SetPoint("LEFT", last, "RIGHT", -15, 0)

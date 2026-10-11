@@ -360,6 +360,7 @@ function UI.Create()
   f:SetScript("OnMouseWheel", function(_, delta)
     UI.offset = math.max(0, math.min(MaxOffset(), UI.offset - delta * 3))
     UI.Update()
+    if CP.AH then CP.AH.Rehover(rows) end
   end)
   f:Hide()
   table.insert(UISpecialFrames, "ProfiteerFrame")
