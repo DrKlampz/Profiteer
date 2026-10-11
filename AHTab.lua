@@ -47,18 +47,26 @@ local function Embed()
   f:SetToplevel(false)
   f:SetMovable(false)
   -- shrink to fit if the AH is narrower or shorter than the window; never grow
-  local hw, hh, fw, fh = host:GetWidth(), host:GetHeight(), f:GetWidth(), f:GetHeight()
-  local sc = 1
-  if hw and hh and fw and fh and fw > 0 and fh > 0 then sc = math.min(1, hw / fw, hh / fh) end
-  f:SetScale(sc)
+  -- (the window look's own size setting multiplies on top of this, see LookSetup)
+  local function Fit()
+    if not embedded then return end
+    local hw, hh, fw, fh = host:GetWidth(), host:GetHeight(), f:GetWidth(), f:GetHeight()
+    local sc = 1
+    if hw and hh and fw and fh and hw > 50 and hh > 50 and fw > 0 and fh > 0 then sc = math.min(1, (hw - 4) / fw, (hh - 4) / fh) end
+    f.fitScale = sc
+    f:SetScale(sc)
+    if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end
+  end
+  AHTab.Fit = Fit
   if f.SetBackdropColor then f:SetBackdropColor(0, 0, 0, 0) f:SetBackdropBorderColor(0, 0, 0, 0) end
   if f.bgTex then f.bgTex:Hide() end
   if f.closeBtn then f.closeBtn:Hide() end
   if f.titleFS then f.titleFS:Hide() end
   for _, t in pairs(UI.tabs or {}) do t:Hide() end   -- the AH's bottom tabs do the navigation now
   embedded = true
+  Fit()
   f:Show()
-  CP.After(0.05, function() if embedded and f.lookBg then f.lookBg:Hide() end end)
+  CP.After(0.05, function() Fit() if embedded and f.lookBg then f.lookBg:Hide() end end)
 end
 
 local function Unembed()
@@ -68,6 +76,8 @@ local function Unembed()
   if not f then return end
   f:Hide()
   f:SetParent(UIParent)
+  f.fitScale = nil
+  f:SetScale(1)
   f:SetMovable(true)
   f:SetToplevel(true)
   f:SetFrameStrata("HIGH")
