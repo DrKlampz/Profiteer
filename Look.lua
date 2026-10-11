@@ -365,12 +365,12 @@ local function ApplyFonts(frame, s, on)
 end
 
 -- game buttons (the red "panel" buttons) wearing the window's button look
-local skinAll = false   -- a window can ask for every labelled button to be skinned (the auction house's own pages)
+local skinAll, skinSkip = false, nil   -- a window can ask for every labelled button to be skinned (the auction house's own pages)
 local function IsPanelButton(b)
     if not (b.GetObjectType and b:GetObjectType() == "Button") then return false end
     if b.lookNoSkin or b.lookBtn == false then return false end
     if b.Left and b.Right then return true end
-    if skinAll then
+    if skinAll and not (skinSkip and skinSkip(b)) then
         local fs = b.GetFontString and b:GetFontString()
         local w, h = b:GetWidth() or 0, b:GetHeight() or 0
         local nm = b.GetName and b:GetName() or ""
@@ -488,8 +488,9 @@ end
 local function ApplyButtons(frame, s, on, spec)
     on = on and s.buttons and true or false
     skinAll = spec and spec.skinAll and true or false
+    skinSkip = spec and spec.skinSkip
     WalkButtons(frame, function(b) Safe(SkinButton, b, s, on) end)
-    skinAll = false
+    skinAll, skinSkip = false, nil
 end
 
 local function ApplyOne(spec)

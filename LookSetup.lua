@@ -60,6 +60,18 @@ CP.WinLook.Setup({
           apply = function(frame, _, on) if frame and frame.fitScale then frame:SetScale(on and math.min(frame:GetScale(), frame.fitScale) or frame.fitScale) end end },
         { id = "report", name = "Report box", global = "ProfiteerReportFrame", strip = "backdrop" },
         { id = "ah", name = "Auction house", global = "AuctionHouseFrame", strip = "template", defaultOn = true, skinAll = true,
+          -- only the real action buttons (Search, Filter and the like); the category list and column headers keep their own look
+          skinSkip = function(b)
+            local AH = _G.AuctionHouseFrame
+            local p, n = b, 0
+            local cats = AH and AH.CategoriesList
+            local hdr = AH and AH.BrowseResultsFrame and AH.BrowseResultsFrame.ItemList and AH.BrowseResultsFrame.ItemList.HeaderContainer
+            while p and n < 6 do
+              if p == cats or p == hdr then return true end
+              p = p.GetParent and p:GetParent() n = n + 1
+            end
+            return b.categoryInfo ~= nil or b.sortOrder ~= nil or b.GetName and (b:GetName() or ""):find("Header") ~= nil
+          end,
           hide = { "MoneyFrameBorder", "MoneyFrameInset" },
           title = function(f) return (f.TitleContainer and f.TitleContainer.TitleText) or f.TitleText end,
           apply = function() if CP.AHTab and CP.AHTab.Restyle then CP.AHTab.Restyle() end end },
