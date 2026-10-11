@@ -227,6 +227,7 @@ function AHTab.Go(key)
   if CP.db and CP.db.settings then CP.db.settings.ahLastTab = key end
   Mark(key)
   CP.UI.SetTab(key)
+  if AHTab.PlaceTabs then AHTab.PlaceTabs() CP.After(0.15, AHTab.PlaceTabs) end
   return true
 end
 
@@ -263,6 +264,7 @@ function AHTab.Game()
   end
   Mark("game")
   AHTab.Title()
+  if AHTab.PlaceTabs then CP.After(0.15, AHTab.PlaceTabs) end
   if CP.db and CP.db.settings then CP.db.settings.ahLastTab = "game" end
   if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end
   CP.After(0.1, function() if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end AHTab.StyleGame() end)
@@ -311,9 +313,9 @@ local function PlaceTabs()
   local low = base
   for _, f in ipairs({ AH.BrowseResultsFrame, AH.CategoriesList, AH.SearchBar }) do
     local b = f and f.GetBottom and f:GetBottom()
-    if b and b < low then low = b end
+    -- only the game's page when it is on screen: hidden frames keep their old anchors and would push the tabs down
+    if b and b < low and f:IsVisible() then low = b end
   end
-  local es, ae = AH:GetEffectiveScale(), AH:GetEffectiveScale()
   local drop = math.max(0, base - low)
   first:ClearAllPoints()
   first:SetPoint("TOPLEFT", AH, "BOTTOMLEFT", 14, 1 - drop)
