@@ -6,7 +6,7 @@ local ADDON, CP = ...
 local AHTab = {}
 CP.AHTab = AHTab
 
-local KEYS = { { "shopping", "Shopping" }, { "selling", "Selling" }, { "cancelling", "Cancelling" }, { "crafts", "Crafts" }, { "ledger", "Ledger" } }
+local KEYS = { { "game", "Auction House" }, { "shopping", "Shopping" }, { "selling", "Selling" }, { "cancelling", "Cancelling" }, { "crafts", "Crafts" }, { "ledger", "Ledger" } }
 local tabs, host, hostBg
 local embedded = false
 local current
@@ -134,6 +134,22 @@ function AHTab.Go(key)
   return true
 end
 
+-- the game's own Browse page, for searching the auction house the usual way
+function AHTab.Game()
+  if not (tabs and AuctionHouseFrame and AuctionHouseFrame:IsShown()) then return end
+  AHTab.Leave()
+  local AH = AuctionHouseFrame
+  local modes = _G.AuctionHouseFrameDisplayMode
+  local done = false
+  if AH.SetDisplayMode and modes and modes.Buy then done = pcall(AH.SetDisplayMode, AH, modes.Buy) end
+  if not done and _G.AuctionHouseFrameBuyTab then pcall(_G.AuctionHouseFrameBuyTab.Click, _G.AuctionHouseFrameBuyTab) end
+  for _, k in ipairs({ "BrowseResultsFrame", "CategoriesList", "SearchBar" }) do
+    local f = AH[k]
+    if f and f.Show then pcall(f.Show, f) end
+  end
+  Mark("game")
+end
+
 function AHTab.Select() return AHTab.Go(current or "shopping") end
 
 local function Create()
@@ -182,7 +198,7 @@ local function Create()
     else
       t:SetPoint("LEFT", prev, "RIGHT", 2, 0)
     end
-    t:SetScript("OnClick", function() AHTab.Go(k[1]) end)
+    t:SetScript("OnClick", function() if k[1] == "game" then AHTab.Game() else AHTab.Go(k[1]) end end)
     SetSelected(t, false)
     made[k[1]] = t
     prev = t

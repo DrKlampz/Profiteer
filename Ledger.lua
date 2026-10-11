@@ -1078,8 +1078,24 @@ function L.Refresh()
       local v = r[c]
       if r.k == "head" and v ~= nil then v = "|cffffd100" .. tostring(v) .. "|r" end
       if r.k == "gap" then v = nil end
-      ln.fs[c]:SetText(v ~= nil and tostring(v) or "")
-      ln.fs[c]:Show()
+      local fs = ln.fs[c]
+      fs:SetWidth(COLW[c])
+      fs:SetJustifyH(c == 1 and "LEFT" or "RIGHT")
+      fs:SetText(v ~= nil and tostring(v) or "")
+      fs:Show()
+    end
+    -- text wider than its column takes over the empty columns after it (left aligned) instead of being cut off
+    for c = 1, 4 do
+      local fs = ln.fs[c]
+      if fs:GetText() and fs:GetText() ~= "" and (fs:GetStringWidth() or 0) > COLW[c] - 1 then
+        local span, n = COLW[c], c + 1
+        while n <= 5 and (r[n] == nil or r[n] == "") do span = span + 4 + COLW[n] n = n + 1 end
+        if span > COLW[c] then
+          fs:SetWidth(span)
+          fs:SetJustifyH("LEFT")
+          for m = c + 1, n - 1 do ln.fs[m]:SetText("") end
+        end
+      end
     end
   end
   for i = #rows + 1, #L.lines do
