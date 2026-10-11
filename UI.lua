@@ -319,6 +319,7 @@ function UI.Create()
 
   local f = CreateFrame("Frame", "ProfiteerFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
   UI.frame = f
+  if CP.WinLook then CP.WinLook.Attach("main", f) end
   f.docked = false
   f:SetSize(TOTAL_W + 62, 470)
   f:SetPoint("CENTER")
@@ -336,6 +337,7 @@ function UI.Create()
   bgTex:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -8)
   bgTex:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 8)
   bgTex:SetColorTexture(0.04, 0.04, 0.06, 0.96)
+  f.bgTex = bgTex
   f:EnableMouse(true)
   f:SetMovable(true)
   f:RegisterForDrag("LeftButton")

@@ -1,6 +1,7 @@
 # Changelog
 
 ## 0.8.2
+- New: window customization. Type /profiteerlook to restyle each window separately (or all together): background textures, colors with copy/paste, opacity sliders, border styles, fonts, scale and position lock. Off until you tick "Use a custom look"; unticking restores the original.
 - Ledger fix: the Unrealized total counted a stack's price once instead of for every item in it (a 150-stack priced at 1s98c each counted as 1s98c, not 2g97s), so it came out far too low. Stacks are now priced per item times the quantity, and item names show correctly.
 - Ledger fix: gold mailed between your own characters is now always recognized as a transfer (not income and not spending). It no longer depends on the game call that sets the gold, the receiving character now books it too, and gold already recorded as mail in and mail out is paired up and corrected once.
 - Ledger fix: auction deposits are matched to the auctions being created, so a slow posting no longer shows up as "AH purchases".

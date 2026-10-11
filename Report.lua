@@ -103,6 +103,7 @@ function R.Open(title, lines, hint)
   if not R.frame then
     local f = CreateFrame("Frame", "ProfiteerReportFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     R.frame = f
+    if CP.WinLook then CP.WinLook.Attach("report", f) end
     f:SetSize(640, 360)
     f:SetPoint("CENTER")
     f:SetFrameStrata("DIALOG")

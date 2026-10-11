@@ -10,6 +10,8 @@
 ## X-Curse-Project-ID: 1724073
 
 Core.lua
+Look.lua
+LookSetup.lua
 History.lua
 Recipes.lua
 Intermediates.lua
