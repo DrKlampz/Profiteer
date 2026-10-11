@@ -5,7 +5,7 @@ CP.UI = UI
 local ROWS, ROW_H, GAP = 16, 20, 4
 local COLS = {
   { key = "name",     label = "Item",        w = 170, align = "LEFT",  sortable = true },
-  { key = "crafters", label = "Crafters",    w = 110, align = "LEFT" },
+  { key = "crafters", label = "Crafters",    w = 90,  align = "LEFT" },
   { key = "cost",     label = "Cost",        w = 85,  align = "RIGHT", sortable = true },
   { key = "revenue",  label = "Sells (net)", w = 85,  align = "RIGHT", sortable = true },
   { key = "profit",   label = "Profit",      w = 85,  align = "RIGHT", sortable = true },
@@ -13,6 +13,7 @@ local COLS = {
   { key = "listed",   label = "Listed",      w = 45,  align = "RIGHT", sortable = true },
   { key = "perday",   label = "Sold/day",    w = 52,  align = "RIGHT", sortable = true },
   { key = "make",     label = "Can make",    w = 55,  align = "RIGHT", sortable = true },
+  { key = "depth",    label = "Buy up to",   w = 60,  align = "RIGHT" },
 }
 local TOTAL_W = 0
 for _, c in ipairs(COLS) do TOTAL_W = TOTAL_W + c.w + GAP end
@@ -69,6 +70,29 @@ local function ShowTooltip(self)
   GameTooltip:AddDoubleLine("Sell price used", g.sell and CP.Money(g.sell) or "none", 1, 1, 1, 1, 1, 1)
   GameTooltip:AddDoubleLine("Price data", CP.Age(p and p.time), 1, 1, 1, 0.7, 0.7, 0.7)
   GameTooltip:AddLine(" ")
+  local d = CP:BuyDepth(g)
+  if d then
+    GameTooltip:AddLine("How much to buy before it stops paying", 1, 0.82, 0)
+    if d.crafts == 0 then
+      GameTooltip:AddLine("Even the cheapest listings of the materials leave no profit.", 1, 0.5, 0.4, true)
+    else
+      GameTooltip:AddDoubleLine("Crafts worth making", d.crafts .. (d.crafts > 1 and (" (" .. d.crafts * (g.yield or 1) .. " items)") or ""), 1, 1, 1, 0.4, 1, 0.4)
+      for _, sl in ipairs(d.mats) do
+        GameTooltip:AddDoubleLine("   " .. CP.ItemName(sl.id), sl.units .. "  up to " .. CP.Money(sl.worst), 1, 1, 1, 1, 1, 1)
+      end
+      GameTooltip:AddDoubleLine("Materials cost", CP.Money(math.floor(d.cost)), 1, 1, 1, 1, 1, 1)
+      GameTooltip:AddDoubleLine("Profit from all of it", CP.Money(math.floor(d.profit)), 1, 1, 1, 0.4, 1, 0.4)
+    end
+    if d.reason == "price" then
+      GameTooltip:AddLine("Stops because the next one's materials cost more than it sells for.", 0.7, 0.7, 0.7, true)
+    elseif d.reason == "supply" then
+      GameTooltip:AddLine("Stops because the AH has no more " .. CP.ItemName(d.limiter) .. " listed.", 0.7, 0.7, 0.7, true)
+    else
+      GameTooltip:AddLine("Still profitable at the largest quantity checked.", 0.7, 0.7, 0.7, true)
+    end
+    GameTooltip:AddLine("Based on the last scan, selling price held steady.", 0.5, 0.5, 0.5, true)
+    GameTooltip:AddLine(" ")
+  end
   GameTooltip:AddLine("Can craft", 1, 0.82, 0)
   for _, charKey in ipairs(g.chars) do
     local inv = CP.db.inventory[charKey]
@@ -122,6 +146,18 @@ local function CreateRow(i)
   return row
 end
 
+-- "Buy up to": how many crafts' worth of materials you can buy before the next craft stops paying
+local function DepthText(g)
+  if g.depth == nil then
+    local ok, d = pcall(CP.BuyDepth, CP, g)
+    g.depth = ok and d or false
+  end
+  local d = g.depth
+  if not d then return "|cff888888?|r" end
+  if d.crafts == 0 then return "|cffff40400|r" end
+  return (d.reason == "supply" and "|cffffa040" or "|cff40ff40") .. d.crafts .. (d.reason == "cap" and "+" or "") .. "|r"
+end
+
 local function CraftersText(g)
   local names = {}
   for _, k in ipairs(g.chars) do names[#names + 1] = CP.ShortName(k) end
@@ -161,6 +197,7 @@ function UI.Update()
       row.cols.listed:SetText("|cff8888880|r")
       row.cols.perday:SetText("|cff888888?|r")
       row.cols.make:SetText(g.best > 0 and ("|cff40ff40" .. g.best .. "|r") or "|cff888888-|r")
+      row.cols.depth:SetText("|cff888888-|r")
       row:Show()
     elseif g then
       local profitColor = g.profit > 0 and "|cff40ff40" or "|cffff4040"
@@ -173,6 +210,7 @@ function UI.Update()
       row.cols.listed:SetText(g.listed < 10 and ("|cffffa040" .. g.listed .. "|r") or g.listed)
       row.cols.perday:SetText(g.perDay and string.format("%.1f", g.perDay) or "|cff888888?|r")
       row.cols.make:SetText(g.best > 0 and ("|cff40ff40" .. g.best .. "|r") or "|cff888888-|r")
+      row.cols.depth:SetText(DepthText(g))
       row:Show()
     else
       row:Hide()

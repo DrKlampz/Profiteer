@@ -86,6 +86,105 @@ function CP:CanMake(charKey, reagents)
   return best or 0
 end
 
+-- The AH as a price ladder for one item: { {unit price, units}, ... } cheapest first, from the last scan.
+function CP:Ladder(id)
+  local l = self.db.listings and self.db.listings[id]
+  if not l or type(l.sigs) ~= "table" then return nil end
+  local out = {}
+  for sig, e in pairs(l.sigs) do
+    local count, total = tostring(sig):match("^(%d+)x(%d+)$")
+    count, total = tonumber(count), tonumber(total)
+    if count and total and count > 0 and e.c and e.c > 0 then
+      out[#out + 1] = { total / count, count * e.c }
+    end
+  end
+  if #out == 0 then return nil end
+  table.sort(out, function(a, b) return a[1] < b[1] end)
+  return out
+end
+
+-- How far can you keep buying the raw materials for a craft before it stops paying?
+-- Walks each material up the AH price ladder one craft at a time; the craft stops when the next one's
+-- materials cost more than it sells for (less your minimum profit). Materials a vendor sells never run out.
+-- Returns { crafts, profit, cost, mats = { {id, units, worst} }, reason = "price"|"supply"|"cap", limiter } or nil.
+function CP:BuyDepth(g)
+  if not g or g.unpriced or not g.revenue then return nil end
+  local minProfit = self.db.settings.minProfit or 0
+  local slots = {}
+  local function addSlot(id, count)
+    local slot = { id = id, count = count, units = 0, worst = 0, frac = 0 }
+    local c, src = self:DirectCost(id)
+    if not c then return false end
+    if src == "AH" then
+      slot.ladder = self:Ladder(id)
+      if not slot.ladder then return false end
+      slot.i, slot.left = 1, slot.ladder[1][2]
+    else
+      slot.flat = c                       -- a vendor sells it: priced flat, never runs out
+    end
+    slots[#slots + 1] = slot
+    return true
+  end
+  for _, rg in ipairs(g.reagents) do
+    local c, src, id = self:SlotCost(rg)
+    if not c then return nil end
+    if src == "made" then
+      -- bought as raw materials (ore for a bar, cloth for a bolt): walk the raw materials' price ladders
+      for _, raw in ipairs(self:RawMaterials(id)) do
+        if not addSlot(raw.id, raw.count * rg.count) then return nil end
+      end
+    elseif not addSlot(id, rg.count) then
+      return nil
+    end
+  end
+  local res = { crafts = 0, profit = 0, cost = 0, mats = slots, reason = "cap" }
+  local function take(slot)
+    -- take one unit, returns its price or nil when the AH has no more
+    if slot.flat then slot.units = slot.units + 1 slot.worst = slot.flat return slot.flat end
+    while slot.left <= 0 do
+      slot.i = slot.i + 1
+      local nxt = slot.ladder[slot.i]
+      if not nxt then return nil end
+      slot.left = nxt[2]
+    end
+    slot.left = slot.left - 1
+    local p = slot.ladder[slot.i][1]
+    slot.units = slot.units + 1
+    if p > slot.worst then slot.worst = p end
+    return p
+  end
+  for _ = 1, 2000 do
+    local before = {}
+    for i, sl in ipairs(slots) do before[i] = { sl.units, sl.worst, sl.i, sl.left, sl.frac } end
+    local marginal, short = 0, nil
+    for _, sl in ipairs(slots) do
+      sl.frac = sl.frac + sl.count
+      local need = math.floor(sl.frac + 1e-9)
+      sl.frac = sl.frac - need
+      for _ = 1, need do
+        local p = take(sl)
+        if not p then short = sl break end
+        marginal = marginal + p
+      end
+      if short then break end
+    end
+    if short then
+      for i, sl in ipairs(slots) do sl.units, sl.worst, sl.i, sl.left, sl.frac = before[i][1], before[i][2], before[i][3], before[i][4], before[i][5] end
+      res.reason, res.limiter = "supply", short.id
+      break
+    end
+    if g.revenue - marginal < minProfit or g.revenue - marginal <= 0 then
+      for i, sl in ipairs(slots) do sl.units, sl.worst, sl.i, sl.left, sl.frac = before[i][1], before[i][2], before[i][3], before[i][4], before[i][5] end
+      res.reason = "price"
+      break
+    end
+    res.crafts = res.crafts + 1
+    res.cost = res.cost + marginal
+    res.profit = res.profit + (g.revenue - marginal)
+  end
+  return res
+end
+
 local SORTERS = {
   name   = function(g) return g.name:lower() end,
   cost   = function(g) return g.cost end,

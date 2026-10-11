@@ -2,6 +2,7 @@
 
 ## 0.8.2
 - Ledger: new "Unrealized: listed, not sold yet" section. For each character it shows how many auctions you have up, their total asking price and an estimate after the AH cut, any sold items whose gold is still in the mail, and your biggest listings. It updates every time you open the auction house.
+- Crafts: new "Buy up to" column and tooltip section. Walks each material up the AH price ladder from your last scan and tells you how many crafts you can buy materials for before the next one stops paying (and how much of each material, at what top price, and the total profit). Notes when the AH simply runs out of a material.
 - Search: partial words and any word order now match, with the best name matches listed first.
 
 ## 0.8.1
