@@ -161,6 +161,7 @@ local function Embed()
     end
     f.fitScale = sc
     f:SetScale(sc)
+    if AHTab.PlaceTabs then CP.After(0.1, AHTab.PlaceTabs) end
     if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end
     if CP.AH and CP.AH.ApplyDividers then CP.AH.ApplyDividers() end
   end
@@ -299,6 +300,26 @@ end
 
 function AHTab.Select() return AHTab.Go(current or "shopping") end
 
+-- the game's own page (categories list, results and their scroll arrows) can hang lower than the window's edge:
+-- the tabs go below whichever is lowest, so they never cover the up and down arrows
+local function PlaceTabs()
+  if not tabs or CP.db.settings.keepGameTabs then return end
+  local AH = _G.AuctionHouseFrame
+  local first = tabs[KEYS[1][1]]
+  if not (AH and first and AH:GetBottom()) then return end
+  local base = AH:GetBottom()
+  local low = base
+  for _, f in ipairs({ AH.BrowseResultsFrame, AH.CategoriesList, AH.SearchBar }) do
+    local b = f and f.GetBottom and f:GetBottom()
+    if b and b < low then low = b end
+  end
+  local es, ae = AH:GetEffectiveScale(), AH:GetEffectiveScale()
+  local drop = math.max(0, base - low)
+  first:ClearAllPoints()
+  first:SetPoint("TOPLEFT", AH, "BOTTOMLEFT", 14, 1 - drop)
+end
+AHTab.PlaceTabs = PlaceTabs
+
 local function Create()
   if tabs or not AuctionHouseFrame then return end
   local buy = _G.AuctionHouseFrameBuyTab
@@ -352,6 +373,8 @@ local function Create()
     prev = t
   end
   tabs = made
+  CP.After(0.2, PlaceTabs)
+  AuctionHouseFrame:HookScript("OnShow", function() CP.After(0.2, PlaceTabs) end)
 
   if not keep then
     for _, bt in ipairs(Blizz()) do if bt then bt:Hide() end end
