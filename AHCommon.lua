@@ -57,6 +57,43 @@ end
 function H.Money(c) return CP.Money(c and math.floor(c + 0.5) or 0) end
 
 -- the list rows every pane uses: a scrollable stack of buttons
+function H.Accent()
+  local L = CP.WinLook
+  if L and L.On and L.On("main") then local e = L.Effective("main") if e and e.edgeColor then return e.edgeColor end end
+  return { 0.85, 0.65, 0.2 }
+end
+
+function H.Panel(parent, w, h)
+  local f = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  f:SetSize(w, h)
+  if f.SetBackdrop then
+    f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    f:SetBackdropColor(0.02, 0.02, 0.04, 0.55)
+    local a = H.Accent()
+    f:SetBackdropBorderColor(a[1], a[2], a[3], 0.55)
+  end
+  return f
+end
+
+-- thin bars between list rows (Options: "Draw dividing bars between rows")
+local dividers = {}
+function H.AddDivider(row)
+  local d = row:CreateTexture(nil, "ARTWORK")
+  d:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+  d:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+  d:SetHeight(1)
+  dividers[#dividers + 1] = d
+  H.ApplyDividers()
+end
+function H.ApplyDividers()
+  local on = CP.db and CP.db.settings and CP.db.settings.rowDividers and true or false
+  local a = H.Accent()
+  for _, d in ipairs(dividers) do
+    d:SetColorTexture(a[1], a[2], a[3], 0.35)
+    d:SetShown(on)
+  end
+end
+
 function H.RowList(parent, rows, rowH, make)
   local L = { rows = {}, offset = 0, n = 0 }
   for i = 1, rows do
@@ -75,6 +112,7 @@ function H.RowList(parent, rows, rowH, make)
     r:SetScript("OnEnter", function(self) self.hl:Show() end)
     r:SetScript("OnLeave", function(self) self.hl:Hide() end)
     make(r, i)
+    H.AddDivider(r)
     L.rows[i] = r
   end
   parent:EnableMouseWheel(true)

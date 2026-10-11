@@ -136,7 +136,8 @@ local function Create()
     if not ok or not t then CP:Print("Could not create the Profiteer tabs in the auction house.") return end
     t:SetText(k[2])
     local tw = (t.Text and t.Text.GetStringWidth and t.Text:GetStringWidth()) or 60
-    t:SetWidth(math.max(88, tw + 40))
+    if t.Text and t.Text.SetWidth then t.Text:SetWidth(tw + 12) if t.Text.SetWordWrap then t.Text:SetWordWrap(false) end end
+    t:SetWidth(math.max(96, tw + 44))
     if i == 1 then
       if keep then
         t:SetPoint("LEFT", last, "RIGHT", -15, 0)

@@ -25,6 +25,7 @@ local function Options()
             L.Kon("Scan automatically when the auction house opens (if data is stale)", st, "autoScan"),
             L.Koff("Open the Profiteer panel with the auction house", st, "ahAutoOpen"),
             L.Kon("Show Profiteer lines in item tooltips", st, "tooltips"),
+            L.Koff("Draw dividing bars between rows (Shopping, Selling, Cancelling and Crafts lists)", st, "rowDividers", function() if CP.AH then CP.AH.ApplyDividers() end end),
             L.Koff("Keep the game's own Buy / Sell / Auctions tabs (Profiteer's tabs go after them; reopen the auction house)", st, "keepGameTabs"),
         } },
         { id = "mmap", title = "Minimap", rows = {

@@ -80,12 +80,18 @@ function Sl.Draw()
       r:Hide()
     end
   end
+  local acc = H.Accent()
+  W.accentLine:SetColorTexture(acc[1], acc[2], acc[3], 0.9)
+  W.lp:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.55)
+  W.rp:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.55)
   local e = Selected()
   if not e then
+    W.icon:SetTexture(134400) W.icon:SetDesaturated(true)
     W.head:SetText("Pick something from your bags")
     W.low:SetText("") W.dep:SetText("") W.post:Disable()
     return
   end
+  W.icon:SetTexture(e.icon or H.Icon(e.id)) W.icon:SetDesaturated(false)
   W.head:SetText(e.link or CP.ItemName(e.id))
   local p = CP.db.prices[e.id]
   W.low:SetText("Lowest at the last scan: " .. (p and p.min and H.Money(p.min) or "no data") ..
@@ -137,11 +143,20 @@ function Sl.Build(parent, w, h)
   Sl.pane = pane
   local leftW = 290
 
-  local t = H.Text(pane, "GameFontNormal")
-  t:SetPoint("TOPLEFT", 4, -2)
+  local ph = ROWS * 20 + 30
+  W.accentLine = pane:CreateTexture(nil, "ARTWORK")
+  W.lp = H.Panel(pane, leftW + 8, ph)
+  W.lp:SetPoint("TOPLEFT", 0, -6)
+  W.rp = H.Panel(pane, w - leftW - 12, ph)
+  W.rp:SetPoint("TOPRIGHT", 0, -6)
+  W.accentLine:SetPoint("TOPLEFT", 0, -3)
+  W.accentLine:SetPoint("TOPRIGHT", 0, -3)
+  W.accentLine:SetHeight(2)
+  local t = H.Text(W.lp, "GameFontNormal")
+  t:SetPoint("TOPLEFT", 8, -8)
   t:SetText("Your bags (not soulbound)")
   local lf = CreateFrame("Frame", nil, pane)
-  lf:SetPoint("TOPLEFT", 0, -22)
+  lf:SetPoint("TOPLEFT", 4, -32)
   lf:SetSize(leftW, ROWS * 20)
   listf = H.RowList(lf, ROWS, 20, function(r)
     r.icon = r:CreateTexture(nil, "ARTWORK") r.icon:SetSize(16, 16) r.icon:SetPoint("LEFT", 2, 0)
@@ -152,16 +167,22 @@ function Sl.Build(parent, w, h)
   end)
   listf.refresh = Sl.Draw
 
-  local rx = leftW + 24
-  W.head = H.Text(pane, "GameFontNormalLarge")
-  W.head:SetPoint("TOPLEFT", rx, -2)
-  W.head:SetWidth(w - rx)
+  local rx = leftW + 28
+  local rp = W.rp
+  W.icon = rp:CreateTexture(nil, "ARTWORK")
+  W.icon:SetSize(40, 40)
+  W.icon:SetPoint("TOPLEFT", rx - 12 + 0, -10)
+  W.iconBorder = rp:CreateTexture(nil, "OVERLAY")
+  W.iconBorder:SetAllPoints(W.icon)
+  W.head = H.Text(rp, "GameFontNormalLarge")
+  W.head:SetPoint("TOPLEFT", rx + 34, -12)
+  W.head:SetWidth(w - rx - 44)
   W.head:SetJustifyH("LEFT")
-  W.low = H.Text(pane)
-  W.low:SetPoint("TOPLEFT", rx, -34)
+  W.low = H.Text(rp)
+  W.low:SetPoint("TOPLEFT", rx + 34, -34)
 
   local function Label(txt, y)
-    local fs = H.Text(pane, "GameFontNormalSmall")
+    local fs = H.Text(rp, "GameFontNormalSmall")
     fs:SetPoint("TOPLEFT", rx, y)
     fs:SetText(txt)
     return fs
@@ -185,9 +206,9 @@ function Sl.Build(parent, w, h)
   W.dur:SetPoint("TOPLEFT", rx, -188)
   W.dur:SetScript("OnClick", function() durIdx = durIdx % #DURATIONS + 1 Sl.Draw() end)
 
-  W.dep = H.Text(pane)
+  W.dep = H.Text(rp)
   W.dep:SetPoint("TOPLEFT", rx, -224)
-  W.status = H.Text(pane)
+  W.status = H.Text(rp)
   W.status:SetPoint("TOPLEFT", rx, -246)
   W.status:SetWidth(w - rx - 8)
   W.status:SetJustifyH("LEFT")
