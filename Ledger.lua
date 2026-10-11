@@ -29,7 +29,14 @@ function L.Record(cat, copper)
   local d = CP.db.ledger[DayKey()]
   if not d then d = {} CP.db.ledger[DayKey()] = d end
   d[cat] = (d[cat] or 0) + copper
+  L.dirty = true
   if CP.charKey then
+    CP.db.ledgerDC = CP.db.ledgerDC or {}
+    local dd = CP.db.ledgerDC[DayKey()]
+    if not dd then dd = {} CP.db.ledgerDC[DayKey()] = dd end
+    local cc = dd[CP.charKey]
+    if not cc then cc = {} dd[CP.charKey] = cc end
+    cc[cat] = (cc[cat] or 0) + copper
     CP.db.ledgerChars = CP.db.ledgerChars or {}
     local c = CP.db.ledgerChars[CP.charKey]
     if not c then c = {} CP.db.ledgerChars[CP.charKey] = c end
@@ -411,5 +418,352 @@ function L.Show(period)
 end
 
 function L.Reset()
-  if CP.db then CP.db.ledger, CP.db.ledgerChars, CP.db.ledgerItems, CP.db.worth = {}, {}, {}, {} end
+  if CP.db then CP.db.ledger, CP.db.ledgerChars, CP.db.ledgerItems, CP.db.worth, CP.db.ledgerDC = {}, {}, {}, {}, {} end
+end
+
+------------------------------------------------------------------------
+-- The Ledger tab
+------------------------------------------------------------------------
+local function SumIn(t) local n = 0 for _, r in ipairs(L.INCOME) do n = n + (t[r[1]] or 0) end return n end
+local function SumOut(t) local n = 0 for _, r in ipairs(L.COSTS) do n = n + (t[r[1]] or 0) end return -n end
+local function Pct(v, of) if not of or of == 0 then return "" end return ("%d%%"):format(math.floor(100 * v / of + 0.5)) end
+local M = function(v) return CP.Money(v) end
+local function Signed(v) v = math.floor(v + 0.5) return (v >= 0 and "|cff40ff40" or "|cffff4040") .. CP.MoneyPlain(v) .. "|r" end
+
+-- days for the chosen period and (optionally) one character
+local function Days(period, ck)
+  local cutoff
+  if PERIODS[period] then cutoff = DayKey(time() - PERIODS[period] * 86400) end
+  local db = CP.db or {}
+  local out = {}
+  if ck then
+    for k, d in pairs(db.ledgerDC or {}) do
+      if (not cutoff or k >= cutoff) and d[ck] then out[k] = d[ck] end
+    end
+  else
+    for k, d in pairs(db.ledger or {}) do if not cutoff or k >= cutoff then out[k] = d end end
+  end
+  return out, cutoff
+end
+
+-- Builds the table shown on the tab: { k = "head"|"row"|"gap", a, b, c, d, e } (columns left to right)
+function L.Rows(period, ck)
+  local db = CP.db or {}
+  local days, cutoff = Days(period, ck)
+  local tot = Sum(days)
+  local rows = {}
+  local function head(a, b, c, d, e) rows[#rows + 1] = { k = "head", a, b, c, d, e } end
+  local function row(a, b, c, d, e) rows[#rows + 1] = { k = "row", a, b, c, d, e } end
+  local function gap() rows[#rows + 1] = { k = "gap" } end
+
+  local inn, out = SumIn(tot), SumOut(tot)
+  local net = inn - out
+
+  -- summary
+  local keys = {}
+  for k in pairs(days) do keys[#keys + 1] = k end
+  table.sort(keys)
+  head("SUMMARY")
+  row("Days with activity", #keys)
+  if #keys > 0 then
+    local best, worst
+    for _, k in ipairs(keys) do
+      local d = days[k]
+      local n = SumIn(d) - SumOut(d)
+      if not best or n > best.n then best = { k = k, n = n } end
+      if not worst or n < worst.n then worst = { k = k, n = n } end
+    end
+    row("Average net per active day", Signed(net / #keys))
+    row("Best day", Signed(best.n), best.k)
+    row("Worst day", Signed(worst.n), worst.k)
+  end
+  if sessionStart and sessionMoney and not ck then
+    local gained = GetMoney() - sessionMoney
+    local hrs = math.max((time() - sessionStart) / 3600, 1 / 60)
+    row("This session so far", Signed(gained), (M(math.floor(gained / hrs))) .. " per hour")
+  end
+  gap()
+
+  head("COMING IN", "Amount", "% of income")
+  for _, r in ipairs(L.INCOME) do
+    local v = tot[r[1]] or 0
+    if v ~= 0 then row(r[2], M(v), Pct(v, inn)) end
+  end
+  row("|cffffd100Total in|r", M(inn))
+  gap()
+  head("GOING OUT", "Amount", "% of spending")
+  for _, r in ipairs(L.COSTS) do
+    local v = -(tot[r[1]] or 0)
+    if v ~= 0 then row(r[2], M(v), Pct(v, out)) end
+  end
+  row("|cffffd100Total out|r", M(out))
+  gap()
+
+  -- auction house in detail
+  local items = {}
+  do
+    local cut2 = cutoff
+    for k, d in pairs(db.ledgerItems or {}) do
+      if not cut2 or k >= cut2 then
+        for name, e in pairs(d) do
+          local x = items[name]
+          if not x then x = { n = 0, g = 0, c = 0 } items[name] = x end
+          x.n, x.g, x.c = x.n + e.n, x.g + e.g, x.c + e.c
+        end
+      end
+    end
+  end
+  local nSales = 0
+  for _, e in pairs(items) do nSales = nSales + e.n end
+  local sales, fees = tot.sales or 0, -(tot.cut or 0)
+  local dep, depBack = -(tot.deposits or 0), tot.depositBack or 0
+  if sales > 0 or dep > 0 or (tot.ahBuys or 0) ~= 0 then
+    head("AUCTION HOUSE" .. (ck and " (sales counts: all characters)" or ""))
+    if nSales > 0 then
+      row("Sales made", nSales)
+      row("Average sale", M(math.floor(sales / nSales)))
+    end
+    row("Gross sales", M(sales))
+    row("Fees (the AH cut)", M(fees), Pct(fees, sales) .. (sales > 0 and " of sales" or ""))
+    row("Deposits paid", M(dep))
+    row("Deposits returned", M(depBack))
+    row("Deposits lost (expired or cancelled)", M(math.max(0, dep - depBack)))
+    row("Spent buying on the AH", M(-(tot.ahBuys or 0)))
+    row("|cffffd100AH result|r", Signed(sales - fees - (dep - depBack) + (tot.ahBuys or 0)), "sales minus fees and lost deposits, minus buys")
+    gap()
+  end
+
+  -- overhead
+  local overhead = fees + (dep - depBack) + -(tot.repairs or 0) + -(tot.flights or 0) + -(tot.training or 0) + -(tot.bank or 0)
+  head("OVERHEAD (cost of doing business)", "Amount", "% of sales")
+  row("AH fees", M(fees), Pct(fees, sales))
+  row("Deposits lost", M(math.max(0, dep - depBack)), Pct(math.max(0, dep - depBack), sales))
+  if (tot.repairs or 0) ~= 0 then row("Repairs", M(-tot.repairs), Pct(-tot.repairs, sales)) end
+  if (tot.flights or 0) ~= 0 then row("Flights", M(-tot.flights), Pct(-tot.flights, sales)) end
+  if (tot.training or 0) ~= 0 then row("Training", M(-tot.training), Pct(-tot.training, sales)) end
+  if (tot.bank or 0) ~= 0 then row("Bank slots", M(-tot.bank), Pct(-tot.bank, sales)) end
+  row("|cffffd100Total overhead|r", M(overhead), Pct(overhead, sales))
+  gap()
+
+  -- best sellers
+  local list = {}
+  for name, e in pairs(items) do list[#list + 1] = { name = name, e = e } end
+  table.sort(list, function(a, b) return a.e.g > b.e.g end)
+  if #list > 0 then
+    head("BEST SELLERS", "Sold", "Gross", "Fees", "Average")
+    for i = 1, math.min(#list, 15) do
+      local e = list[i].e
+      row(list[i].name, e.n, M(e.g), M(e.c), M(math.floor(e.g / e.n)))
+    end
+    gap()
+  end
+
+  -- moved
+  local any = false
+  for _, r in ipairs(L.MOVED) do if (tot[r[1]] or 0) ~= 0 then any = true end end
+  if any then
+    head("MOVED, NOT EARNED OR SPENT")
+    for _, r in ipairs(L.MOVED) do
+      local v = tot[r[1]] or 0
+      if v ~= 0 then row(r[2], M(math.abs(v))) end
+    end
+    gap()
+  end
+
+  -- by character
+  if not ck then
+    local per = {}
+    for k, d in pairs(db.ledgerDC or {}) do
+      if not cutoff or k >= cutoff then
+        for c, t in pairs(d) do
+          local x = per[c]
+          if not x then x = { i = 0, o = 0 } per[c] = x end
+          x.i, x.o = x.i + SumIn(t), x.o + SumOut(t)
+        end
+      end
+    end
+    local names = {}
+    for c in pairs(per) do names[#names + 1] = c end
+    table.sort(names)
+    if #names > 0 then
+      head("BY CHARACTER", "In", "Out", "Net")
+      for _, c in ipairs(names) do row(CP.ShortName(c), M(per[c].i), M(per[c].o), Signed(per[c].i - per[c].o)) end
+      gap()
+    end
+  end
+
+  -- by day, newest first
+  if #keys > 0 then
+    head("BY DAY", "In", "Out", "Net")
+    for i = #keys, math.max(1, #keys - 29), -1 do
+      local d = days[keys[i]]
+      row(keys[i], M(SumIn(d)), M(SumOut(d)), Signed(SumIn(d) - SumOut(d)))
+    end
+    gap()
+  end
+
+  -- gold on hand and the cross-check
+  local chars = {}
+  local wk = {}
+  for k in pairs(db.worth or {}) do if not cutoff or k >= cutoff then wk[#wk + 1] = k end end
+  table.sort(wk)
+  for _, k in ipairs(wk) do
+    for c, e in pairs(db.worth[k]) do
+      if not ck or c == ck then
+        if not chars[c] then chars[c] = { s = e.s, e = e.e } else chars[c].e = e.e end
+      end
+    end
+  end
+  local cnames, startSum, endSum = {}, 0, 0
+  for c, v in pairs(chars) do cnames[#cnames + 1] = c startSum, endSum = startSum + v.s, endSum + v.e end
+  table.sort(cnames)
+  if #cnames > 0 then
+    head("GOLD ON HAND", "Now", "Start of period", "Change")
+    for _, c in ipairs(cnames) do
+      row(CP.ShortName(c), M(chars[c].e), M(chars[c].s), Signed(chars[c].e - chars[c].s))
+    end
+    row("|cffffd100All shown|r", M(endSum), M(startSum), Signed(endSum - startSum))
+    local moves = (tot.guildIn or 0) + (tot.guildOut or 0) + (tot.transferIn or 0) + (tot.transferOut or 0)
+    local unexplained = (endSum - startSum) - net - moves
+    if math.abs(unexplained) >= 100 then
+      row("Not explained by the ledger", Signed(unexplained), "a source Profiteer can't see, or before tracking began")
+    else
+      row("|cff40ff40The ledger accounts for all of it|r")
+    end
+  end
+  if #rows == 0 or next(days) == nil then
+    rows = { { k = "row", "Nothing recorded for this period yet. The ledger counts every gold change from now on." } }
+  end
+  return rows, { inn = inn, out = out, net = net, overhead = overhead }
+end
+
+local PERIOD_LABELS = { { "today", "Today" }, { "week", "7 days" }, { "month", "30 days" }, { "all", "All time" } }
+local COLW = { 270, 120, 130, 110, 110 }
+local ROWH = 16
+
+function L.BuildPanel(parent, width, height)
+  if L.panel then return L.panel end
+  L.period = L.period or "week"
+  local p = CreateFrame("Frame", nil, parent)
+  p:SetSize(width, height)
+  p:SetPoint("TOPLEFT", parent, "TOPLEFT", 22, -48)
+  L.panel = p
+
+  -- period buttons + character picker
+  L.pbtn = {}
+  local x = 0
+  for _, pl in ipairs(PERIOD_LABELS) do
+    local b = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+    b:SetSize(80, 22)
+    b:SetPoint("TOPLEFT", p, "TOPLEFT", x, 0)
+    b:SetText(pl[2])
+    b:SetScript("OnClick", function() L.period = pl[1] L.Refresh() end)
+    L.pbtn[pl[1]] = b
+    x = x + 84
+  end
+  local cb = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+  cb:SetSize(190, 22)
+  cb:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
+  cb:SetScript("OnClick", function()
+    local names = {}
+    for c in pairs((CP.db and CP.db.ledgerChars) or {}) do names[#names + 1] = c end
+    table.sort(names)
+    local nxt
+    if not L.char then nxt = names[1] else
+      for i, c in ipairs(names) do if c == L.char then nxt = names[i + 1] end end
+    end
+    L.char = nxt
+    L.Refresh()
+  end)
+  L.charBtn = cb
+
+  -- four headline numbers
+  L.tiles = {}
+  local tw = math.floor((width - 3 * 8) / 4)
+  local tiles = { { "net", "NET PROFIT" }, { "inn", "TOTAL IN" }, { "out", "TOTAL OUT" }, { "overhead", "OVERHEAD" } }
+  for i, t in ipairs(tiles) do
+    local bg = p:CreateTexture(nil, "BACKGROUND")
+    bg:SetColorTexture(1, 1, 1, 0.06)
+    bg:SetSize(tw, 40)
+    bg:SetPoint("TOPLEFT", p, "TOPLEFT", (i - 1) * (tw + 8), -28)
+    local l = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    l:SetPoint("TOPLEFT", bg, "TOPLEFT", 8, -5)
+    l:SetText(t[2])
+    local v = p:CreateFontString(nil, "ARTWORK", "GameFontHighlightLarge")
+    v:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT", 8, 5)
+    L.tiles[t[1]] = v
+  end
+
+  -- the scrolling table
+  local scroll = CreateFrame("ScrollFrame", nil, p)
+  scroll:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -76)
+  scroll:SetSize(width - 4, height - 76)
+  scroll:EnableMouseWheel(true)
+  scroll:SetScript("OnMouseWheel", function(self, delta)
+    local cur, max = self:GetVerticalScroll(), self:GetVerticalScrollRange()
+    if type(cur) ~= "number" or type(max) ~= "number" then return end
+    self:SetVerticalScroll(math.max(0, math.min(max, cur - delta * ROWH * 3)))
+  end)
+  local content = CreateFrame("Frame", nil, scroll)
+  content:SetSize(width - 4, 100)
+  scroll:SetScrollChild(content)
+  L.scroll, L.content, L.lines = scroll, content, {}
+
+  p:SetScript("OnShow", function() L.dirty = true L.Refresh() end)
+  local acc = 0
+  p:SetScript("OnUpdate", function(_, el)
+    acc = acc + el
+    if acc >= 1 then
+      acc = 0
+      if L.dirty then L.Refresh() end
+    end
+  end)
+  return p
+end
+
+local function Line(i)
+  local ln = L.lines[i]
+  if ln then return ln end
+  ln = { fs = {} }
+  local x = 0
+  for c = 1, 5 do
+    local fs = L.content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    fs:SetPoint("TOPLEFT", L.content, "TOPLEFT", x, -(i - 1) * ROWH)
+    fs:SetWidth(COLW[c])
+    fs:SetHeight(ROWH)
+    fs:SetJustifyH(c == 1 and "LEFT" or "RIGHT")
+    if fs.SetWordWrap then fs:SetWordWrap(false) end
+    ln.fs[c] = fs
+    x = x + COLW[c] + 4
+  end
+  L.lines[i] = ln
+  return ln
+end
+
+function L.Refresh()
+  if not (L.panel and L.panel:IsShown() and CP.db) then return end
+  L.dirty = false
+  -- a character that no longer exists falls back to everyone
+  if L.char and not (CP.db.ledgerChars and CP.db.ledgerChars[L.char]) then L.char = nil end
+  for key, b in pairs(L.pbtn) do b:SetEnabled(key ~= L.period) end
+  L.charBtn:SetText(L.char and ("Character: " .. CP.ShortName(L.char)) or "All characters")
+  local rows, t = L.Rows(L.period, L.char)
+  L.tiles.net:SetText(Signed(t.net))
+  L.tiles.inn:SetText(M(t.inn))
+  L.tiles.out:SetText(M(t.out))
+  L.tiles.overhead:SetText(M(t.overhead))
+  for i, r in ipairs(rows) do
+    local ln = Line(i)
+    for c = 1, 5 do
+      local v = r[c]
+      if r.k == "head" and v ~= nil then v = "|cffffd100" .. tostring(v) .. "|r" end
+      if r.k == "gap" then v = nil end
+      ln.fs[c]:SetText(v ~= nil and tostring(v) or "")
+      ln.fs[c]:Show()
+    end
+  end
+  for i = #rows + 1, #L.lines do
+    for c = 1, 5 do L.lines[i].fs[c]:Hide() end
+  end
+  L.content:SetHeight(math.max(10, #rows * ROWH + 8))
 end

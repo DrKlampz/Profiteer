@@ -135,6 +135,7 @@ end
 
 function UI.Update()
   if not UI.frame or not UI.frame:IsShown() then return end
+  if UI.tab == "ledger" then return end
   local res = UI.results or {}
   local maxOff = MaxOffset()
   if UI.offset > maxOff then UI.offset = maxOff end
@@ -183,6 +184,35 @@ function UI.SetStatus(text)
   if UI.status then UI.status:SetText(text or "") end
 end
 
+-- Does a craft match the search text? Looks at the item and recipe name, profession, materials and who can make it.
+local function Matches(g, q)
+  local names = CP.db and CP.db.names or {}
+  local function has(x) return x and tostring(x):lower():find(q, 1, true) end
+  if has(g.name) or has(g.rname) or has(g.prof) then return true end
+  for _, r in ipairs(g.reagents or {}) do
+    if has(r.name) then return true end
+    for _, id in ipairs(r.ids or { r.id }) do
+      if has(names[id]) then return true end
+    end
+  end
+  for _, ck in ipairs(g.chars or {}) do
+    if has(CP.ShortName(ck)) then return true end
+  end
+  return false
+end
+
+function UI.ApplyFilter()
+  local all = UI.allResults or {}
+  local q = (UI.query or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+  if q == "" then
+    UI.results = all
+  else
+    local out = {}
+    for _, g in ipairs(all) do if Matches(g, q) then out[#out + 1] = g end end
+    UI.results = out
+  end
+end
+
 function UI.Rebuild()
   if not CP.db then return end
   local results, skipped, total = CP:BuildResults()
@@ -190,13 +220,18 @@ function UI.Rebuild()
   local all = {}
   for _, g in ipairs(results) do all[#all + 1] = g end
   for _, g in ipairs(CP.unpriced or {}) do all[#all + 1] = g end
-  results = all
-  UI.results = all
+  UI.allResults = all
+  UI.ApplyFilter()
   if UI.frame and UI.frame:IsShown() then
     UI.Update()
     if not CP.Scanner:IsRunning() then
-      UI.SetStatus(("%d priced, %d more with no AH price (grey, at the bottom) of %d crafts. Last scan: %s")
-        :format(UI.nPriced or 0, #results - (UI.nPriced or 0), total, CP.Age(CP.db.lastScan)))
+      local q = (UI.query or ""):gsub("%s", "")
+      if q ~= "" then
+        UI.SetStatus(("%d of %d crafts match \"%s\". Last scan: %s"):format(#UI.results, #all, UI.query, CP.Age(CP.db.lastScan)))
+      else
+        UI.SetStatus(("%d priced, %d more with no AH price (grey, at the bottom) of %d crafts. Last scan: %s")
+          :format(UI.nPriced or 0, #all - (UI.nPriced or 0), total, CP.Age(CP.db.lastScan)))
+      end
     end
   end
 end
@@ -261,24 +296,64 @@ function UI.Create()
   table.insert(UISpecialFrames, "ProfiteerFrame")
 
   local title = f:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-  title:SetPoint("TOP", 0, -18)
+  title:SetPoint("TOPRIGHT", f, "TOPRIGHT", -52, -18)
   title:SetText("Profiteer")
 
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", -6, -6)
 
-  local ledger = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-  ledger:SetSize(70, 22)
-  ledger:SetPoint("RIGHT", close, "LEFT", -2, 0)
-  ledger:SetText("Ledger")
-  ledger:SetScript("OnClick", function() CP.Ledger.Show("week") end)
+
+  -- Tabs: Crafts / Ledger
+  local tabs = {}
+  local function MakeTab(key, label, x)
+    local t = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    t:SetSize(84, 24)
+    t:SetPoint("TOPLEFT", f, "TOPLEFT", x, -14)
+    t:SetText(label)
+    t:SetScript("OnClick", function() UI.SetTab(key) end)
+    tabs[key] = t
+  end
+  MakeTab("crafts", "Crafts", 24)
+  MakeTab("ledger", "Ledger", 110)
+  UI.tabs = tabs
+
+  -- Search box (Crafts tab): part of a craft, material, profession or character name
+  local search = CreateFrame("EditBox", "ProfiteerSearch", f, "InputBoxTemplate")
+  search:SetSize(200, 20)
+  search:SetPoint("TOPLEFT", f, "TOPLEFT", 214, -16)
+  search:SetAutoFocus(false)
+  search:SetMaxLetters(40)
+  local hint = search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+  hint:SetPoint("LEFT", 2, 0)
+  hint:SetText("Search crafts, materials...")
+  local function Changed()
+    UI.query = search:GetText() or ""
+    hint:SetShown(UI.query == "" and not search:HasFocus())
+    UI.offset = 0
+    UI.ApplyFilter()
+    UI.Update()
+    local q = UI.query:gsub("%s", "")
+    if q ~= "" then
+      UI.SetStatus(("%d of %d crafts match \"%s\""):format(#(UI.results or {}), #(UI.allResults or {}), UI.query))
+    elseif UI.nPriced then
+      UI.SetStatus(("%d priced, %d more with no AH price (grey, at the bottom)"):format(UI.nPriced, #(UI.allResults or {}) - UI.nPriced))
+    end
+  end
+  search:SetScript("OnTextChanged", function(self, user) if user then Changed() end end)
+  search:SetScript("OnEscapePressed", function(self) self:SetText("") self:ClearFocus() Changed() end)
+  search:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+  search:SetScript("OnEditFocusGained", function() hint:Hide() end)
+  search:SetScript("OnEditFocusLost", function() hint:SetShown((search:GetText() or "") == "") end)
+  UI.search = search
 
   -- Column headers
+  local headers = {}
   local x = 0
   for _, c in ipairs(COLS) do
     local h = CreateFrame("Button", nil, f)
     h:SetSize(c.w, 18)
     h:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + x, -48)
+    headers[#headers + 1] = h
     local fs = h:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     fs:SetAllPoints()
     fs:SetJustifyH(c.align)
@@ -364,6 +439,29 @@ function UI.Create()
   status:SetWidth(TOTAL_W)
   status:SetJustifyH("LEFT")
   UI.status = status
+
+  -- everything that belongs to the Crafts tab, so the Ledger tab can hide it
+  UI.craftWidgets = { slider, scan, refresh, cb, cb2, shopTop, shopTracked, search }
+  for _, h in ipairs(headers) do UI.craftWidgets[#UI.craftWidgets + 1] = h end
+  CP.Ledger.BuildPanel(f, TOTAL_W + 12, 470 - 48 - 52)
+  UI.SetTab(UI.tab or "crafts")
+end
+
+-- Switch between the Crafts list and the Ledger
+function UI.SetTab(key)
+  if not UI.frame then return end
+  UI.tab = key
+  local crafts = key ~= "ledger"
+  for _, w in ipairs(UI.craftWidgets or {}) do w:SetShown(crafts) end
+  for i = 1, #rows do if not crafts then rows[i]:Hide() end end
+  if CP.Ledger.panel then CP.Ledger.panel:SetShown(not crafts) end
+  for k, t in pairs(UI.tabs or {}) do t:SetEnabled(k ~= key) end
+  if crafts then
+    UI.Update()
+    if UI.nPriced then UI.Rebuild() end
+  else
+    UI.SetStatus("Gold in and out for all your characters, counted from the day the ledger was installed.")
+  end
 end
 
 function UI.Toggle()

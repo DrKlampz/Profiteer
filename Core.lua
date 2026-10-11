@@ -384,7 +384,7 @@ local function PrintHelp()
   CP:Print("  /pf minimap radius <n>  push the button further out (now " .. (s.minimapOffset or 12) .. ")   /pf minimap reset")
   CP:Print("  /pf shop [tracked]   send the materials for the top 10 (or your tracked) crafts to the AH search")
   CP:Print("  /pf track <craft>    pin / unpin a craft at the top of the list (or right-click its row)")
-  CP:Print("  /pf ledger [today|week|month|all]  gold in and out by source, with overhead and net   /pf ledger reset")
+  CP:Print("  /pf ledger [today|week|month|all]  open the Ledger tab (gold in and out)   /pf ledger text  copyable version   /pf ledger reset")
   CP:Print("  /pf missing          list the crafts left out for lack of prices, and why")
   CP:Print("  /pf why <craft>      show how one craft's cost and price were worked out")
   CP:Print("  /pf report           copyable diagnostic report (use this when something's wrong)")
@@ -516,7 +516,16 @@ SlashCmdList["PROFITEER"] = function(msg)
     if #CP.errors == 0 then CP:Print("No errors captured this session.") end
     for i, e in ipairs(CP.errors) do CP:Print(i .. ". " .. e) end
   elseif cmd == "ledger" or cmd == "gold" then
-    if arg == "reset" then CP.Ledger.Reset() CP:Print("Gold ledger cleared.") else CP.Ledger.Show(arg) end
+    local sub, rest = arg:match("^(%S*)%s*(.-)$")
+    if sub == "reset" then CP.Ledger.Reset() CP:Print("Gold ledger cleared.")
+    elseif sub == "text" then CP.Ledger.Show(rest)
+    else
+      -- open the Profiteer window on its Ledger tab
+      if sub == "today" or sub == "week" or sub == "month" or sub == "all" then CP.Ledger.period = sub end
+      CP.UI.Create()
+      CP.UI.SetTab("ledger")
+      CP.UI.frame:Show()
+    end
   elseif cmd == "reset" and arg == "prices" then
     CP.db.prices = {}
     CP.db.history = {}
