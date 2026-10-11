@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.4
+- Shopping list: clicking a craft now lists every material that can itself be crafted both ways, the made item and its raw materials (copper bar and copper ore, a bolt of cloth and its cloth, and anything your characters have captured), so you can buy whichever is cheaper.
+
 ## 0.8.3
 - "Buy up to" now stops at the gold you have on this character (turn off with "Limit Buy up to to the gold I have" in options), and the tooltip says when gold is the limit. Reagent lines in the tooltip show the price each as well as the total for the recipe (for example 2x Frilled Lichen 1g30s @ 65s each).
 

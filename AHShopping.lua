@@ -103,6 +103,33 @@ local function MatsOf(g)
       if src ~= "vendor" and id then out[#out + 1] = { id = id, want = rg.count } end
     end
   end
+  -- Any material that can itself be crafted (a bar from ore, a bolt from cloth, anything a character has captured)
+  -- is listed both ways, the made item and its raw materials, so you can buy whichever is cheaper.
+  local crafts = (d and d.crafts and d.crafts > 0) and d.crafts or 1
+  local have = {}
+  for _, e in ipairs(out) do have[e.id] = e end
+  local function Put(id, want)
+    if not id or want <= 0 then return end
+    if have[id] then
+      if have[id].want < want then have[id].want = want end
+    else
+      local e = { id = id, want = want }
+      out[#out + 1] = e
+      have[id] = e
+    end
+  end
+  CP:IndexMakers()
+  for _, rg in ipairs(g.reagents or {}) do
+    local _, src, id = CP:SlotCost(rg)
+    id = id or rg.id
+    if src ~= "vendor" and id and CP:MakePlan(id) then
+      local need = (rg.count or 1) * crafts
+      Put(id, need)
+      for _, raw in ipairs(CP:RawMaterials(id)) do
+        if not CP.db.vendor[raw.id] then Put(raw.id, math.ceil(raw.count * (rg.count or 1) * crafts)) end
+      end
+    end
+  end
   return out, d
 end
 
