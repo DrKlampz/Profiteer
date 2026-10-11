@@ -38,7 +38,7 @@ local function ShowTooltip(self)
   for _, rg in ipairs(g.reagents) do
     local c, src, id = CP:SlotCost(rg)
     GameTooltip:AddDoubleLine(rg.count .. "x " .. CP.ItemName(id),
-      CP.Money(c and c * rg.count) .. " |cff888888(" .. (src == "made" and "from raw materials" or src or "?") .. ")|r", 1, 1, 1, 1, 1, 1)
+      CP.Money(c and c * rg.count) .. (rg.count > 1 and c and (" |cff888888@ " .. CP.Money(c) .. " each|r") or "") .. " |cff888888(" .. (src == "made" and "from raw materials" or src or "?") .. ")|r", 1, 1, 1, 1, 1, 1)
     if CP:MakePlan(id) then
       local parts = {}
       for _, raw in ipairs(CP:RawMaterials(id)) do
@@ -85,6 +85,8 @@ local function ShowTooltip(self)
     end
     if d.reason == "price" then
       GameTooltip:AddLine("Stops because the next one's materials cost more than it sells for.", 0.7, 0.7, 0.7, true)
+    elseif d.reason == "gold" then
+      GameTooltip:AddLine("Stops because you only have " .. CP.Money(GetMoney()) .. " on this character. Turn \"Limit by my gold\" off in options to see the profit limit instead.", 1, 0.82, 0.4, true)
     elseif d.reason == "supply" then
       GameTooltip:AddLine("Stops because the AH has no more " .. CP.ItemName(d.limiter) .. " listed.", 0.7, 0.7, 0.7, true)
     else
@@ -155,7 +157,7 @@ local function DepthText(g)
   local d = g.depth
   if not d then return "|cff888888?|r" end
   if d.crafts == 0 then return "|cffff40400|r" end
-  return (d.reason == "supply" and "|cffffa040" or "|cff40ff40") .. d.crafts .. (d.reason == "cap" and "+" or "") .. "|r"
+  return ((d.reason == "supply" or d.reason == "gold") and "|cffffa040" or "|cff40ff40") .. d.crafts .. (d.reason == "cap" and "+" or "") .. "|r"
 end
 
 local function CraftersText(g)

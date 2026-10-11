@@ -19,6 +19,7 @@ local function Options()
             L.Slider("Hide crafts that sell fewer than (per day)", st, "minSales", 0, 20, 1, nil, redo),
             L.Koff("Only crafts I have the materials for", st, "craftableOnly", redo),
             L.Koff("Hide crafts that lose money", st, "hideLosses", redo),
+            L.Kon("Limit \"Buy up to\" to the gold I have on this character", st, "limitByGold", function() if CP.UI and CP.UI.Rebuild then CP.UI.Rebuild() end end),
         } },
         { id = "ah", title = "Auction house", open = true, rows = {
             L.Kon("Scan automatically when the auction house opens (if data is stale)", st, "autoScan"),

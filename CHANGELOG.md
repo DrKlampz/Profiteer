@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.3
+- "Buy up to" now stops at the gold you have on this character (turn off with "Limit Buy up to to the gold I have" in options), and the tooltip says when gold is the limit. Reagent lines in the tooltip show the price each as well as the total for the recipe (for example 2x Frilled Lichen 1g30s @ 65s each).
+
 ## 0.8.2
 - New: window customization. Alt-click the minimap button to restyle each window separately (or all together): background textures, colors with copy/paste, opacity sliders, border styles, fonts, scale and position lock. Over 50 fonts to pick from (install the LookFonts folder for the bundled ones; SharedMedia fonts show up too). Off until you tick "Use a custom look"; unticking restores the original.
 - Ledger fix: the Unrealized total counted a stack's price once instead of for every item in it (a 150-stack priced at 1s98c each counted as 1s98c, not 2g97s), so it came out far too low. Stacks are now priced per item times the quantity, and item names show correctly.
