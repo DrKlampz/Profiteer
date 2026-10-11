@@ -103,7 +103,17 @@ function Shop.Search(terms, label)
   return false
 end
 
+-- With the Profiteer tabs in the AH, clicking a craft fills the Shopping tab instead of using the game's search bar
+local function Route(fn, ...)
+  if CP.AHTab and CP.AHTab.IsReady and CP.AHTab.IsReady() and CP.AH and CP.AH.IsOpen() and CP.AHShopping then
+    if fn(...) then CP.AHTab.Go("shopping") end
+    return true
+  end
+  return false
+end
+
 function Shop.ForCraft(g)
+  if Route(CP.AHShopping.ForCraft, g) then return true end
   local names, unresolved = Shop.Materials(g)
   if unresolved > 0 then
     CP:Print(("%d material name(s) aren't known yet, so they were left out. Open the profession window again."):format(unresolved))
@@ -114,10 +124,12 @@ function Shop.ForCraft(g)
 end
 
 function Shop.ForOutput(g)
+  if Route(CP.AHShopping.ForOutput, g) then return true end
   return Shop.Search({ ItemNameOrNil(g.id) or g.name }, g.name)
 end
 
 function Shop.ForList(list, label)
+  if Route(CP.AHShopping.ForList, list, label) then return true end
   local names, unresolved = {}, 0
   for _, g in ipairs(list) do
     local n, u = Shop.Materials(g)

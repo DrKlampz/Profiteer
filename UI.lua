@@ -173,7 +173,7 @@ end
 
 function UI.Update()
   if not UI.frame or not UI.frame:IsShown() then return end
-  if UI.tab == "ledger" then return end
+  if UI.tab ~= "crafts" then return end
   local res = UI.results or {}
   local maxOff = MaxOffset()
   if UI.offset > maxOff then UI.offset = maxOff end
@@ -383,13 +383,16 @@ function UI.Create()
     tabs[key] = t
   end
   MakeTab("crafts", "Crafts", 24)
-  MakeTab("ledger", "Ledger", 110)
+  MakeTab("shopping", "Shopping", 110)
+  MakeTab("selling", "Selling", 196)
+  MakeTab("cancelling", "Cancelling", 282)
+  MakeTab("ledger", "Ledger", 368)
   UI.tabs = tabs
 
   -- Search box (Crafts tab): part of a craft, material, profession or character name
   local search = CreateFrame("EditBox", "ProfiteerSearch", f, "InputBoxTemplate")
-  search:SetSize(200, 20)
-  search:SetPoint("TOPLEFT", f, "TOPLEFT", 214, -16)
+  search:SetSize(190, 20)
+  search:SetPoint("TOPLEFT", f, "TOPLEFT", 480, -16)
   search:SetAutoFocus(false)
   search:SetMaxLetters(40)
   local hint = search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
@@ -513,23 +516,33 @@ function UI.Create()
   UI.craftWidgets = { slider, scan, refresh, cb, cb2, shopTop, shopTracked, search }
   for _, h in ipairs(headers) do UI.craftWidgets[#UI.craftWidgets + 1] = h end
   CP.Ledger.BuildPanel(f, TOTAL_W + 12, 470 - 48 - 52)
+  UI.panes = {}
+  for key, mod in pairs({ shopping = CP.AHShopping, selling = CP.AHSelling, cancelling = CP.AHCancel }) do
+    if mod and mod.Build then
+      local ok, p = pcall(mod.Build, f, TOTAL_W + 12, 470 - 48 - 52)
+      if ok and p then p:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -52) UI.panes[key] = p else CP.RecordError("build " .. key, p) end
+    end
+  end
   UI.SetTab(UI.tab or "crafts")
 end
 
--- Switch between the Crafts list and the Ledger
+-- Switch between Crafts, Shopping, Selling, Cancelling and the Ledger
 function UI.SetTab(key)
   if not UI.frame then return end
   UI.tab = key
-  local crafts = key ~= "ledger"
+  local crafts = key == "crafts"
   for _, w in ipairs(UI.craftWidgets or {}) do w:SetShown(crafts) end
   for i = 1, #rows do if not crafts then rows[i]:Hide() end end
-  if CP.Ledger.panel then CP.Ledger.panel:SetShown(not crafts) end
+  if CP.Ledger.panel then CP.Ledger.panel:SetShown(key == "ledger") end
+  for k, p in pairs(UI.panes or {}) do p:SetShown(k == key) end
   for k, t in pairs(UI.tabs or {}) do t:SetEnabled(k ~= key) end
   if crafts then
     UI.Update()
     if UI.nPriced then UI.Rebuild() end
-  else
+  elseif key == "ledger" then
     UI.SetStatus("Gold in and out for all your characters, counted from the day the ledger was installed.")
+  else
+    UI.SetStatus("")
   end
 end
 

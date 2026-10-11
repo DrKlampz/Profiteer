@@ -19,6 +19,10 @@ Inventory.lua
 Scanner.lua
 Ledger.lua
 Analyzer.lua
+AHCommon.lua
+AHShopping.lua
+AHSelling.lua
+AHCancel.lua
 Shop.lua
 UI.lua
 Report.lua

@@ -25,6 +25,7 @@ local function Options()
             L.Kon("Scan automatically when the auction house opens (if data is stale)", st, "autoScan"),
             L.Koff("Open the Profiteer panel with the auction house", st, "ahAutoOpen"),
             L.Kon("Show Profiteer lines in item tooltips", st, "tooltips"),
+            L.Koff("Keep the game's own Buy / Sell / Auctions tabs (Profiteer's tabs go after them; reopen the auction house)", st, "keepGameTabs"),
         } },
         { id = "mmap", title = "Minimap", rows = {
             L.K("Show the minimap button", st, "minimapHide", mm, true),
@@ -40,5 +41,9 @@ CP.WinLook.Setup({
     windows = {
         { id = "main", name = "Main window", global = "ProfiteerFrame", strip = "backdrop", hide = { "bgTex" } },
         { id = "report", name = "Report box", global = "ProfiteerReportFrame", strip = "backdrop" },
+        { id = "ah", name = "Auction house", global = "AuctionHouseFrame", strip = "template", defaultOn = true,
+          hide = { "MoneyFrameBorder", "MoneyFrameInset" },
+          title = function(f) return (f.TitleContainer and f.TitleContainer.TitleText) or f.TitleText end,
+          apply = function() if CP.AHTab and CP.AHTab.Restyle then CP.AHTab.Restyle() end end },
     },
 })
