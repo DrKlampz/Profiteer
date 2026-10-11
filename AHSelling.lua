@@ -335,6 +335,7 @@ end
 -- filled in with the item, quantity and price; its button is the player's click
 gameMode, gameFrame, savedPoints = false, nil, nil
 
+local cbOwner, cbPoints
 function Sl.FromGameSell()
   if not gameMode then return end
   gameMode = false
@@ -346,6 +347,11 @@ function Sl.FromGameSell()
     pcall(function()
       gameFrame:Hide()
       gameFrame:SetScale(1)
+      if cbOwner and cbPoints then
+        cbOwner:ClearAllPoints()
+        for _, q in ipairs(cbPoints) do cbOwner:SetPoint(q[1], q[2], q[3], q[4], q[5]) end
+      end
+      cbOwner, cbPoints = nil, nil
       gameFrame:ClearAllPoints()
       for _, q in ipairs(savedPoints or {}) do gameFrame:SetPoint(q[1], q[2], q[3], q[4], q[5]) end
     end)
@@ -418,11 +424,17 @@ function Sl.ToGameSell(info)
           f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6, -6)
           local top, left, right = f:GetTop(), f:GetLeft(), f:GetRight()
           local low = top
-          for _, k in ipairs({ "PostButton", "BuyoutModeCheckButton", "TotalPrice", "Deposit" }) do
+          local cb = f.BuyoutModeCheckButton
+          if cb and cb.GetNumPoints then
+            if not cbPoints then cbPoints = {} for i = 1, cb:GetNumPoints() do cbPoints[i] = { cb:GetPoint(i) } end cbOwner = cb end
+            cb:ClearAllPoints()
+            cb:SetPoint("BOTTOMLEFT", W.rp, "BOTTOMLEFT", 14, 8)
+          end
+          for _, k in ipairs({ "PostButton", "TotalPrice", "Deposit" }) do
             local c = f[k]
             if c and c.GetBottom and c:GetBottom() and c:GetBottom() < low then low = c:GetBottom() end
           end
-          local needH, needW = (top - low) + 14, math.max(right - left, 1)
+          local needH, needW = (top - low) + 44, math.max(right - left, 1)
           local availH, availW = W.rp:GetHeight() - 12, W.rp:GetWidth() - 12
           local sc = math.min(1, availH / needH, availW / needW)
           if sc < 1 then
