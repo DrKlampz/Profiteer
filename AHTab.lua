@@ -65,7 +65,19 @@ local function Embed()
     if not embedded then return end
     local hw, hh, fw, fh = host:GetWidth(), host:GetHeight(), f:GetWidth(), f:GetHeight()
     local sc = 1
-    if hw and hh and fw and fh and hw > 50 and hh > 50 and fw > 0 and fh > 0 then sc = math.min(1, (hw - 4) / fw, (hh - 4) / fh) end
+    local shrink = CP.db.settings.ahShrink ~= false
+    if hw and hh and fw and fh and hw > 50 and hh > 50 and fw > 0 and fh > 0 then
+      if shrink then sc = math.min(1, (hw - 4) / fw) else sc = math.min(1, (hw - 4) / fw, (hh - 4) / fh) end
+    end
+    -- no dead space: the auction house window itself is made just tall enough for the tab
+    local AH = _G.AuctionHouseFrame
+    if AH then
+      if shrink and fh and fh > 0 then
+        if not AHTab.origH then AHTab.origH = AH:GetHeight() end
+        local need = math.ceil(fh * sc + 4 + 26 + 28)
+        if AHTab.origH and need < AHTab.origH then pcall(AH.SetHeight, AH, need) end
+      elseif AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
+    end
     f.fitScale = sc
     f:SetScale(sc)
     if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end
@@ -86,6 +98,7 @@ end
 local function Unembed()
   if not embedded then return end
   embedded = false
+  if AHTab.origH and _G.AuctionHouseFrame then pcall(_G.AuctionHouseFrame.SetHeight, _G.AuctionHouseFrame, AHTab.origH) end
   local f = CP.UI.frame
   if not f then return end
   f:Hide()
@@ -109,6 +122,7 @@ local function Mark(key)
   for k, t in pairs(tabs or {}) do SetSelected(t, k == key) end
 end
 
+function AHTab.Current() return current end
 function AHTab.IsReady() return tabs ~= nil and host ~= nil end
 
 function AHTab.Leave()

@@ -25,6 +25,7 @@ local function Options()
             L.Kon("Scan automatically when the auction house opens (if data is stale)", st, "autoScan"),
             L.Choice("Open the auction house on", st, "ahStartTab", { { "game", "Auction House (the game's own search)" }, { "shopping", "Shopping" }, { "selling", "Selling" },
                 { "cancelling", "Cancelling" }, { "crafts", "Crafts" }, { "ledger", "Ledger" }, { "last", "Whichever tab I used last" } }),
+            L.Kon("Shrink the auction house window to fit Profiteer's tabs (no empty space)", st, "ahShrink", function() if CP.AHTab and CP.AHTab.Fit then CP.AHTab.Fit() end end),
             L.Koff("Open the Profiteer panel with the auction house", st, "ahAutoOpen"),
             L.Kon("Show Profiteer lines in item tooltips", st, "tooltips"),
             L.Koff("Draw dividing bars between rows (Shopping, Selling, Cancelling and Crafts lists)", st, "rowDividers", function() if CP.AH then CP.AH.ApplyDividers() end end),
