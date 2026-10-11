@@ -119,7 +119,6 @@ end
 local function Unembed()
   if not embedded then return end
   embedded = false
-  if AHTab.origH and _G.AuctionHouseFrame then pcall(_G.AuctionHouseFrame.SetHeight, _G.AuctionHouseFrame, AHTab.origH) end
   local f = CP.UI.frame
   if not f then return end
   f:Hide()
@@ -191,6 +190,7 @@ end
 function AHTab.Game()
   if not (tabs and AuctionHouseFrame and AuctionHouseFrame:IsShown()) then return end
   AHTab.Leave()
+  AHTab.Size()
   local AH = AuctionHouseFrame
   local modes = _G.AuctionHouseFrameDisplayMode
   local done = false
@@ -206,6 +206,27 @@ function AHTab.Game()
   if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end
   CP.After(0.1, function() if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end AHTab.StyleGame() end)
   CP.After(0.6, function() if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end AHTab.StyleGame() end)
+end
+
+-- one window size for every tab (the game's own page included), so nothing bounces when you switch:
+-- the height Profiteer's tabs need, fitted to the width of the auction house
+function AHTab.Size()
+  local AH = _G.AuctionHouseFrame
+  if not (AH and CP.UI and CP.UI.Create) then return end
+  if CP.db.settings.ahShrink == false then
+    if AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
+    return
+  end
+  CP.UI.Create()
+  local f = CP.UI.frame
+  if not f then return end
+  local fw, fh = f:GetWidth(), f:GetHeight()
+  if not (fw and fh and fw > 0 and fh > 0) then return end
+  if not AHTab.origH then AHTab.origH = AH:GetHeight() end
+  local hw = (AH:GetWidth() or 0) - 8
+  local sc = math.min(1, (hw - 4) / fw)
+  local need = math.ceil(fh * sc + 4 + 26 + 28)
+  if AHTab.origH and need < AHTab.origH then pcall(AH.SetHeight, AH, need) end
 end
 
 -- the tab the auction house opens on (Options: "Open the auction house on")
@@ -286,6 +307,7 @@ local ev = CreateFrame("Frame")
 CP.Register(ev, "AUCTION_HOUSE_SHOW")
 ev:SetScript("OnEvent", CP.Safe("ah-tab", function()
   if not CP.db then return end
+  AHTab.Size()
   CP.After(0.2, CP.Safe("ah-tab-create", function()
     Create()
     if CP.UI.ahButton then CP.UI.ahButton:Hide() end
