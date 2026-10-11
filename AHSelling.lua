@@ -329,28 +329,59 @@ local function UsePrice(v)
   Sl.Draw()
 end
 
--- fallback: open the game's own Sell tab with the item, quantity and price filled in; its Post button is the player's click
+-- fallback: the game does not let add-ons post, so its own "Create Auction" form is brought into this pane,
+-- filled in with the item, quantity and price; its button is the player's click
+local gameMode, gameFrame, savedPoints = false, nil, nil
+
+function Sl.FromGameSell()
+  if not gameMode then return end
+  gameMode = false
+  if gameFrame then
+    pcall(function()
+      gameFrame:Hide()
+      gameFrame:ClearAllPoints()
+      for _, q in ipairs(savedPoints or {}) do gameFrame:SetPoint(q[1], q[2], q[3], q[4], q[5]) end
+    end)
+  end
+  gameFrame, savedPoints = nil, nil
+  if W.ov then W.ov:Show() end
+  if W.back then W.back:Hide() end
+  Sl.Draw()
+end
+
 function Sl.ToGameSell(info)
-  if CP.AHTab and CP.AHTab.Leave then CP.AHTab.Leave() end
   local AH = _G.AuctionHouseFrame
-  C_Timer.After(0.05, function()
-    local ok, err = pcall(function()
-      local modes = _G.AuctionHouseFrameDisplayMode
-      local mode = modes and (info.isC and modes.CommoditiesSell or modes.ItemSell)
-      if AH.SetDisplayMode and mode then AH:SetDisplayMode(mode) end
-      if AH.SetPostItem then AH:SetPostItem(info.loc) end
-      local f = info.isC and AH.CommoditiesSellFrame or AH.ItemSellFrame
-      C_Timer.After(0.15, function()
-        pcall(function()
-          if f and f.PriceInput and f.PriceInput.SetAmount then f.PriceInput:SetAmount(info.price) end
-          if f and f.QuantityInput and f.QuantityInput.SetQuantity then f.QuantityInput:SetQuantity(info.qty) end
-          if f and f.DurationDropDown and f.DurationDropDown.SetSelectedValue then f.DurationDropDown:SetSelectedValue(info.dur) end
-        end)
+  if not AH then return end
+  local ok, err = pcall(function()
+    local modes = _G.AuctionHouseFrameDisplayMode
+    local mode = modes and (info.isC and modes.CommoditiesSell or modes.ItemSell)
+    if AH.SetDisplayMode and mode then AH:SetDisplayMode(mode) end
+    if AH.SetPostItem then AH:SetPostItem(info.loc) end
+  end)
+  if not ok then CP.RecordError("game sell form", err) SetStatus("Could not open the game's sell form.") return end
+  local f = info.isC and AH.CommoditiesSellFrame or AH.ItemSellFrame
+  if not f then SetStatus("The game's sell form was not found.") return end
+  gameMode, gameFrame = true, f
+  savedPoints = {}
+  for i = 1, f:GetNumPoints() do savedPoints[i] = { f:GetPoint(i) } end
+  if W.ov then W.ov:Hide() end
+  W.back:Show()
+  C_Timer.After(0.1, function()
+    pcall(function()
+      f:ClearAllPoints()
+      f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6, -6)
+      f:SetFrameLevel((W.rp:GetFrameLevel() or 1) + 60)
+      f:Show()
+    end)
+    C_Timer.After(0.1, function()
+      pcall(function()
+        if f.PriceInput and f.PriceInput.SetAmount then f.PriceInput:SetAmount(info.price) end
+        if f.QuantityInput and f.QuantityInput.SetQuantity then f.QuantityInput:SetQuantity(info.qty) end
+        if f.DurationDropDown and f.DurationDropDown.SetSelectedValue then f.DurationDropDown:SetSelectedValue(info.dur) end
       end)
     end)
-    if not ok then CP.RecordError("game sell tab", err) end
   end)
-  print("|cffffcc00Profiteer:|r the game does not let add-ons post auctions. Your item and price are filled into the game's Sell tab: press its Post button.")
+  SetStatus("Press Create Auction in the form.")
 end
 
 local function PostNext()
@@ -466,6 +497,7 @@ function Sl.Build(parent, w, h)
   local RW = w - rx - 14
   local ov = CreateFrame("Frame", nil, pane)
   ov:SetAllPoints(pane)
+  W.ov = ov
 
   W.iconEdge = ov:CreateTexture(nil, "ARTWORK")
   W.iconEdge:SetSize(46, 46)
@@ -604,6 +636,13 @@ function Sl.Build(parent, w, h)
   refresh:SetPoint("RIGHT", W.post, "LEFT", -6, 0)
   refresh:SetScript("OnClick", function() ScanBags() Sl.Draw() end)
 
+  W.back = H.Button(pane, "Back to prices", 120, 22)
+  W.back:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -14, 8)
+  W.back:SetFrameLevel((W.rp:GetFrameLevel() or 1) + 200)
+  W.back:SetScript("OnClick", Sl.FromGameSell)
+  W.back:Hide()
+
+  pane:SetScript("OnHide", function() Sl.FromGameSell() end)
   pane:SetScript("OnShow", function()
     W.uval:SetText(tostring(S().undercutMode == "percent" and (S().undercutPct or 1) or (S().undercut or 1)))
     ScanBags()
@@ -633,6 +672,7 @@ ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
       C_Timer.After(0.4, CP.Safe("selling-next", PostNext))
     end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
+    if gameMode then Sl.FromGameSell() end
     SetStatus("Posted.")
   elseif event == "AUCTION_HOUSE_POST_ERROR" and queue then
     SetStatus("The auction house refused the post. Stopped after " .. queue.done .. " of " .. queue.total .. ".")

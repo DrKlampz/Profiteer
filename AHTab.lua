@@ -13,6 +13,19 @@ local current
 
 local function Blizz() return { _G.AuctionHouseFrameBuyTab, _G.AuctionHouseFrameSellTab, _G.AuctionHouseFrameAuctionsTab } end
 
+-- the game's own pages (browse, sell, auctions ...) are put away while one of ours is showing,
+-- otherwise parts of them (the sell item button, Create Auction, Buyout Mode) poke through
+local GAME_PAGES = { "BrowseResultsFrame", "CategoriesList", "SearchBar", "ItemBuyFrame", "CommoditiesBuyFrame", "ItemSellFrame",
+  "CommoditiesSellFrame", "ItemSellList", "CommoditiesSellList", "AuctionsFrame", "WoWTokenResults", "WoWTokenSellFrame", "BuyDialog" }
+local function PutAwayGamePages()
+  local AH = _G.AuctionHouseFrame
+  if not AH then return end
+  for _, k in ipairs(GAME_PAGES) do
+    local f = AH[k]
+    if f and f.Hide and f.IsShown and f:IsShown() then pcall(f.Hide, f) end
+  end
+end
+
 local function SetSelected(t, on)
   if not t then return end
   if on then if PanelTemplates_SelectTab then pcall(PanelTemplates_SelectTab, t) end
@@ -112,6 +125,7 @@ function AHTab.Go(key)
   key = key or current or "shopping"
   for _, t in ipairs(Blizz()) do SetSelected(t, false) end
   AHTab.Restyle()
+  PutAwayGamePages()
   host:Show()
   Embed()
   current = key
@@ -131,7 +145,7 @@ local function Create()
   host = CreateFrame("Frame", "ProfiteerAHHost", AuctionHouseFrame)
   host:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPLEFT", 4, -26)
   host:SetPoint("BOTTOMRIGHT", AuctionHouseFrame, "BOTTOMRIGHT", -4, 28)
-  host:SetFrameLevel((AuctionHouseFrame:GetFrameLevel() or 1) + 40)
+  host:SetFrameLevel((AuctionHouseFrame:GetFrameLevel() or 1) + 400)
   host:EnableMouse(true)
   hostBg = host:CreateTexture(nil, "BACKGROUND")
   hostBg:SetAllPoints()
