@@ -26,8 +26,67 @@ local function PutAwayGamePages()
   end
 end
 
+-- our tabs are drawn flat and hang from the bottom edge of the window, in the window's colors
+local function TabColors()
+  local a = (CP.AH and CP.AH.Accent and CP.AH.Accent()) or { 0.85, 0.65, 0.2 }
+  local r, g, b = 0.07, 0.07, 0.09
+  local L = CP.WinLook
+  if L and L.On and L.On("ah") then
+    local e = L.Effective("ah")
+    if e and e.bgColor then r, g, b = e.bgColor[1], e.bgColor[2], e.bgColor[3] end
+  end
+  return a, r, g, b
+end
+
+local function StyleTab(t, on)
+  if not t.pfTab then return end
+  local a, r, g, b = TabColors()
+  local k = t.pfTab
+  if on then
+    k.bg:SetColorTexture(math.min(1, r * 1.5 + 0.03), math.min(1, g * 1.5 + 0.03), math.min(1, b * 1.5 + 0.04), 1)
+    k.top:SetColorTexture(a[1], a[2], a[3], 1)
+    k.top:Show()
+    if t.Text then t.Text:SetTextColor(1, 0.82, 0.2) end
+  else
+    k.bg:SetColorTexture(r * 0.8, g * 0.8, b * 0.8, 0.95)
+    k.top:Hide()
+    if t.Text then t.Text:SetTextColor(0.72, 0.72, 0.75) end
+  end
+  k.edge:SetColorTexture(a[1], a[2], a[3], on and 0.9 or 0.45)
+end
+
+local function InitTab(t)
+  t.lookNoSkin = true
+  for _, rg in ipairs({ t:GetRegions() }) do
+    if rg.GetObjectType and rg:GetObjectType() == "Texture" then rg:SetAlpha(0) rg:Hide() end
+  end
+  for _, fn in ipairs({ "GetNormalTexture", "GetPushedTexture", "GetDisabledTexture", "GetHighlightTexture" }) do
+    local tx = t[fn] and t[fn](t)
+    if tx then tx:SetAlpha(0) end
+  end
+  t:SetHeight(26)
+  local k = {}
+  k.bg = t:CreateTexture(nil, "BACKGROUND")
+  k.bg:SetAllPoints()
+  k.edge = t:CreateTexture(nil, "BORDER")
+  k.edge:SetPoint("BOTTOMLEFT") k.edge:SetPoint("BOTTOMRIGHT") k.edge:SetHeight(1)
+  k.l = t:CreateTexture(nil, "BORDER") k.l:SetPoint("TOPLEFT") k.l:SetPoint("BOTTOMLEFT") k.l:SetWidth(1)
+  k.r = t:CreateTexture(nil, "BORDER") k.r:SetPoint("TOPRIGHT") k.r:SetPoint("BOTTOMRIGHT") k.r:SetWidth(1)
+  k.top = t:CreateTexture(nil, "ARTWORK")
+  k.top:SetPoint("TOPLEFT") k.top:SetPoint("TOPRIGHT") k.top:SetHeight(2)
+  k.hl = t:CreateTexture(nil, "HIGHLIGHT") k.hl:SetAllPoints() k.hl:SetColorTexture(1, 1, 1, 0.08)
+  t.pfTab = k
+  -- the side lines follow the bottom line's color
+  hooksecurefunc(k.edge, "SetColorTexture", function(_, r2, g2, b2, a2) k.l:SetColorTexture(r2, g2, b2, a2) k.r:SetColorTexture(r2, g2, b2, a2) end)
+  -- the game's template puts its own art back when the tab is shown or its label changes
+  t:HookScript("OnShow", function() for _, rg in ipairs({ t:GetRegions() }) do
+    if rg ~= k.bg and rg ~= k.edge and rg ~= k.l and rg ~= k.r and rg ~= k.top and rg ~= k.hl and rg.GetObjectType and rg:GetObjectType() == "Texture" then rg:SetAlpha(0) end
+  end end)
+end
+
 local function SetSelected(t, on)
   if not t then return end
+  if t.pfTab then StyleTab(t, on) return end
   if on then if PanelTemplates_SelectTab then pcall(PanelTemplates_SelectTab, t) end
   else if PanelTemplates_DeselectTab then pcall(PanelTemplates_DeselectTab, t) end end
 end
@@ -55,6 +114,7 @@ end
 
 function AHTab.Restyle()
   AHTab.Title()
+  for k, t in pairs(tabs or {}) do StyleTab(t, current == k or (k == "game" and not current and AuctionHouseFrame and AuctionHouseFrame:IsShown() and not (host and host:IsShown()))) end
   if not hostBg then return end
   local r, g, b, a = 0.05, 0.05, 0.07, 1
   local L = CP.WinLook
@@ -263,6 +323,7 @@ local function Create()
     if not ok or not t then ok, t = pcall(CreateFrame, "Button", "AuctionHouseFrameProfiteerTab" .. k[1], AuctionHouseFrame, "PanelTopTabButtonTemplate") end
     if not ok or not t then CP:Print("Could not create the Profiteer tabs in the auction house.") return end
     t:SetText(k[2])
+    InitTab(t)
     local tw = (t.Text and t.Text.GetStringWidth and t.Text:GetStringWidth()) or 60
     if t.Text and t.Text.SetWidth then t.Text:SetWidth(tw + 12) if t.Text.SetWordWrap then t.Text:SetWordWrap(false) end end
     local tabW = math.max(112, math.floor(tw * 1.25 + 50))
@@ -270,20 +331,19 @@ local function Create()
     if t.Text and t.Text.SetWidth then
       if t.Text.GetNumPoints and t.Text:GetNumPoints() > 1 then
         t.Text:ClearAllPoints()
-        t.Text:SetPoint("CENTER", t, "CENTER", 0, -3)
+        t.Text:SetPoint("CENTER", t, "CENTER", 0, 0)
       end
       t.Text:SetWidth(tabW - 16)
       t:HookScript("OnShow", function() t:SetWidth(tabW) t.Text:SetWidth(tabW - 16) end)
     end
     if i == 1 then
       if keep then
-        t:SetPoint("LEFT", last, "RIGHT", -15, 0)
+        t:SetPoint("TOPLEFT", last, "TOPRIGHT", 6, 0)
       else
-        local p, rel, relp, x, y = buy:GetPoint(1)
-        t:SetPoint(p, rel, relp, x, y)
+        t:SetPoint("TOPLEFT", AuctionHouseFrame, "BOTTOMLEFT", 14, 1)
       end
     else
-      t:SetPoint("LEFT", prev, "RIGHT", 2, 0)
+      t:SetPoint("TOPLEFT", prev, "TOPRIGHT", 3, 0)
     end
     if k[1] == "game" then t.lookNoSkin = true end   -- the game's own page keeps a plain tab
     t:SetScript("OnClick", function() if k[1] == "game" then AHTab.Game() else AHTab.Go(k[1]) end end)
