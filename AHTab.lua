@@ -147,11 +147,16 @@ local function Embed()
     local hw, hh, fw, fh = host:GetWidth(), host:GetHeight(), f:GetWidth(), f:GetHeight()
     local sc = 1
     local shrink = CP.db.settings.ahShrink ~= false
+    local AH = _G.AuctionHouseFrame
+    if AH and not AHTab.origH then AHTab.origH = AH:GetHeight() end
     if hw and hh and fw and fh and hw > 50 and hh > 50 and fw > 0 and fh > 0 then
-      if shrink then sc = math.min(1, (hw - 4) / fw) else sc = math.min(1, (hw - 4) / fw, (hh - 4) / fh) end
+      if shrink then
+        sc = math.min(1, (hw - 4) / fw)
+        -- a window made taller than the auction house (resized, or a big saved size) is scaled down to fit it, never left hanging out
+        if AHTab.origH then sc = math.min(sc, math.max(0.4, (AHTab.origH - 26 - 28 - 4) / fh)) end
+      else sc = math.min(1, (hw - 4) / fw, (hh - 4) / fh) end
     end
     -- no dead space: the auction house window itself is made just tall enough for the tab
-    local AH = _G.AuctionHouseFrame
     if AH then
       if shrink and fh and fh > 0 then
         if not AHTab.origH then AHTab.origH = AH:GetHeight() end
@@ -288,6 +293,7 @@ function AHTab.Size()
   if not AHTab.origH then AHTab.origH = AH:GetHeight() end
   local hw = (AH:GetWidth() or 0) - 8
   local sc = math.min(1, (hw - 4) / fw)
+  if AHTab.origH then sc = math.min(sc, math.max(0.4, (AHTab.origH - 26 - 28 - 4) / fh)) end
   local need = math.ceil(fh * sc + 4 + 26 + 28)
   if AHTab.origH and need < AHTab.origH then pcall(AH.SetHeight, AH, need) end
 end
