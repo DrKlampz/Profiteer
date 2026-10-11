@@ -666,6 +666,7 @@ function L.Rows(period, ck)
     end
     gap()
     L.unrealized = totAsk
+    L.unrealizedNet = math.floor(totAsk * (1 - rate))
   end
 
   -- overhead
@@ -769,7 +770,7 @@ function L.Rows(period, ck)
   if #rows == 0 or next(days) == nil then
     rows = { { k = "row", "Nothing recorded for this period yet. The ledger counts every gold change from now on." } }
   end
-  return rows, { inn = inn, out = out, net = net, overhead = overhead }
+  return rows, { inn = inn, out = out, net = net, overhead = overhead, unrealized = L.unrealizedNet or 0 }
 end
 
 -- "Name-Realm" shown as "Name - Realm" so same-named characters on different realms are told apart
@@ -848,8 +849,8 @@ function L.BuildPanel(parent, width, height)
 
   -- four headline numbers
   L.tiles = {}
-  local tw = math.floor((width - 3 * 8) / 4)
-  local tiles = { { "net", "NET CASH FLOW" }, { "inn", "TOTAL IN" }, { "out", "TOTAL OUT" }, { "overhead", "OVERHEAD" } }
+  local tw = math.floor((width - 4 * 8) / 5)
+  local tiles = { { "net", "NET CASH FLOW" }, { "inn", "TOTAL IN" }, { "out", "TOTAL OUT" }, { "overhead", "OVERHEAD" }, { "unrealized", "UNREALIZED" } }
   for i, t in ipairs(tiles) do
     local bg = p:CreateTexture(nil, "BACKGROUND")
     bg:SetColorTexture(1, 1, 1, 0.06)
@@ -940,6 +941,7 @@ function L.Refresh()
   L.tiles.inn:SetText(M(t.inn))
   L.tiles.out:SetText(M(t.out))
   L.tiles.overhead:SetText(M(t.overhead))
+  L.tiles.unrealized:SetText(M(t.unrealized or 0))
   for i, r in ipairs(rows) do
     local ln = Line(i)
     for c = 1, 5 do
