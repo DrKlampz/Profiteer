@@ -55,7 +55,7 @@ CP.WinLook.Setup({
     db = function() return ProfiteerDB end,
     windows = {
         { id = "main", name = "Main window", global = "ProfiteerFrame", strip = "backdrop", hide = { "bgTex" },
-          apply = function(frame, _, on) if frame and frame.fitScale then frame:SetScale(on and (frame:GetScale() * frame.fitScale) or frame.fitScale) end end },
+          apply = function(frame, _, on) if frame and frame.fitScale then frame:SetScale(on and math.min(frame:GetScale(), frame.fitScale) or frame.fitScale) end end },
         { id = "report", name = "Report box", global = "ProfiteerReportFrame", strip = "backdrop" },
         { id = "ah", name = "Auction house", global = "AuctionHouseFrame", strip = "template", defaultOn = true,
           hide = { "MoneyFrameBorder", "MoneyFrameInset" },
