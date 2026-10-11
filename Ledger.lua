@@ -210,8 +210,8 @@ function L.SnapshotListings()
     end
   end
   if not ok then return end
-  CP.db.listings = CP.db.listings or {}
-  CP.db.listings[CP.charKey] = { t = time(), items = items }
+  CP.db.myAuctions = CP.db.myAuctions or {}
+  CP.db.myAuctions[CP.charKey] = { t = time(), items = items }
   L.dirty = true
 end
 
@@ -222,6 +222,16 @@ for _, e in ipairs({ "OWNED_AUCTIONS_UPDATED", "AUCTION_OWNED_LIST_UPDATE", "PLA
 end
 f:SetScript("OnEvent", CP.Safe("ledger", function(_, event, a1, a2, a3)
   if event == "PLAYER_LOGIN" then
+    -- 0.8.2 briefly saved my own auctions inside db.listings, which belongs to the price tracker: move them out
+    if CP.db and CP.db.listings then
+      for k, v in pairs(CP.db.listings) do
+        if type(k) == "string" and type(v) == "table" and v.items then
+          CP.db.myAuctions = CP.db.myAuctions or {}
+          CP.db.myAuctions[k] = v
+          CP.db.listings[k] = nil
+        end
+      end
+    end
     lastMoney = GetMoney()
     sessionStart, sessionMoney = time(), lastMoney
     -- earlier versions saved a bogus 0 at logout: repair those entries
@@ -614,7 +624,7 @@ function L.Rows(period, ck)
 
   -- listed but not sold yet (current, so not limited to the chosen period)
   do
-    local lst = db.listings or {}
+    local lst = db.myAuctions or {}
     local per, names = {}, {}
     local allSales, allCut = 0, 0
     for _, d in pairs(db.ledger or {}) do allSales, allCut = allSales + (d.sales or 0), allCut + (d.cut or 0) end
