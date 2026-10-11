@@ -145,6 +145,31 @@ local function Deposit(e, qty, dur)
   return nil
 end
 
+-- what one of this item costs you to craft, from the recipes your characters know (cheapest way)
+local function CraftCost(id)
+  local best
+  for _, profs in pairs(CP.db.recipes or {}) do
+    for _, recs in pairs(profs) do
+      for _, r in ipairs(recs) do
+        if r.id == id and r.reagents then
+          local cost, ok = 0, true
+          for _, rg in ipairs(r.reagents) do
+            local c = CP:SlotCost(rg)
+            if not c then ok = false break end
+            cost = cost + c * rg.count
+          end
+          if ok and cost > 0 then
+            local per = cost / math.max(1, r.yield or 1)
+            if not best or per < best then best = per end
+          end
+        end
+      end
+    end
+  end
+  if not best and CP.MakeCost then best = CP:MakeCost(id) end
+  return best
+end
+
 local function Verdict(price, p)
   if not (price and p and p.min) then return "|cff888888No scan data to compare with.|r" end
   if price < p.min then return "|cff40ff40Below the lowest price: should sell fast.|r"
@@ -239,28 +264,27 @@ function Sl.Draw()
   end
   -- how far down the price can go before a sale loses money
   do
-    local cost = CP.MakeCost and CP:MakeCost(e.id)
+    local cost = CraftCost(e.id)
     local cut = S().ahCut or 0.05
     if cost and cost > 0 then
       local be = math.ceil(cost / (1 - cut))
       local lowest = p and p.min
-      local txt = "|cff888888Your cost to make it|r " .. H.Money(cost) .. "   |cff888888break-even price|r " .. H.Money(be)
+      local lines = { "|cff888888Cost to make|r " .. H.Money(cost) .. "  |cff888888break-even|r " .. H.Money(be) }
       if lowest then
         local room = lowest - be
         if room > 0 then
-          txt = txt .. string.format("\n|cff40ff40You can undercut by %s (%.0f%%) before losing money.|r", H.Money(room), room / lowest * 100)
+          lines[#lines + 1] = string.format("|cff40ff40Undercut up to %s (%.0f%%) safely|r", H.Money(room), room / lowest * 100)
         else
-          txt = txt .. "\n|cffff6040The lowest price is already " .. H.Money(-room) .. " under your break-even: selling there loses money.|r"
+          lines[#lines + 1] = "|cffff6040Lowest price is " .. H.Money(-room) .. " under break-even|r"
         end
       end
       if price and price > 0 then
         local gain = math.floor(price * (1 - cut)) - cost
-        txt = txt .. "\n" .. (gain >= 0 and ("|cff40ff40At your price you make " .. H.Money(gain) .. " per item.|r") or ("|cffff6040At your price you lose " .. H.Money(-gain) .. " per item.|r"))
+        lines[#lines + 1] = gain >= 0 and ("|cff40ff40At your price: +" .. H.Money(gain) .. " each|r") or ("|cffff6040At your price: -" .. H.Money(-gain) .. " each|r")
       end
-      W.be:SetText((txt:gsub("\\n", "\n")))
+      W.be:SetText(table.concat(lines, "\n"))
     else
-      local v = vendor
-      W.be:SetText("|cff888888Not something you craft, so there is no cost to compare with." .. (v > 0 and (" Vendor price " .. H.Money(v) .. ".") or "") .. "|r")
+      W.be:SetText("|cff888888No craft cost known for this item" .. (vendor > 0 and ("  (vendor " .. H.Money(vendor) .. ")") or "") .. "|r")
     end
   end
   local hint = Suggest(e)
@@ -504,7 +528,9 @@ function Sl.Build(parent, w, h)
   W.sumR:SetSpacing(2)
   W.be = H.Text(ov)
   W.be:SetPoint("TOPLEFT", W.sum, "BOTTOMLEFT", 2, -22)
-  W.be:SetWidth(RW - 200)
+  W.be:SetWidth(RW - 250)
+  W.be:SetJustifyV("TOP")
+  if W.be.SetWordWrap then W.be:SetWordWrap(false) end
   W.be:SetJustifyH("LEFT")
   W.verdict = H.Text(ov)
   W.verdict:SetPoint("TOPLEFT", W.sum, "BOTTOMLEFT", 2, -5)
@@ -514,11 +540,11 @@ function Sl.Build(parent, w, h)
   W.status:SetWidth(190)
   W.status:SetJustifyH("RIGHT")
 
-  W.post = H.Button(ov, "Post auction", 170, 30)
-  W.post:SetPoint("BOTTOMRIGHT", ov, "BOTTOMRIGHT", -12, 14)
+  W.post = H.Button(ov, "Post auction", 140, 28)
+  W.post:SetPoint("BOTTOMRIGHT", ov, "BOTTOMRIGHT", -12, 6)
   W.post:SetScript("OnClick", Post)
   local fnt = W.post:GetFontString() if fnt and fnt.SetFontObject then fnt:SetFontObject("GameFontNormalLarge") end
-  local refresh = H.Button(ov, "Refresh bags", 100, 24)
+  local refresh = H.Button(ov, "Refresh bags", 80, 22)
   refresh:SetPoint("RIGHT", W.post, "LEFT", -6, 0)
   refresh:SetScript("OnClick", function() ScanBags() Sl.Draw() end)
 
