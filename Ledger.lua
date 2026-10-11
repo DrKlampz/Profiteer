@@ -853,7 +853,12 @@ function L.Rows(period, ck)
     table.sort(names)
     if #names > 0 then
       head("BY CHARACTER", "In", "Out", "Net")
-      for _, c in ipairs(names) do row(CP.ShortName(c), M(per[c].i), M(per[c].o), Signed(per[c].i - per[c].o)) end
+      local ti, to = 0, 0
+      for _, c in ipairs(names) do
+        ti, to = ti + per[c].i, to + per[c].o
+        row(CP.ShortName(c), M(per[c].i), M(per[c].o), Signed(per[c].i - per[c].o))
+      end
+      row("|cffffd100Total, all characters|r", M(ti), M(to), Signed(ti - to))
       gap()
     end
   end
@@ -865,6 +870,9 @@ function L.Rows(period, ck)
       local d = days[keys[i]]
       row(keys[i], M(SumIn(d)), M(SumOut(d)), Signed(SumIn(d) - SumOut(d)))
     end
+    local di, dout = 0, 0
+    for _, k in ipairs(keys) do di, dout = di + SumIn(days[k]), dout + SumOut(days[k]) end
+    row("|cffffd100Total for the period|r", M(di), M(dout), Signed(di - dout))
     gap()
   end
 
