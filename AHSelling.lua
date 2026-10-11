@@ -11,6 +11,7 @@ local items = {}       -- aggregated bag contents
 local sel
 local filter = ""
 local sortMode = "worth"
+local gameMode, gameFrame, savedPoints   -- the game's own sell form shown inside this pane
 local forbidden        -- set when the game says an add-on may not call a function
 local queue            -- { id, sizes = {..}, price, dur, done, total }
 local DURATIONS = { { 1, "12 hours" }, { 2, "24 hours" }, { 3, "48 hours" } }
@@ -313,6 +314,7 @@ function Sl.Draw()
 end
 
 local function Pick(e)
+  if gameMode and Sl.FromGameSell then Sl.FromGameSell() end
   sel = e.id
   local s = Suggest(e)
   W.price:SetText(s and MoneyText(s) or "")
@@ -331,7 +333,7 @@ end
 
 -- fallback: the game does not let add-ons post, so its own "Create Auction" form is brought into this pane,
 -- filled in with the item, quantity and price; its button is the player's click
-local gameMode, gameFrame, savedPoints = false, nil, nil
+gameMode, gameFrame, savedPoints = false, nil, nil
 
 function Sl.FromGameSell()
   if not gameMode then return end
@@ -352,36 +354,50 @@ end
 function Sl.ToGameSell(info)
   local AH = _G.AuctionHouseFrame
   if not AH then return end
-  local ok, err = pcall(function()
-    local modes = _G.AuctionHouseFrameDisplayMode
-    local mode = modes and (info.isC and modes.CommoditiesSell or modes.ItemSell)
-    if AH.SetDisplayMode and mode then AH:SetDisplayMode(mode) end
-    if AH.SetPostItem then AH:SetPostItem(info.loc) end
-  end)
-  if not ok then CP.RecordError("game sell form", err) SetStatus("Could not open the game's sell form.") return end
-  local f = info.isC and AH.CommoditiesSellFrame or AH.ItemSellFrame
-  if not f then SetStatus("The game's sell form was not found.") return end
-  gameMode, gameFrame = true, f
-  savedPoints = {}
-  for i = 1, f:GetNumPoints() do savedPoints[i] = { f:GetPoint(i) } end
+  gameMode = true
   if W.ov then W.ov:Hide() end
   W.back:Show()
-  C_Timer.After(0.1, function()
-    pcall(function()
-      f:ClearAllPoints()
-      f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6, -6)
-      f:SetFrameLevel((W.rp:GetFrameLevel() or 1) + 60)
-      f:Show()
+  SetStatus("Opening the game's sell form...")
+  -- step 1: let the game pick the item, the same way a right-click in the bags does
+  C_Timer.After(0.05, function()
+    if not gameMode then return end
+    local ok, err = pcall(function()
+      if AH.SetPostItem then AH:SetPostItem(info.loc)
+      else
+        local modes = _G.AuctionHouseFrameDisplayMode
+        local mode = modes and (info.isC and modes.CommoditiesSell or modes.ItemSell)
+        if AH.SetDisplayMode and mode then AH:SetDisplayMode(mode) end
+      end
     end)
-    C_Timer.After(0.1, function()
+    if not ok then CP.RecordError("game sell form", err) SetStatus("Could not open the game's sell form. See /pf errors.") Sl.FromGameSell() return end
+    local f = info.isC and AH.CommoditiesSellFrame or AH.ItemSellFrame
+    if not f then SetStatus("The game's sell form was not found.") Sl.FromGameSell() return end
+    gameFrame = f
+    savedPoints = {}
+    for i = 1, f:GetNumPoints() do savedPoints[i] = { f:GetPoint(i) } end
+    -- step 2: place the form inside this pane and fill it in
+    C_Timer.After(0.25, function()
+      if not gameMode then return end
       pcall(function()
-        if f.PriceInput and f.PriceInput.SetAmount then f.PriceInput:SetAmount(info.price) end
-        if f.QuantityInput and f.QuantityInput.SetQuantity then f.QuantityInput:SetQuantity(info.qty) end
-        if f.DurationDropDown and f.DurationDropDown.SetSelectedValue then f.DurationDropDown:SetSelectedValue(info.dur) end
+        -- if the game did not take the item, hand it over directly
+        local have = f.GetItem and f:GetItem()
+        if not have and f.SetItem then f:SetItem(info.loc) end
+        f:ClearAllPoints()
+        f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6, -6)
+        f:SetFrameLevel((W.rp:GetFrameLevel() or 1) + 60)
+        f:Show()
+      end)
+      C_Timer.After(0.15, function()
+        if not gameMode then return end
+        pcall(function()
+          if f.PriceInput and f.PriceInput.SetAmount then f.PriceInput:SetAmount(info.price) end
+          if f.QuantityInput and f.QuantityInput.SetQuantity then f.QuantityInput:SetQuantity(info.qty) end
+          if f.DurationDropDown and f.DurationDropDown.SetSelectedValue then f.DurationDropDown:SetSelectedValue(info.dur) end
+        end)
+        SetStatus("Press Create Auction in the form.")
       end)
     end)
   end)
-  SetStatus("Press Create Auction in the form.")
 end
 
 local function PostNext()
