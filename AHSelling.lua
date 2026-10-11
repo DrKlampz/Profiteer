@@ -277,7 +277,7 @@ function Sl.Draw()
     W.sumR:SetText("\n" .. H.Money(gross) .. "\n|cffff9060-" .. H.Money(cut) .. "|r\n" ..
       (dep and ("|cffff9060-" .. H.Money(depTotal) .. "|r") or "|cff888888?|r") .. "\n|cffffd100" .. H.Money(net) .. "|r")
     W.verdict:SetText(Verdict(price, p))
-    W.post:SetEnabled(not queue and H.IsOpen())
+    W.post:SetEnabled((not queue or queue.confirm) and H.IsOpen())
   else
     W.sumL:SetText("") W.sumR:SetText("")
     W.verdict:SetText("|cff888888Enter a price each, like 1g 30s.|r")
@@ -338,6 +338,10 @@ gameMode, gameFrame, savedPoints = false, nil, nil
 function Sl.FromGameSell()
   if not gameMode then return end
   gameMode = false
+  do
+    local AH = _G.AuctionHouseFrame
+    if AH then for _, k in ipairs({ "CommoditiesSellFrame", "ItemSellFrame" }) do if AH[k] and AH[k].SetAlpha then AH[k]:SetAlpha(1) end end end
+  end
   if gameFrame then
     pcall(function()
       gameFrame:Hide()
@@ -358,7 +362,8 @@ function Sl.ToGameSell(info)
   if W.ov then W.ov:Hide() end
   W.back:Show()
   SetStatus("Opening the game's sell form...")
-  -- step 1: let the game pick the item, the same way a right-click in the bags does
+  -- step 1: let the game pick the item, the same way a right-click in the bags does (the form stays invisible until it is placed)
+  for _, k in ipairs({ "CommoditiesSellFrame", "ItemSellFrame" }) do if AH[k] and AH[k].SetAlpha then AH[k]:SetAlpha(0) end end
   C_Timer.After(0.05, function()
     if not gameMode then return end
     local ok, err = pcall(function()
@@ -396,6 +401,7 @@ function Sl.ToGameSell(info)
         f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6, -6)
         f:SetFrameLevel((W.rp:GetFrameLevel() or 1) + 60)
         f:Show()
+        f:SetAlpha(1)
       end)
       C_Timer.After(0.15, function()
         if not gameMode then return end
@@ -423,8 +429,21 @@ local function PostNext()
   forbidden = nil
   local ok, err
   if not S().postBlocked then
-    if isC then ok, err = pcall(C_AuctionHouse.PostCommodity, loc, queue.dur, math.min(qty, e.count), queue.price)
+    if queue.confirm then
+      -- second click: the game asked for a confirmation of this post
+      queue.confirm = nil
+      if isC then ok, err = pcall(C_AuctionHouse.ConfirmPostCommodity, loc, queue.dur, math.min(qty, e.count), queue.price)
+      else ok, err = pcall(C_AuctionHouse.ConfirmPostItem, loc, queue.dur, 1, nil, queue.price) end
+      err = nil
+    elseif isC then ok, err = pcall(C_AuctionHouse.PostCommodity, loc, queue.dur, math.min(qty, e.count), queue.price)
     else ok, err = pcall(C_AuctionHouse.PostItem, loc, queue.dur, 1, nil, queue.price) end
+    if ok and err == true and not forbidden then
+      queue.confirm = true
+      SetStatus("The game wants a confirmation. Click the button again.")
+      W.post:SetText("Confirm post")
+      W.post:Enable()
+      return
+    end
   end
   if S().postBlocked or forbidden then
     -- the game does not let add-ons post by themselves: hand the item and price to the game's own Sell tab
@@ -447,7 +466,9 @@ end
 
 local function Post()
   local e = Selected()
-  if not e or queue then return end
+  if not e then return end
+  if queue and queue.confirm then PostNext() return end
+  if queue then return end
   local price = H.ParseMoney(W.price:GetText())
   if not price or price <= 0 then SetStatus("Enter a price.") return end
   local sizes = Sizes(e)
@@ -684,7 +705,11 @@ ev:RegisterEvent("ADDON_ACTION_FORBIDDEN")
 ev:RegisterEvent("ADDON_ACTION_BLOCKED")
 ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
   if event == "ADDON_ACTION_FORBIDDEN" or event == "ADDON_ACTION_BLOCKED" then
-    if a1 == ADDON then forbidden = tostring(a2 or "?") end
+    if a1 == ADDON then
+      forbidden = tostring(a2 or "?")
+      print("|cffff6060Profiteer: the game blocked " .. tostring(a2 or "an action") .. " (" .. event .. ")|r")
+      SetStatus("The game blocked " .. tostring(a2 or "an action") .. ".")
+    end
     return
   end
   if not pane or not pane:IsShown() then return end
@@ -700,6 +725,12 @@ ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
     if gameMode then Sl.FromGameSell() end
     SetStatus("Posted.")
+  elseif event == "AUCTION_HOUSE_POST_ERROR" and gameMode and gameFrame then
+    local it = gameFrame.GetItem and gameFrame:GetItem()
+    local q = gameFrame.QuantityInput and gameFrame.QuantityInput.GetQuantity and gameFrame.QuantityInput:GetQuantity()
+    local pr = gameFrame.PriceInput and gameFrame.PriceInput.GetAmount and gameFrame.PriceInput:GetAmount()
+    CP:Print("The game refused the post (error " .. tostring(a1) .. "). Item set: " .. tostring(it ~= nil) .. ", quantity " .. tostring(q) .. ", price " .. tostring(pr) .. ".")
+    SetStatus("The auction house refused the post.")
   elseif event == "AUCTION_HOUSE_POST_ERROR" and queue then
     SetStatus("The auction house refused the post. Stopped after " .. queue.done .. " of " .. queue.total .. ".")
     queue = nil
