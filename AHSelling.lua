@@ -376,7 +376,7 @@ function Sl.ToGameSell(info)
   SetStatus("Opening the game's sell form...")
   -- step 1: let the game pick the item, the same way a right-click in the bags does (the form stays invisible until it is placed)
   for _, k in ipairs({ "CommoditiesSellFrame", "ItemSellFrame" }) do if AH[k] and AH[k].SetAlpha then AH[k]:SetAlpha(0) end end
-  C_Timer.After(0.05, function()
+  C_Timer.After(0.02, function()
     if not gameMode then return end
     local ok, err = pcall(function()
       if AH.SetPostItem then
@@ -413,65 +413,74 @@ function Sl.ToGameSell(info)
     gameFrame = f
     savedPoints = {}
     for i = 1, f:GetNumPoints() do savedPoints[i] = { f:GetPoint(i) } end
-    -- step 2: place the form inside this pane and fill it in
-    C_Timer.After(0.25, function()
-      if not gameMode then return end
+    -- step 2: place the form inside this pane, lay it out and fill it in while it is still invisible, then show it once, finished
+    local function Layout()
       pcall(function()
-        -- if the game did not take the item, hand it over directly
-        local have = f.GetItem and f:GetItem()
-        if not have and f.SetItem then f:SetItem(info.loc) end
+        f:SetScale(1)
         f:ClearAllPoints()
         f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6, -6)
-        f:SetFrameLevel((W.rp:GetFrameLevel() or 1) + 60)
-        f:Show()
-        f:SetAlpha(1)
-      end)
-      C_Timer.After(0.15, function()
-        if not gameMode then return end
-        pcall(function()
-          if f.PriceInput and f.PriceInput.SetAmount then f.PriceInput:SetAmount(info.price) end
-          if f.QuantityInput and f.QuantityInput.SetQuantity then f.QuantityInput:SetQuantity(info.qty) end
-          if f.DurationDropDown and f.DurationDropDown.SetSelectedValue then f.DurationDropDown:SetSelectedValue(info.dur) end
-        end)
-        -- shrink the form until all of it (down to Create Auction and Buyout Mode) fits inside the pane
-        pcall(function()
-          f:SetScale(1)
+        local top, left, right = f:GetTop(), f:GetLeft(), f:GetRight()
+        local low = top
+        local cb = f.BuyoutModeCheckButton
+        if cb and cb.GetNumPoints then
+          if not cbPoints then cbPoints = {} for i = 1, cb:GetNumPoints() do cbPoints[i] = { cb:GetPoint(i) } end cbOwner = cb end
+          cb:ClearAllPoints()
+          cb:SetPoint("BOTTOMLEFT", W.rp, "BOTTOMLEFT", 14, 8)
+        end
+        local pb = f.PostButton
+        if not pb then
+          for _, c in ipairs({ f:GetChildren() }) do
+            local t = c.GetText and c:GetText()
+            if c.GetObjectType and c:GetObjectType() == "Button" and type(t) == "string" and t:lower():find("create") then pb = c break end
+          end
+        end
+        if pb and pb.GetNumPoints then
+          if not pbPoints then pbPoints = {} for i = 1, pb:GetNumPoints() do pbPoints[i] = { pb:GetPoint(i) } end pbOwner = pb end
+          pb:ClearAllPoints()
+          pb:SetPoint("BOTTOMRIGHT", W.rp, "BOTTOMRIGHT", -12, 36)
+          if not pb.pfHooked then
+            pb.pfHooked = true
+            -- the game clears the form the moment the post goes out; keep that from showing
+            pb:HookScript("OnClick", function() if gameMode and gameFrame then gameFrame:SetAlpha(0) SetStatus("Posting...") end end)
+          end
+        end
+        for _, k in ipairs({ "TotalPrice", "Deposit" }) do
+          local c = f[k]
+          if c and c.GetBottom and c:GetBottom() and c:GetBottom() < low then low = c:GetBottom() end
+        end
+        local needH, needW = (top - low) + 16, math.max(right - left, 1)
+        local availH, availW = W.rp:GetHeight() - 12, W.rp:GetWidth() - 12
+        local sc = math.min(1, availH / needH, availW / needW)
+        if sc < 1 then
+          f:SetScale(sc)
           f:ClearAllPoints()
-          f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6, -6)
-          local top, left, right = f:GetTop(), f:GetLeft(), f:GetRight()
-          local low = top
-          local cb = f.BuyoutModeCheckButton
-          if cb and cb.GetNumPoints then
-            if not cbPoints then cbPoints = {} for i = 1, cb:GetNumPoints() do cbPoints[i] = { cb:GetPoint(i) } end cbOwner = cb end
-            cb:ClearAllPoints()
-            cb:SetPoint("BOTTOMLEFT", W.rp, "BOTTOMLEFT", 14, 8)
-          end
-          local pb = f.PostButton
-          if not pb then
-            for _, c in ipairs({ f:GetChildren() }) do
-              local t = c.GetText and c:GetText()
-              if c.GetObjectType and c:GetObjectType() == "Button" and type(t) == "string" and t:lower():find("create") then pb = c break end
-            end
-          end
-          if pb and pb.GetNumPoints then
-            if not pbPoints then pbPoints = {} for i = 1, pb:GetNumPoints() do pbPoints[i] = { pb:GetPoint(i) } end pbOwner = pb end
-            pb:ClearAllPoints()
-            pb:SetPoint("BOTTOMRIGHT", W.rp, "BOTTOMRIGHT", -12, 36)
-          end
-          for _, k in ipairs({ "TotalPrice", "Deposit" }) do
-            local c = f[k]
-            if c and c.GetBottom and c:GetBottom() and c:GetBottom() < low then low = c:GetBottom() end
-          end
-          local needH, needW = (top - low) + 16, math.max(right - left, 1)
-          local availH, availW = W.rp:GetHeight() - 12, W.rp:GetWidth() - 12
-          local sc = math.min(1, availH / needH, availW / needW)
-          if sc < 1 then
-            f:SetScale(sc)
-            f:ClearAllPoints()
-            f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6 / sc, -6 / sc)
-          end
+          f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6 / sc, -6 / sc)
+        end
+      end)
+      pcall(function()
+        if f.PriceInput and f.PriceInput.SetAmount then f.PriceInput:SetAmount(info.price) end
+        if f.QuantityInput and f.QuantityInput.SetQuantity then f.QuantityInput:SetQuantity(info.qty) end
+        if f.DurationDropDown and f.DurationDropDown.SetSelectedValue then f.DurationDropDown:SetSelectedValue(info.dur) end
+      end)
+    end
+    C_Timer.After(0.1, function()
+      if not gameMode then return end
+      pcall(function()
+        local have = f.GetItem and f:GetItem()
+        if not have and f.SetItem then f:SetItem(info.loc) end
+        f:SetFrameLevel((W.rp:GetFrameLevel() or 1) + 60)
+        f:SetAlpha(0)
+        f:Show()
+      end)
+      C_Timer.After(0.03, function()
+        if not gameMode then return end
+        Layout()
+        C_Timer.After(0.1, function()
+          if not gameMode then return end
+          Layout()   -- once more: the form re-lays itself out when its prices arrive
+          f:SetAlpha(1)
+          SetStatus("Press Create Auction in the form.")
         end)
-        SetStatus("Press Create Auction in the form.")
       end)
     end)
   end)
@@ -791,6 +800,7 @@ ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
   elseif event == "UI_ERROR_MESSAGE" then
     if gameMode then
       CP:Print("Game message " .. tostring(a1) .. ": " .. tostring(a2))
+      if gameFrame then gameFrame:SetAlpha(1) end
       pcall(function()
         local f = gameFrame
         local it = f and f.GetItem and f:GetItem()
@@ -811,6 +821,7 @@ ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
     local q = gameFrame.QuantityInput and gameFrame.QuantityInput.GetQuantity and gameFrame.QuantityInput:GetQuantity()
     local pr = gameFrame.PriceInput and gameFrame.PriceInput.GetAmount and gameFrame.PriceInput:GetAmount()
     CP:Print("The game refused the post (error " .. tostring(a1) .. "). Item set: " .. tostring(it ~= nil) .. ", quantity " .. tostring(q) .. ", price " .. tostring(pr) .. ".")
+    gameFrame:SetAlpha(1)
     SetStatus("The auction house refused the post.")
   elseif event == "AUCTION_HOUSE_POST_ERROR" and queue then
     SetStatus("The auction house refused the post. Stopped after " .. queue.done .. " of " .. queue.total .. ".")
