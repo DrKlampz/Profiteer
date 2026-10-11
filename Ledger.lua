@@ -346,9 +346,15 @@ f:SetScript("OnEvent", CP.Safe("ledger", function(_, event, a1, a2, a3)
     local num = GetInboxNumItems or (C_Mail and C_Mail.GetInboxNumItems)
     local hdr = GetInboxHeaderInfo or (C_Mail and C_Mail.GetInboxHeaderInfo)
     if num and hdr then
+      local sum, n = 0, 0
       for i = 1, num() or 0 do
         local _, _, sender, _, money = hdr(i)
         snap[i] = { sender = sender, money = money or 0 }
+        if (money or 0) > 0 then sum, n = sum + money, n + 1 end
+      end
+      if CP.db and CP.charKey then
+        CP.db.mailGold = CP.db.mailGold or {}
+        CP.db.mailGold[CP.charKey] = { money = sum, n = n, t = time() }
       end
     end
   elseif event == "TRADE_SHOW" then ctx.trade = true
@@ -649,6 +655,29 @@ function L.Rows(period, ck)
   for k in pairs(days) do keys[#keys + 1] = k end
   table.sort(keys)
   head("SUMMARY")
+  do
+    -- gold on its way: sold auctions whose money has not been collected, plus coin sitting in mailboxes
+    local lst, soldNet, inbox, boxN = db.myAuctions or {}, 0, 0, 0
+    local allSales, allCut = 0, 0
+    for _, d in pairs(db.ledger or {}) do allSales, allCut = allSales + (d.sales or 0), allCut + (d.cut or 0) end
+    local rate = (allSales > 0) and math.min(0.15, math.max(0, -allCut / allSales)) or 0.05
+    for c, e in pairs(lst) do
+      if not ck or c == ck then
+        for _, it in ipairs(e.items or {}) do if it.sold then soldNet = soldNet + math.floor(it.ask * (1 - rate)) end end
+      end
+    end
+    for c, m in pairs(db.mailGold or {}) do
+      if not ck or c == ck then inbox, boxN = inbox + (m.money or 0), boxN + (m.n or 0) end
+    end
+    local waiting = soldNet + inbox
+    if waiting > 0 then
+      row("|cffffd100Waiting for you in the mail|r", "|cffffd100" .. M(waiting) .. "|r",
+        (soldNet > 0 and ("sold auctions about " .. M(soldNet)) or "") .. ((soldNet > 0 and inbox > 0) and ", " or "") ..
+        (inbox > 0 and ("coin in mailboxes " .. M(inbox)) or ""))
+    else
+      row("Waiting for you in the mail", "|cff9d9d9dnothing known|r", "open the auction house and your mailbox once on each character")
+    end
+  end
   row("Days with activity", #keys)
   row("Net cash flow (everything in minus everything out)", Signed(net))
   row("Net before buying stock", Signed(net - (-(tot.ahBuys or 0)) - (-(tot.vendorBuys or 0))), "buying is stock, not loss")

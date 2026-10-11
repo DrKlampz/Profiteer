@@ -32,6 +32,13 @@ local function Options()
             L.Slider("Divider thickness (pixels)", st, "rowDivSize", 1, 4, 1, nil, function() if CP.AH then CP.AH.ApplyDividers() end end),
             L.Slider("Divider indent from the row edges", st, "rowDivInset", 0, 40, 2, nil, function() if CP.AH then CP.AH.ApplyDividers() end end),
             L.Koff("Shade every other row", st, "rowStripes", function() if CP.AH then CP.AH.ApplyDividers() end end),
+            L.Choice("Selling: undercut by", st, "undercutMode", { { "copper", "A fixed amount of copper" }, { "percent", "A percentage" } }),
+            L.Slider("Selling: undercut percentage", st, "undercutPct", 0, 30, 0.5, "%.1f"),
+            L.Slider("Selling: undercut copper", st, "undercut", 0, 500, 1),
+            L.Choice("Selling: start from", st, "sellBase", { { "low", "The lowest price at the last scan" }, { "ref", "The reference (median) price" } }),
+            L.Choice("Selling: round prices down to", st, "sellRound", { { "none", "The copper" }, { "silver", "Whole silver" }, { "tensilver", "Ten silver" } }),
+            L.Koff("Selling: never suggest less than the vendor price", st, "sellVendorFloor"),
+            L.Choice("Selling: default duration", st, "sellDuration", { { 1, "12 hours" }, { 2, "24 hours" }, { 3, "48 hours" } }),
             L.Koff("Keep the game's own Buy / Sell / Auctions tabs (Profiteer's tabs go after them; reopen the auction house)", st, "keepGameTabs"),
         } },
         { id = "mmap", title = "Minimap", rows = {
