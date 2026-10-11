@@ -46,7 +46,11 @@ local function Embed()
   f:SetFrameLevel(host:GetFrameLevel() + 2)
   f:SetToplevel(false)
   f:SetMovable(false)
-  f:SetScale(1)
+  -- shrink to fit if the AH is narrower or shorter than the window; never grow
+  local hw, hh, fw, fh = host:GetWidth(), host:GetHeight(), f:GetWidth(), f:GetHeight()
+  local sc = 1
+  if hw and hh and fw and fh and fw > 0 and fh > 0 then sc = math.min(1, hw / fw, hh / fh) end
+  f:SetScale(sc)
   if f.SetBackdropColor then f:SetBackdropColor(0, 0, 0, 0) f:SetBackdropBorderColor(0, 0, 0, 0) end
   if f.bgTex then f.bgTex:Hide() end
   if f.closeBtn then f.closeBtn:Hide() end
@@ -131,7 +135,8 @@ local function Create()
     if not ok or not t then ok, t = pcall(CreateFrame, "Button", "AuctionHouseFrameProfiteerTab" .. k[1], AuctionHouseFrame, "PanelTopTabButtonTemplate") end
     if not ok or not t then CP:Print("Could not create the Profiteer tabs in the auction house.") return end
     t:SetText(k[2])
-    if PanelTemplates_TabResize then pcall(PanelTemplates_TabResize, t, 0) end
+    local tw = (t.Text and t.Text.GetStringWidth and t.Text:GetStringWidth()) or 60
+    t:SetWidth(math.max(88, tw + 40))
     if i == 1 then
       if keep then
         t:SetPoint("LEFT", last, "RIGHT", -15, 0)
@@ -140,7 +145,7 @@ local function Create()
         t:SetPoint(p, rel, relp, x, y)
       end
     else
-      t:SetPoint("LEFT", prev, "RIGHT", -15, 0)
+      t:SetPoint("LEFT", prev, "RIGHT", 2, 0)
     end
     t:SetScript("OnClick", function() AHTab.Go(k[1]) end)
     SetSelected(t, false)

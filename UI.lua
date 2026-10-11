@@ -221,6 +221,7 @@ function UI.Update()
 end
 
 function UI.SetStatus(text)
+  if UI.tab and UI.tab ~= "crafts" and UI.tab ~= "ledger" then text = "" end   -- the other tabs have their own status lines
   if UI.status then UI.status:SetText(text or "") end
 end
 
@@ -485,7 +486,7 @@ function UI.Create()
   UI.onlyCraftable = cb
 
   local cb2 = CreateFrame("CheckButton", "ProfiteerShowLosses", f, "UICheckButtonTemplate")
-  cb2:SetPoint("LEFT", cb, "RIGHT", 90, 0)
+  cb2:SetPoint("LEFT", cb, "RIGHT", 128, 0)
   local cb2Text = _G["ProfiteerShowLossesText"] or cb2.Text
   if cb2Text then pcall(function() cb2Text:SetText("Hide money-losing") end) end
   cb2:SetScript("OnClick", function(self)
@@ -519,7 +520,7 @@ function UI.Create()
   UI.panes = {}
   for key, mod in pairs({ shopping = CP.AHShopping, selling = CP.AHSelling, cancelling = CP.AHCancel }) do
     if mod and mod.Build then
-      local ok, p = pcall(mod.Build, f, TOTAL_W + 12, 470 - 48 - 52)
+      local ok, p = pcall(mod.Build, f, TOTAL_W + 12, 470 - 52 - 12)
       if ok and p then p:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -52) UI.panes[key] = p else CP.RecordError("build " .. key, p) end
     end
   end

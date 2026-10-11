@@ -175,10 +175,44 @@ end
 ------------------------------------------------------------------------
 -- drawing
 ------------------------------------------------------------------------
+local GOLD = { 1, 0.82, 0 }
+local function Accent()
+  local L = CP.WinLook
+  if L and L.On and L.On("main") then local e = L.Effective("main") if e and e.edgeColor then return e.edgeColor end end
+  return { 0.85, 0.65, 0.2 }
+end
+
+local function QualityColor(id)
+  local q
+  if C_Item and C_Item.GetItemQualityByID then local ok, v = pcall(C_Item.GetItemQualityByID, id) if ok then q = v end end
+  if not q and GetItemInfo then q = select(3, GetItemInfo(id)) end
+  local c = q and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[q]
+  if c then return c.r, c.g, c.b end
+  return 1, 1, 1
+end
+
+local function Panel(parent, w, h)
+  local f = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  f:SetSize(w, h)
+  if f.SetBackdrop then
+    f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    f:SetBackdropColor(0.02, 0.02, 0.04, 0.55)
+    local a = Accent()
+    f:SetBackdropBorderColor(a[1], a[2], a[3], 0.55)
+  end
+  return f
+end
+
 function S.Draw()
   if not pane then return end
   local e = list[sel]
-  W.title:SetText(S.title or (#list > 0 and "Shopping list" or "Shopping list is empty. Click a craft in the Crafts tab, or add an item."))
+  local acc = Accent()
+  W.accentLine:SetColorTexture(acc[1], acc[2], acc[3], 0.9)
+  W.lp:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.55)
+  W.rp:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.55)
+  W.ab:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.55)
+  W.title:SetText(S.title or "Shopping list")
+  W.count:SetText(#list > 0 and (#list .. (#list == 1 and " item" or " items")) or "")
   -- left list
   W.list.n = #list
   local maxOff = math.max(0, #list - ROWS)
@@ -190,41 +224,65 @@ function S.Draw()
     if it then
       r.icon:SetTexture(H.Icon(it.id))
       r.name:SetText(Name(it.id))
-      local need = Need(it)
-      r.need:SetText(need == 0 and "|cff40ff40have|r" or ("need " .. need))
+      r.name:SetTextColor(QualityColor(it.id))
+      local have, want = Have(it.id), it.want or 1
+      local need = math.max(0, want - have)
+      r.need:SetText(need == 0 and "|cff40ff40done|r" or ("|cffffd100" .. need .. "|r |cff888888to buy|r"))
+      r.bar:SetWidth(math.max(0.01, math.min(1, have / math.max(1, want))) * (r:GetWidth() > 0 and r:GetWidth() or 240))
+      r.bar:SetShown(have > 0)
+      r.stripe:SetShown(idx % 2 == 0)
       r.sel:SetShown(idx == sel)
       r:Show()
     else
       r:Hide()
     end
   end
-  -- right: results
-  if not e then
-    W.head:SetText("")
-    for _, r in ipairs(W.res.rows) do r:Hide() end
-    W.total:SetText("")
-    W.buy:Disable()
-    return
-  end
-  W.head:SetText(Name(e.id) .. "   |cff888888you have " .. Have(e.id) .. ", want " .. (e.want or 1) .. "|r")
+  W.empty:SetShown(#list == 0)
+  W.rp:SetShown(#list > 0)
+  W.ab:SetShown(#list > 0)
+  if not e then return end
+
+  -- hero header
+  W.heroIcon:SetTexture(H.Icon(e.id))
+  W.heroName:SetText(Name(e.id))
+  W.heroName:SetTextColor(QualityColor(e.id))
+  local have, want = Have(e.id), e.want or 1
+  W.heroSub:SetText(("You have |cffffd100%d|r of |cffffd100%d|r"):format(have, want))
+  W.heroBar:SetMinMaxValues(0, math.max(1, want))
+  W.heroBar:SetValue(math.min(have, want))
+  local scan = CP.db.prices[e.id]
   local res = state.results or {}
+  if res[1] and scan and scan.ref and scan.ref > 0 then
+    local pct = (res[1].price / scan.ref - 1) * 100
+    local col = pct <= -1 and "|cff40ff40" or (pct >= 5 and "|cffff6040" or "|cffffd100")
+    W.heroMkt:SetText(("Cheapest now %s  %s%+.0f%%|r |cff888888vs usual %s|r"):format(H.Money(res[1].price), col, pct, H.Money(scan.ref)))
+  else
+    W.heroMkt:SetText(scan and scan.ref and ("|cff888888usual price " .. H.Money(scan.ref) .. "|r") or "")
+  end
+
   W.res.n = #res
-  local maxR = math.max(0, #res - ROWS)
+  local maxR = math.max(0, #res - (ROWS - 2))
   if W.res.offset > maxR then W.res.offset = maxR end
+  local want = (state.kind == "commodity") and WantQty() or 0
   local cumQ, cumC = 0, 0
   for i = 1, W.res.offset do cumQ = cumQ + (res[i].qty or 0) cumC = cumC + (res[i].qty or 0) * res[i].price end
   for i, r in ipairs(W.res.rows) do
     local idx = i + W.res.offset
     local x = res[idx]
     if x then
+      local before = cumQ
       cumQ = cumQ + (x.qty or 0)
       cumC = cumC + (x.qty or 0) * x.price
-      r.price:SetText(H.Money(x.price) .. (state.kind == "item" and "" or ""))
+      r.price:SetText(H.Money(x.price))
       r.qty:SetText(tostring(x.qty or 1))
       r.cumq:SetText(tostring(cumQ))
       r.cumc:SetText(H.Money(cumC))
-      r.sel:SetShown(state.kind == "item" and (state.pick or 1) == idx)
-      r.name:SetText(x.mine and "|cff40c0ffyours|r" or "")
+      local picked = state.kind == "item" and (state.pick or 1) == idx
+      local covered = state.kind == "commodity" and want > 0 and before < want
+      r.sel:SetShown(picked)
+      r.cover:SetShown(covered)
+      r.stripe:SetShown(idx % 2 == 0)
+      r.name:SetText(x.mine and "|cff40c0ffyours|r" or (idx == 1 and "|cff40ff40cheapest|r" or ""))
       r.idx = idx
       r:Show()
     else
@@ -241,20 +299,18 @@ function S.Draw()
       cost = cost + take * x.price
       left = left - take
     end
-    if left > 0 then W.total:SetText("Only " .. (n - left) .. " listed.") else W.total:SetText("About " .. H.Money(cost) .. " for " .. n) end
-    if state.confirm and state.total then
-      W.buy:SetText("Confirm " .. H.Money(state.total))
-    else
-      W.buy:SetText("Buy " .. n)
-    end
+    if n == 0 then W.total:SetText("")
+    elseif left > 0 then W.total:SetText("|cffff6040Only " .. (n - left) .. " listed|r")
+    else W.total:SetText("|cff888888About|r " .. H.Money(cost) .. " |cff888888for " .. n .. "|r") end
+    W.buy:SetText((state.confirm and state.total) and ("Confirm  " .. H.Money(state.total)) or ("Buy " .. n))
     W.buy:SetEnabled(n > 0 and #res > 0 and H.IsOpen())
-    W.qty:Show()
+    W.qty:Show() W.qtyLabel:Show()
   elseif state.kind == "item" then
     local x = res[state.pick or 1]
     W.total:SetText(x and ("Buyout " .. H.Money(x.price)) or "")
     W.buy:SetText("Buy this listing")
     W.buy:SetEnabled(x ~= nil and H.IsOpen())
-    W.qty:Hide()
+    W.qty:Hide() W.qtyLabel:Hide()
   else
     W.total:SetText("")
     W.buy:SetText("Buy")
@@ -268,34 +324,52 @@ function S.Build(parent, w, h)
   pane:Hide()
   S.pane = pane
 
-  local leftW = 250
-  W.title = H.Text(pane, "GameFontNormal")
-  W.title:SetPoint("TOPLEFT", 4, -2)
-  W.title:SetWidth(leftW)
-  W.title:SetJustifyH("LEFT")
+  local leftW = 262
+  local listH = ROWS * 20 + 8
+  local barH = 50
 
-  local lf = CreateFrame("Frame", nil, pane)
-  lf:SetPoint("TOPLEFT", 0, -22)
-  lf:SetSize(leftW, ROWS * 20)
+  -- header strip
+  W.title = H.Text(pane, "GameFontNormalLarge")
+  W.title:SetPoint("TOPLEFT", 4, -2)
+  W.title:SetWidth(w - 120)
+  W.title:SetJustifyH("LEFT")
+  W.count = H.Text(pane, "GameFontDisableSmall")
+  W.count:SetPoint("TOPRIGHT", -6, -8)
+  W.accentLine = pane:CreateTexture(nil, "ARTWORK")
+  W.accentLine:SetPoint("TOPLEFT", 0, -24)
+  W.accentLine:SetPoint("TOPRIGHT", 0, -24)
+  W.accentLine:SetHeight(2)
+
+  -- left panel: the list
+  W.lp = Panel(pane, leftW, listH + 30)
+  W.lp:SetPoint("TOPLEFT", 0, -32)
+  local lf = CreateFrame("Frame", nil, W.lp)
+  lf:SetPoint("TOPLEFT", 4, -4)
+  lf:SetSize(leftW - 8, ROWS * 20)
   W.list = H.RowList(lf, ROWS, 20, function(r, i)
-    r.icon = r:CreateTexture(nil, "ARTWORK") r.icon:SetSize(16, 16) r.icon:SetPoint("LEFT", 2, 0)
-    r.name = H.Text(r) r.name:SetPoint("LEFT", r.icon, "RIGHT", 4, 0) r.name:SetWidth(150) r.name:SetJustifyH("LEFT")
-    r.need = H.Text(r) r.need:SetPoint("RIGHT", -4, 0) r.need:SetJustifyH("RIGHT")
+    r.stripe = r:CreateTexture(nil, "BACKGROUND") r.stripe:SetAllPoints() r.stripe:SetColorTexture(1, 1, 1, 0.035)
+    r.bar = r:CreateTexture(nil, "BACKGROUND", nil, 1) r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetColorTexture(0.2, 0.7, 0.25, 0.22)
+    r.icon = r:CreateTexture(nil, "ARTWORK") r.icon:SetSize(18, 18) r.icon:SetPoint("LEFT", 3, 0)
+    r.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    r.name = H.Text(r, "GameFontHighlightSmall") r.name:SetPoint("LEFT", r.icon, "RIGHT", 6, 0) r.name:SetWidth(140) r.name:SetJustifyH("LEFT")
+    r.need = H.Text(r) r.need:SetPoint("RIGHT", -6, 0) r.need:SetJustifyH("RIGHT")
+    r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     r:SetScript("OnClick", function(self, btn)
       if not (self.idx and list[self.idx]) then return end
-      if btn == "RightButton" then table.remove(list, self.idx) if sel > #list then sel = #list end if sel < 1 then sel = 1 end S.Draw() S.Search() return end
+      if btn == "RightButton" then
+        table.remove(list, self.idx)
+        if sel > #list then sel = #list end
+        if sel < 1 then sel = 1 end
+        S.Draw() S.Search() return
+      end
       sel = self.idx S.Draw() S.Search()
     end)
-    r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   end)
   W.list.refresh = S.Draw
 
-  local hint = H.Text(pane, "GameFontDisableSmall")
-  hint:SetPoint("TOPLEFT", lf, "BOTTOMLEFT", 2, -4)
-  hint:SetText("Click to search. Right-click to remove.")
-
+  -- add / clear under the list
   local add = H.Edit(pane, 150)
-  add:SetPoint("BOTTOMLEFT", 8, 4)
+  add:SetPoint("TOPLEFT", W.lp, "BOTTOMLEFT", 8, -8)
   local addBtn = H.Button(pane, "Add", 50, 22)
   addBtn:SetPoint("LEFT", add, "RIGHT", 6, 0)
   local clear = H.Button(pane, "Clear", 50, 22)
@@ -313,48 +387,77 @@ function S.Build(parent, w, h)
   addBtn:SetScript("OnClick", DoAdd)
   add:SetScript("OnEnterPressed", function(self) self:ClearFocus() DoAdd() end)
   clear:SetScript("OnClick", function() list = {} sel = 1 S.title = nil Cancel() state.results = {} S.Draw() end)
+  local hint = H.Text(pane, "GameFontDisableSmall")
+  hint:SetPoint("TOPLEFT", add, "BOTTOMLEFT", -2, -4)
+  hint:SetText("Add by ID, link or exact name. Right-click a row to remove it.")
 
-  -- right side
-  local rx = leftW + 20
-  W.head = H.Text(pane, "GameFontNormal")
-  W.head:SetPoint("TOPLEFT", rx, -2)
-  W.head:SetWidth(w - rx)
-  W.head:SetJustifyH("LEFT")
+  -- empty state
+  W.empty = CreateFrame("Frame", nil, pane)
+  W.empty:SetPoint("TOPLEFT", leftW + 16, -40)
+  W.empty:SetPoint("BOTTOMRIGHT", 0, 0)
+  local eIcon = W.empty:CreateTexture(nil, "ARTWORK") eIcon:SetSize(64, 64) eIcon:SetPoint("TOP", 0, -60) eIcon:SetTexture(134400)
+  eIcon:SetDesaturated(true) eIcon:SetAlpha(0.6)
+  local eT = H.Text(W.empty, "GameFontNormalLarge") eT:SetPoint("TOP", eIcon, "BOTTOM", 0, -14) eT:SetText("Nothing on your list yet")
+  local eS = H.Text(W.empty, "GameFontHighlight") eS:SetPoint("TOP", eT, "BOTTOM", 0, -10) eS:SetWidth(380) eS:SetJustifyH("CENTER")
+  eS:SetText("Open the Crafts tab and click a craft: its materials land here, sized to the gold you have.\nOr add an item by ID, link or name.")
 
-  local hdr = { { "Price each", 0, 120 }, { "Listed", 130, 60 }, { "Total so far", 200, 80 }, { "Cost so far", 290, 130 } }
+  -- right panel: item hero + results
+  local rx = leftW + 12
+  W.rp = Panel(pane, w - rx, listH + 30)
+  W.rp:SetPoint("TOPLEFT", rx, -32)
+  W.heroIcon = W.rp:CreateTexture(nil, "ARTWORK") W.heroIcon:SetSize(40, 40) W.heroIcon:SetPoint("TOPLEFT", 12, -10)
+  W.heroIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  W.heroName = H.Text(W.rp, "GameFontNormalHuge") W.heroName:SetPoint("TOPLEFT", W.heroIcon, "TOPRIGHT", 10, -1) W.heroName:SetWidth(w - rx - 80) W.heroName:SetJustifyH("LEFT")
+  W.heroSub = H.Text(W.rp, "GameFontHighlightSmall") W.heroSub:SetPoint("TOPLEFT", W.heroName, "BOTTOMLEFT", 0, -4)
+  W.heroBar = CreateFrame("StatusBar", nil, W.rp)
+  W.heroBar:SetSize(160, 8)
+  W.heroBar:SetPoint("LEFT", W.heroSub, "RIGHT", 10, 0)
+  W.heroBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+  W.heroBar:SetStatusBarColor(0.25, 0.75, 0.3, 0.9)
+  local hbBg = W.heroBar:CreateTexture(nil, "BACKGROUND") hbBg:SetAllPoints() hbBg:SetColorTexture(1, 1, 1, 0.12)
+  W.heroMkt = H.Text(W.rp, "GameFontHighlightSmall") W.heroMkt:SetPoint("TOPLEFT", W.heroIcon, "BOTTOMLEFT", 0, -6)
+
+  local hdr = { { "Price each", 8, 120 }, { "Listed", 130, 56 }, { "Total so far", 196, 70 }, { "Cost so far", 276, 130 } }
   for _, c in ipairs(hdr) do
-    local fs = H.Text(pane, "GameFontNormalSmall")
-    fs:SetPoint("TOPLEFT", rx + c[2], -22)
+    local fs = H.Text(W.rp, "GameFontNormalSmall")
+    fs:SetPoint("TOPLEFT", c[2] + 6, -82)
     fs:SetText(c[1])
   end
-  local rf = CreateFrame("Frame", nil, pane)
-  rf:SetPoint("TOPLEFT", rx, -38)
-  rf:SetSize(w - rx - 8, (ROWS - 1) * 20)
-  W.res = H.RowList(rf, ROWS - 1, 20, function(r)
-    r.price = H.Text(r) r.price:SetPoint("LEFT", 0, 0) r.price:SetWidth(120) r.price:SetJustifyH("LEFT")
-    r.qty = H.Text(r) r.qty:SetPoint("LEFT", 130, 0) r.qty:SetWidth(60) r.qty:SetJustifyH("LEFT")
-    r.cumq = H.Text(r) r.cumq:SetPoint("LEFT", 200, 0) r.cumq:SetWidth(80) r.cumq:SetJustifyH("LEFT")
-    r.cumc = H.Text(r) r.cumc:SetPoint("LEFT", 290, 0) r.cumc:SetWidth(130) r.cumc:SetJustifyH("LEFT")
-    r.name = H.Text(r) r.name:SetPoint("RIGHT", -4, 0)
+  local ln = W.rp:CreateTexture(nil, "ARTWORK") ln:SetPoint("TOPLEFT", 6, -96) ln:SetPoint("TOPRIGHT", -6, -96) ln:SetHeight(1) ln:SetColorTexture(1, 1, 1, 0.15)
+  local rf = CreateFrame("Frame", nil, W.rp)
+  rf:SetPoint("TOPLEFT", 6, -98)
+  rf:SetSize(w - rx - 12, (ROWS - 5) * 20)
+  W.res = H.RowList(rf, ROWS - 5, 20, function(r)
+    r.stripe = r:CreateTexture(nil, "BACKGROUND") r.stripe:SetAllPoints() r.stripe:SetColorTexture(1, 1, 1, 0.035)
+    r.cover = r:CreateTexture(nil, "BACKGROUND", nil, 1) r.cover:SetAllPoints() r.cover:SetColorTexture(1, 0.82, 0, 0.12)
+    r.price = H.Text(r) r.price:SetPoint("LEFT", 8, 0) r.price:SetWidth(120) r.price:SetJustifyH("LEFT")
+    r.qty = H.Text(r) r.qty:SetPoint("LEFT", 130, 0) r.qty:SetWidth(56) r.qty:SetJustifyH("LEFT")
+    r.cumq = H.Text(r) r.cumq:SetPoint("LEFT", 196, 0) r.cumq:SetWidth(70) r.cumq:SetJustifyH("LEFT")
+    r.cumc = H.Text(r) r.cumc:SetPoint("LEFT", 276, 0) r.cumc:SetWidth(130) r.cumc:SetJustifyH("LEFT")
+    r.name = H.Text(r) r.name:SetPoint("RIGHT", -8, 0)
     r:SetScript("OnClick", function(self) if state.kind == "item" then state.pick = self.idx S.Draw() end end)
   end)
   W.res.refresh = S.Draw
 
-  W.qty = H.Edit(pane, 60, true)
-  W.qty:SetPoint("BOTTOMLEFT", rx + 4, 4)
+  -- action bar along the bottom
+  W.ab = Panel(pane, w - rx, barH)
+  W.ab:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", 0, 0)
+  W.qtyLabel = H.Text(W.ab, "GameFontNormalSmall") W.qtyLabel:SetPoint("TOPLEFT", 14, -6) W.qtyLabel:SetText("How many")
+  W.qty = H.Edit(W.ab, 64, true)
+  W.qty:SetPoint("BOTTOMLEFT", 18, 7)
   W.qty:SetScript("OnTextChanged", function(self, user) if user then Cancel() S.Draw() end end)
-  local ql = H.Text(pane) ql:SetPoint("BOTTOMLEFT", W.qty, "TOPLEFT", -4, 2) ql:SetText("How many")
-  W.buy = H.Button(pane, "Buy", 170, 24)
-  W.buy:SetPoint("LEFT", W.qty, "RIGHT", 10, 0)
+  W.buy = H.Button(W.ab, "Buy", 200, 34)
+  W.buy:SetPoint("LEFT", W.qty, "RIGHT", 14, 0)
+  local fnt = W.buy:GetFontString() if fnt and fnt.SetFontObject then fnt:SetFontObject("GameFontNormalLarge") end
   W.buy:SetScript("OnClick", BuyClick)
-  local refresh = H.Button(pane, "Refresh", 80, 24)
-  refresh:SetPoint("LEFT", W.buy, "RIGHT", 6, 0)
+  local refresh = H.Button(W.ab, "Refresh", 80, 24)
+  refresh:SetPoint("LEFT", W.buy, "RIGHT", 8, 0)
   refresh:SetScript("OnClick", function() S.Search() end)
-  W.total = H.Text(pane)
-  W.total:SetPoint("LEFT", refresh, "RIGHT", 12, 0)
+  W.total = H.Text(W.ab, "GameFontHighlight")
+  W.total:SetPoint("LEFT", refresh, "RIGHT", 14, 0)
   W.status = H.Text(pane, "GameFontHighlightSmall")
-  W.status:SetPoint("BOTTOMLEFT", W.qty, "TOPLEFT", 60, 4)
-  W.status:SetWidth(w - rx - 80)
+  W.status:SetPoint("BOTTOMLEFT", W.ab, "TOPLEFT", 6, 4)
+  W.status:SetWidth(w - rx - 12)
   W.status:SetJustifyH("LEFT")
 
   pane:SetScript("OnShow", function()
