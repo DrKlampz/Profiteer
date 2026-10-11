@@ -21,6 +21,7 @@ Ledger.lua
 Analyzer.lua
 AHCommon.lua
 AHShopping.lua
+AHLists.lua
 AHSelling.lua
 AHCancel.lua
 Shop.lua

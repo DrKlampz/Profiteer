@@ -343,10 +343,22 @@ function S.Build(parent, w, h)
   -- header strip
   W.title = H.Text(pane, "GameFontNormalLarge")
   W.title:SetPoint("TOPLEFT", 4, -2)
-  W.title:SetWidth(w - 120)
+  W.title:SetWidth(w - 300)
   W.title:SetJustifyH("LEFT")
   W.count = H.Text(pane, "GameFontDisableSmall")
-  W.count:SetPoint("TOPRIGHT", -6, -8)
+  W.count:SetPoint("TOPRIGHT", -176, -8)
+  W.listsBtn = H.Button(pane, "Lists  v", 78, 20)
+  W.listsBtn:SetPoint("TOPRIGHT", -88, -2)
+  W.listsBtn:SetScript("OnClick", function(self)
+    CP.AHLists.Open(self, function(entries, name) S.SetList(entries, name) end)
+  end)
+  W.saveBtn = H.Button(pane, "Save list", 78, 20)
+  W.saveBtn:SetPoint("TOPRIGHT", -6, -2)
+  W.saveBtn:SetScript("OnClick", function(self)
+    if #list == 0 then SetStatus("Nothing on the list to save.") return end
+    CP.AHLists.AskSave(self, function() return list end, S.title and tostring(S.title):gsub("^Materials for ", "") or "My list",
+      function(name) S.title = name SetStatus("Saved the list as " .. name .. ".") Draw() end)
+  end)
   W.accentLine = pane:CreateTexture(nil, "ARTWORK")
   W.accentLine:SetPoint("TOPLEFT", 0, -24)
   W.accentLine:SetPoint("TOPRIGHT", 0, -24)
@@ -394,14 +406,34 @@ function S.Build(parent, w, h)
       local lower = t:lower()
       for iid, n in pairs(CP.db.names or {}) do if n:lower() == lower then id = iid break end end
     end
-    if id then add:SetText("") S.Add(id, 1) else SetStatus("Type an item ID, paste an item link, or an exact item name.") end
+    if not id and t ~= "" then
+      -- part of a name: add every known item that matches (up to 15)
+      local lower, found = t:lower(), {}
+      for iid, n in pairs(CP.db.names or {}) do
+        if type(n) == "string" and n:lower():find(lower, 1, true) then found[#found + 1] = iid end
+      end
+      table.sort(found, function(a, b) return (CP.db.names[a] or "") < (CP.db.names[b] or "") end)
+      if #found > 0 then
+        add:SetText("")
+        for i = 1, math.min(15, #found) do
+          local dup = false
+          for _, e in ipairs(list) do if e.id == found[i] then dup = true break end end
+          if not dup then list[#list + 1] = { id = found[i], want = 20 } end
+        end
+        sel = math.max(1, math.min(sel, #list))
+        Draw() S.Search()
+        SetStatus(#found .. " item(s) match \"" .. t .. "\"" .. (#found > 15 and ", added the first 15." or "."))
+        return
+      end
+    end
+    if id then add:SetText("") S.Add(id, 1) else SetStatus("No known item matches that. Try an ID, an item link, or part of a name.") end
   end
   addBtn:SetScript("OnClick", DoAdd)
   add:SetScript("OnEnterPressed", function(self) self:ClearFocus() DoAdd() end)
   clear:SetScript("OnClick", function() list = {} sel = 1 S.title = nil Cancel() state.results = {} S.Draw() end)
   local hint = H.Text(pane, "GameFontDisableSmall")
   hint:SetPoint("TOPLEFT", add, "BOTTOMLEFT", -2, -5)
-  hint:SetText("Add by ID, link or exact name. Right-click a row to remove it.")
+  hint:SetText("Add by ID, link or part of a name. Right-click a row to remove it.")
 
   -- empty state
   W.empty = CreateFrame("Frame", nil, pane)
@@ -411,7 +443,7 @@ function S.Build(parent, w, h)
   eIcon:SetDesaturated(true) eIcon:SetAlpha(0.6)
   local eT = H.Text(W.empty, "GameFontNormalLarge") eT:SetPoint("TOP", eIcon, "BOTTOM", 0, -14) eT:SetText("Nothing on your list yet")
   local eS = H.Text(W.empty, "GameFontHighlight") eS:SetPoint("TOP", eT, "BOTTOM", 0, -10) eS:SetWidth(380) eS:SetJustifyH("CENTER")
-  eS:SetText("Open the Crafts tab and click a craft: its materials land here, sized to the gold you have.\nOr add an item by ID, link or name.")
+  eS:SetText("Open the Crafts tab and click a craft: its materials land here, sized to the gold you have.\nOr pick a ready-made list (herbs, ores, bars...) from Lists, or add items by name.")
 
   -- right panel: item hero + results
   local rx = leftW + 12
