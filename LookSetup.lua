@@ -39,6 +39,7 @@ local function Options()
             L.Choice("Selling: round prices down to", st, "sellRound", { { "none", "The copper" }, { "silver", "Whole silver" }, { "tensilver", "Ten silver" } }),
             L.Koff("Selling: never suggest less than the vendor price", st, "sellVendorFloor"),
             L.Choice("Selling: default duration", st, "sellDuration", { { 1, "12 hours" }, { 2, "24 hours" }, { 3, "48 hours" } }),
+            L.Koff("Selling: post through the game's own Sell tab (switches on by itself if the game blocks add-ons from posting)", st, "postBlocked"),
             L.Koff("Keep the game's own Buy / Sell / Auctions tabs (Profiteer's tabs go after them; reopen the auction house)", st, "keepGameTabs"),
         } },
         { id = "mmap", title = "Minimap", rows = {

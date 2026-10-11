@@ -11,6 +11,7 @@ local items = {}       -- aggregated bag contents
 local sel
 local filter = ""
 local sortMode = "worth"
+local forbidden        -- set when the game says an add-on may not call a function
 local queue            -- { id, sizes = {..}, price, dur, done, total }
 local DURATIONS = { { 1, "12 hours" }, { 2, "24 hours" }, { 3, "48 hours" } }
 
@@ -29,7 +30,7 @@ local function ScanBags()
       if info and info.itemID and not info.isBound then
         local e = by[info.itemID]
         if not e then
-          e = { id = info.itemID, count = 0, bag = bag, slot = slot, link = info.hyperlink, icon = info.iconFileID }
+          e = { id = info.itemID, count = 0, bag = bag, slot = slot, link = info.hyperlink, icon = info.iconFileID, quality = info.quality }
           by[info.itemID] = e
           items[#items + 1] = e
         end
@@ -77,9 +78,15 @@ local function VendorPrice(id)
   return tonumber(sp) or 0
 end
 
-local function QualityRGB(id)
-  local q = GetItemInfo and select(3, GetItemInfo(id))
-  local c = q and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[q]
+local function QualityOf(e)
+  local q = e.quality
+  if type(q) ~= "number" then q = GetItemInfo and select(3, GetItemInfo(e.id)) end
+  if type(q) ~= "number" and C_Item and C_Item.GetItemQualityByID then local ok, v = pcall(C_Item.GetItemQualityByID, e.id) if ok then q = v end end
+  if type(q) ~= "number" and e.link then
+    local hex = e.link:match("|cff(%x%x%x%x%x%x)")
+    if hex then return tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255 end
+  end
+  local c = type(q) == "number" and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[q]
   if c then return c.r, c.g, c.b end
   return 0.6, 0.6, 0.6
 end
@@ -93,10 +100,8 @@ local function Label(e)
     if e.link and not e.link:find("%[%]") then return e.link end
     return "|cff9d9d9dItem " .. e.id .. "|r"
   end
-  local q = GetItemInfo and select(3, GetItemInfo(e.id))
-  local c = q and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[q]
-  if c then return string.format("|cff%02x%02x%02x[%s]|r", c.r * 255, c.g * 255, c.b * 255, name) end
-  return "[" .. name .. "]"
+  local r, g, b = QualityOf(e)
+  return string.format("|cff%02x%02x%02x[%s]|r", r * 255 + 0.5, g * 255 + 0.5, b * 255 + 0.5, name)
 end
 
 local function MoneyText(c)
@@ -210,7 +215,7 @@ function Sl.Draw()
     if e then
       r.e = e
       r.icon:SetTexture(e.icon or H.Icon(e.id))
-      local qr, qg, qb = QualityRGB(e.id)
+      local qr, qg, qb = QualityOf(e)
       r.iconEdge:SetColorTexture(qr, qg, qb, 0.9)
       r.name:SetText(Label(e))
       r.count:SetText("x" .. e.count)
@@ -241,7 +246,7 @@ function Sl.Draw()
     return
   end
   W.icon:SetTexture(e.icon or H.Icon(e.id)) W.icon:SetDesaturated(false)
-  local qr, qg, qb = QualityRGB(e.id)
+  local qr, qg, qb = QualityOf(e)
   W.iconEdge:SetColorTexture(qr, qg, qb, 0.9)
   W.head:SetText(Label(e))
   local p = CP.db.prices[e.id]
@@ -324,6 +329,30 @@ local function UsePrice(v)
   Sl.Draw()
 end
 
+-- fallback: open the game's own Sell tab with the item, quantity and price filled in; its Post button is the player's click
+function Sl.ToGameSell(info)
+  if CP.AHTab and CP.AHTab.Leave then CP.AHTab.Leave() end
+  local AH = _G.AuctionHouseFrame
+  C_Timer.After(0.05, function()
+    local ok, err = pcall(function()
+      local modes = _G.AuctionHouseFrameDisplayMode
+      local mode = modes and (info.isC and modes.CommoditiesSell or modes.ItemSell)
+      if AH.SetDisplayMode and mode then AH:SetDisplayMode(mode) end
+      if AH.SetPostItem then AH:SetPostItem(info.loc) end
+      local f = info.isC and AH.CommoditiesSellFrame or AH.ItemSellFrame
+      C_Timer.After(0.15, function()
+        pcall(function()
+          if f and f.PriceInput and f.PriceInput.SetAmount then f.PriceInput:SetAmount(info.price) end
+          if f and f.QuantityInput and f.QuantityInput.SetQuantity then f.QuantityInput:SetQuantity(info.qty) end
+          if f and f.DurationDropDown and f.DurationDropDown.SetSelectedValue then f.DurationDropDown:SetSelectedValue(info.dur) end
+        end)
+      end)
+    end)
+    if not ok then CP.RecordError("game sell tab", err) end
+  end)
+  print("|cffffcc00Profiteer:|r the game does not let add-ons post auctions. Your item and price are filled into the game's Sell tab: press its Post button.")
+end
+
 local function PostNext()
   if not queue then return end
   local e
@@ -334,9 +363,21 @@ local function PostNext()
   if not qty then queue = nil Sl.Draw() return end
   local isC, loc = Commodity(e)
   if not loc then SetStatus("Could not find the item in your bags.") queue = nil Sl.Draw() return end
+  forbidden = nil
   local ok, err
-  if isC then ok, err = pcall(C_AuctionHouse.PostCommodity, loc, queue.dur, math.min(qty, e.count), queue.price)
-  else ok, err = pcall(C_AuctionHouse.PostItem, loc, queue.dur, 1, nil, queue.price) end
+  if not S().postBlocked then
+    if isC then ok, err = pcall(C_AuctionHouse.PostCommodity, loc, queue.dur, math.min(qty, e.count), queue.price)
+    else ok, err = pcall(C_AuctionHouse.PostItem, loc, queue.dur, 1, nil, queue.price) end
+  end
+  if S().postBlocked or forbidden then
+    -- the game does not let add-ons post by themselves: hand the item and price to the game's own Sell tab
+    S().postBlocked = true
+    local info = { loc = loc, isC = isC, qty = math.min(qty, e.count), price = queue.price, dur = queue.dur }
+    queue = nil
+    Sl.ToGameSell(info)
+    Sl.Draw()
+    return
+  end
   if not ok then
     CP.RecordError("post auction", err)
     SetStatus("Could not post. See /pf errors.")
@@ -574,7 +615,13 @@ end
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "AUCTION_HOUSE_AUCTION_CREATED", "BAG_UPDATE_DELAYED", "GET_ITEM_INFO_RECEIVED" }) do ev:RegisterEvent(e) end
 pcall(ev.RegisterEvent, ev, "AUCTION_HOUSE_POST_ERROR")
-ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event)
+ev:RegisterEvent("ADDON_ACTION_FORBIDDEN")
+ev:RegisterEvent("ADDON_ACTION_BLOCKED")
+ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
+  if event == "ADDON_ACTION_FORBIDDEN" or event == "ADDON_ACTION_BLOCKED" then
+    if a1 == ADDON then forbidden = tostring(a2 or "?") end
+    return
+  end
   if not pane or not pane:IsShown() then return end
   if event == "AUCTION_HOUSE_AUCTION_CREATED" and queue then
     queue.done = queue.done + 1
