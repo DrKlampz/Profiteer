@@ -379,7 +379,18 @@ function Sl.ToGameSell(info)
   C_Timer.After(0.05, function()
     if not gameMode then return end
     local ok, err = pcall(function()
-      if AH.SetPostItem then AH:SetPostItem(info.loc)
+      if AH.SetPostItem then
+        -- hand the game an item location it made itself (the same one a drag from the bags gives it)
+        local used = false
+        local bag, slot = info.loc and info.loc.GetBagAndSlot and info.loc:GetBagAndSlot()
+        if bag and slot and C_Container and C_Container.PickupContainerItem and C_Cursor and C_Cursor.GetCursorItem then
+          ClearCursor()
+          pcall(C_Container.PickupContainerItem, bag, slot)
+          local cl = C_Cursor.GetCursorItem()
+          if cl then used = pcall(AH.SetPostItem, AH, cl) end
+          ClearCursor()
+        end
+        if not used then AH:SetPostItem(info.loc) end
       else
         local modes = _G.AuctionHouseFrameDisplayMode
         local mode = modes and (info.isC and modes.CommoditiesSell or modes.ItemSell)
