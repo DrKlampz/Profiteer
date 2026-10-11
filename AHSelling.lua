@@ -370,7 +370,17 @@ function Sl.ToGameSell(info)
       end
     end)
     if not ok then CP.RecordError("game sell form", err) SetStatus("Could not open the game's sell form. See /pf errors.") Sl.FromGameSell() return end
-    local f = info.isC and AH.CommoditiesSellFrame or AH.ItemSellFrame
+    -- whichever sell form the game just opened is the one to bring in
+    local f
+    for _, k in ipairs({ "CommoditiesSellFrame", "ItemSellFrame" }) do
+      if AH[k] and AH[k].IsShown and AH[k]:IsShown() then f = AH[k] break end
+    end
+    if not f then
+      local modes = _G.AuctionHouseFrameDisplayMode
+      local mode = modes and (info.isC and modes.CommoditiesSell or modes.ItemSell)
+      if AH.SetDisplayMode and mode then pcall(AH.SetDisplayMode, AH, mode) end
+      f = info.isC and AH.CommoditiesSellFrame or AH.ItemSellFrame
+    end
     if not f then SetStatus("The game's sell form was not found.") Sl.FromGameSell() return end
     gameFrame = f
     savedPoints = {}
