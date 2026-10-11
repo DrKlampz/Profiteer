@@ -212,7 +212,15 @@ function S.Draw()
   W.rp:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.55)
   W.ab:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.55)
   W.title:SetText(S.title or "Shopping list")
-  W.count:SetText(#list > 0 and (#list .. (#list == 1 and " item" or " items")) or "")
+  do
+    local sum, known = 0, 0
+    for _, it in ipairs(list) do
+      if it.estCost and it.estFor == math.max(0, (it.want or 1) - Have(it.id)) then sum = sum + it.estCost known = known + 1 end
+    end
+    local txt = #list > 0 and (#list .. (#list == 1 and " item" or " items")) or ""
+    if #list > 1 and known == #list then txt = txt .. "   |cffffd100all together: " .. H.Money(sum) .. "|r" end
+    W.count:SetText(txt)
+  end
   -- left list
   W.list.n = #list
   local maxOff = math.max(0, #list - ROWS)
@@ -301,7 +309,11 @@ function S.Draw()
     end
     if n == 0 then W.total:SetText("")
     elseif left > 0 then W.total:SetText("|cffff6040Only " .. (n - left) .. " listed|r")
-    else W.total:SetText("|cff888888About|r " .. H.Money(cost) .. " |cff888888for " .. n .. "|r") end
+    else
+      W.total:SetText("|cff888888This item:|r " .. H.Money(cost) .. "\n|cff888888for " .. n .. "|r")
+      local it = list[sel]
+      if it then it.estCost, it.estFor = cost, n end
+    end
     W.buy:SetText((state.confirm and state.total) and ("Confirm  " .. H.Money(state.total)) or ("Buy " .. n))
     W.buy:SetEnabled(n > 0 and #res > 0 and H.IsOpen())
     W.qty:Show() W.qtyLabel:Show()
@@ -446,7 +458,7 @@ function S.Build(parent, w, h)
   W.qty = H.Edit(W.ab, 64, true)
   W.qty:SetPoint("BOTTOMLEFT", 18, 7)
   W.qty:SetScript("OnTextChanged", function(self, user) if user then Cancel() S.Draw() end end)
-  W.buy = H.Button(W.ab, "Buy", 200, 34)
+  W.buy = H.Button(W.ab, "Buy", 150, 34)
   W.buy:SetPoint("LEFT", W.qty, "RIGHT", 14, 0)
   local fnt = W.buy:GetFontString() if fnt and fnt.SetFontObject then fnt:SetFontObject("GameFontNormalLarge") end
   W.buy:SetScript("OnClick", BuyClick)
@@ -454,7 +466,10 @@ function S.Build(parent, w, h)
   refresh:SetPoint("LEFT", W.buy, "RIGHT", 8, 0)
   refresh:SetScript("OnClick", function() S.Search() end)
   W.total = H.Text(W.ab, "GameFontHighlight")
-  W.total:SetPoint("LEFT", refresh, "RIGHT", 14, 0)
+  W.total:SetPoint("LEFT", refresh, "RIGHT", 10, 0)
+  W.total:SetPoint("RIGHT", W.ab, "RIGHT", -6, 0)
+  W.total:SetJustifyH("LEFT")
+  if W.total.SetWordWrap then W.total:SetWordWrap(true) end
   W.status = H.Text(pane, "GameFontHighlightSmall")
   W.status:SetPoint("BOTTOMLEFT", W.ab, "TOPLEFT", 6, 4)
   W.status:SetWidth(w - rx - 12)
