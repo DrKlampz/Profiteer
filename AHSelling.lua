@@ -345,6 +345,7 @@ function Sl.FromGameSell()
   if gameFrame then
     pcall(function()
       gameFrame:Hide()
+      gameFrame:SetScale(1)
       gameFrame:ClearAllPoints()
       for _, q in ipairs(savedPoints or {}) do gameFrame:SetPoint(q[1], q[2], q[3], q[4], q[5]) end
     end)
@@ -410,6 +411,26 @@ function Sl.ToGameSell(info)
           if f.QuantityInput and f.QuantityInput.SetQuantity then f.QuantityInput:SetQuantity(info.qty) end
           if f.DurationDropDown and f.DurationDropDown.SetSelectedValue then f.DurationDropDown:SetSelectedValue(info.dur) end
         end)
+        -- shrink the form until all of it (down to Create Auction and Buyout Mode) fits inside the pane
+        pcall(function()
+          f:SetScale(1)
+          f:ClearAllPoints()
+          f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6, -6)
+          local top, left, right = f:GetTop(), f:GetLeft(), f:GetRight()
+          local low = top
+          for _, k in ipairs({ "PostButton", "BuyoutModeCheckButton", "TotalPrice", "Deposit" }) do
+            local c = f[k]
+            if c and c.GetBottom and c:GetBottom() and c:GetBottom() < low then low = c:GetBottom() end
+          end
+          local needH, needW = (top - low) + 14, math.max(right - left, 1)
+          local availH, availW = W.rp:GetHeight() - 12, W.rp:GetWidth() - 12
+          local sc = math.min(1, availH / needH, availW / needW)
+          if sc < 1 then
+            f:SetScale(sc)
+            f:ClearAllPoints()
+            f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6 / sc, -6 / sc)
+          end
+        end)
         SetStatus("Press Create Auction in the form.")
       end)
     end)
@@ -448,7 +469,7 @@ local function PostNext()
   if S().postBlocked or forbidden then
     -- the game does not let add-ons post by themselves: hand the item and price to the game's own Sell tab
     S().postBlocked = true
-    local info = { loc = loc, isC = isC, qty = math.min(qty, e.count), price = queue.price, dur = queue.dur }
+    local info = { loc = loc, isC = isC, qty = isC and math.min(qty, e.count) or 1, price = queue.price, dur = queue.dur }
     queue = nil
     Sl.ToGameSell(info)
     Sl.Draw()
@@ -702,6 +723,7 @@ local ev = CreateFrame("Frame")
 for _, e in ipairs({ "AUCTION_HOUSE_AUCTION_CREATED", "BAG_UPDATE_DELAYED", "GET_ITEM_INFO_RECEIVED" }) do ev:RegisterEvent(e) end
 pcall(ev.RegisterEvent, ev, "AUCTION_HOUSE_POST_ERROR")
 ev:RegisterEvent("ADDON_ACTION_FORBIDDEN")
+pcall(ev.RegisterEvent, ev, "UI_ERROR_MESSAGE")
 ev:RegisterEvent("ADDON_ACTION_BLOCKED")
 ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
   if event == "ADDON_ACTION_FORBIDDEN" or event == "ADDON_ACTION_BLOCKED" then
@@ -725,6 +747,9 @@ ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
     if gameMode then Sl.FromGameSell() end
     SetStatus("Posted.")
+  elseif event == "UI_ERROR_MESSAGE" then
+    if gameMode then CP:Print("Game message " .. tostring(a1) .. ": " .. tostring(a2)) end
+    return
   elseif event == "AUCTION_HOUSE_POST_ERROR" and gameMode and gameFrame then
     local it = gameFrame.GetItem and gameFrame:GetItem()
     local q = gameFrame.QuantityInput and gameFrame.QuantityInput.GetQuantity and gameFrame.QuantityInput:GetQuantity()
