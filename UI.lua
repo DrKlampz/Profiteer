@@ -11,9 +11,9 @@ local COLS = {
   { key = "profit",   label = "Profit",      w = 85,  align = "RIGHT", sortable = true },
   { key = "ratio",    label = "ROI",         w = 50,  align = "RIGHT", sortable = true },
   { key = "listed",   label = "Listed",      w = 45,  align = "RIGHT", sortable = true },
-  { key = "perday",   label = "Sold/day",    w = 52,  align = "RIGHT", sortable = true },
+  { key = "perday",   label = "Sold/day",    w = 60,  align = "RIGHT", sortable = true },
   { key = "make",     label = "Can make",    w = 64,  align = "RIGHT", sortable = true },
-  { key = "depth",    label = "Buy up to",   w = 60,  align = "RIGHT", sortable = true },
+  { key = "depth",    label = "Buy up to",   w = 82,  align = "RIGHT", sortable = true },
 }
 local TOTAL_W = 0
 for _, c in ipairs(COLS) do TOTAL_W = TOTAL_W + c.w + GAP end

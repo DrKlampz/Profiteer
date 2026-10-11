@@ -353,7 +353,7 @@ function S.Build(parent, w, h)
   W.accentLine:SetHeight(2)
 
   -- left panel: the list
-  W.lp = Panel(pane, leftW, listH + 30)
+  W.lp = Panel(pane, leftW, ROWS * 20 + 12)
   W.lp:SetPoint("TOPLEFT", 0, -32)
   local lf = CreateFrame("Frame", nil, W.lp)
   lf:SetPoint("TOPLEFT", 4, -4)
@@ -400,7 +400,7 @@ function S.Build(parent, w, h)
   add:SetScript("OnEnterPressed", function(self) self:ClearFocus() DoAdd() end)
   clear:SetScript("OnClick", function() list = {} sel = 1 S.title = nil Cancel() state.results = {} S.Draw() end)
   local hint = H.Text(pane, "GameFontDisableSmall")
-  hint:SetPoint("TOPLEFT", add, "BOTTOMLEFT", -2, -4)
+  hint:SetPoint("TOPLEFT", add, "BOTTOMLEFT", -2, -5)
   hint:SetText("Add by ID, link or exact name. Right-click a row to remove it.")
 
   -- empty state
