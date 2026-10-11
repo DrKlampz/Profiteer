@@ -84,6 +84,21 @@ local function QualityRGB(id)
   return 0.6, 0.6, 0.6
 end
 
+-- the item's name in its quality color; the link from the bag can arrive with an empty name before the game has loaded the item
+local function Label(e)
+  local name = GetItemInfo and GetItemInfo(e.id)
+  if not name or name == "" then name = CP.ItemName(e.id) end
+  if (not name or name == "" or name:find("^item:") or name:find("^Item ")) then
+    if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, e.id) end
+    if e.link and not e.link:find("%[%]") then return e.link end
+    return "|cff9d9d9dItem " .. e.id .. "|r"
+  end
+  local q = GetItemInfo and select(3, GetItemInfo(e.id))
+  local c = q and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[q]
+  if c then return string.format("|cff%02x%02x%02x[%s]|r", c.r * 255, c.g * 255, c.b * 255, name) end
+  return "[" .. name .. "]"
+end
+
 local function MoneyText(c)
   c = math.max(0, math.floor((c or 0) + 0.5))
   local g, sv, cp = math.floor(c / 10000), math.floor(c / 100) % 100, c % 100
@@ -197,7 +212,7 @@ function Sl.Draw()
       r.icon:SetTexture(e.icon or H.Icon(e.id))
       local qr, qg, qb = QualityRGB(e.id)
       r.iconEdge:SetColorTexture(qr, qg, qb, 0.9)
-      r.name:SetText(e.link or CP.ItemName(e.id))
+      r.name:SetText(Label(e))
       r.count:SetText("x" .. e.count)
       r.worth:SetText(e.unit and H.Money(e.worth) or "|cff888888?|r")
       r.sel:SetShown(e.id == sel)
@@ -228,7 +243,7 @@ function Sl.Draw()
   W.icon:SetTexture(e.icon or H.Icon(e.id)) W.icon:SetDesaturated(false)
   local qr, qg, qb = QualityRGB(e.id)
   W.iconEdge:SetColorTexture(qr, qg, qb, 0.9)
-  W.head:SetText(e.link or CP.ItemName(e.id))
+  W.head:SetText(Label(e))
   local p = CP.db.prices[e.id]
   local vendor = VendorPrice(e.id)
   W.sub:SetText("|cff888888" .. e.count .. " in your bags" .. (p and p.min and ("   |   last scan " .. CP.Age(CP.db.lastScan)) or "") .. "|r")
@@ -557,7 +572,7 @@ function Sl.Build(parent, w, h)
 end
 
 local ev = CreateFrame("Frame")
-for _, e in ipairs({ "AUCTION_HOUSE_AUCTION_CREATED", "BAG_UPDATE_DELAYED" }) do ev:RegisterEvent(e) end
+for _, e in ipairs({ "AUCTION_HOUSE_AUCTION_CREATED", "BAG_UPDATE_DELAYED", "GET_ITEM_INFO_RECEIVED" }) do ev:RegisterEvent(e) end
 pcall(ev.RegisterEvent, ev, "AUCTION_HOUSE_POST_ERROR")
 ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event)
   if not pane or not pane:IsShown() then return end
@@ -576,6 +591,7 @@ ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event)
     SetStatus("The auction house refused the post. Stopped after " .. queue.done .. " of " .. queue.total .. ".")
     queue = nil
   end
+  if event == "GET_ITEM_INFO_RECEIVED" then Sl.Draw() return end
   if event ~= "AUCTION_HOUSE_POST_ERROR" then ScanBags() end
   Sl.Draw()
 end))
