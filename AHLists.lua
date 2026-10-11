@@ -53,8 +53,19 @@ function Lists.Delete(name) Mine()[name] = nil end
 ------------------------------------------------------------------------
 -- the menu
 ------------------------------------------------------------------------
-local menu, catcher
+local menu, catcher, box
 local function Close() if menu then menu:Hide() end if catcher then catcher:Hide() end end
+local function Closeall() Close() if box then box:Hide() end end
+-- the pop-ups belong to the pane that opened them, so they go away with it (closing the auction house, changing tab)
+local function Adopt(frame, anchor)
+  local pane = anchor and anchor:GetParent()
+  if not pane then return end
+  frame:SetParent(pane)
+  if not pane.pfListsHooked then
+    pane.pfListsHooked = true
+    pane:HookScript("OnHide", Closeall)
+  end
+end
 
 local function Row(i)
   local r = menu.rows[i]
@@ -93,6 +104,9 @@ function Lists.Open(anchor, onPick)
     menu:Hide()
   end
   menu.onPick = onPick
+  Adopt(menu, anchor)
+  menu:SetFrameStrata("FULLSCREEN_DIALOG")
+  catcher:SetParent(menu:GetParent() or UIParent)
   menu:ClearAllPoints()
   menu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
   menu.filter:SetText("")
@@ -134,7 +148,6 @@ end
 ------------------------------------------------------------------------
 -- save box
 ------------------------------------------------------------------------
-local box
 function Lists.AskSave(anchor, getEntries, defaultName, onSaved)
   if not box then
     box = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
@@ -160,6 +173,8 @@ function Lists.AskSave(anchor, getEntries, defaultName, onSaved)
     box:Hide()
   end
   box.getEntries, box.onSaved = getEntries, onSaved
+  Adopt(box, anchor)
+  box:SetFrameStrata("FULLSCREEN_DIALOG")
   box:ClearAllPoints()
   box:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
   box.msg:SetText("")
