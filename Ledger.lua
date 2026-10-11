@@ -662,6 +662,9 @@ function L.Rows(period, ck)
   return rows, { inn = inn, out = out, net = net, overhead = overhead }
 end
 
+-- "Name-Realm" shown as "Name - Realm" so same-named characters on different realms are told apart
+local function FullName(k) return (tostring(k):gsub("%-", " - ", 1)) end
+
 local PERIOD_LABELS = { { "today", "Today" }, { "week", "7 days" }, { "month", "30 days" }, { "all", "All time" } }
 local COLW = { 290, 110, 130, 100, 100 }
 local ROWH = 16
@@ -688,7 +691,7 @@ function L.BuildPanel(parent, width, height)
   end
   -- character dropdown (own small menu, so it never depends on Blizzard's dropdown templates)
   local cb = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-  cb:SetSize(200, 22)
+  cb:SetSize(260, 22)
   cb:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
   local menu = CreateFrame("Frame", nil, p, BackdropTemplateMixin and "BackdropTemplate" or nil)
   menu:SetFrameStrata("DIALOG")
@@ -711,7 +714,7 @@ function L.BuildPanel(parent, width, height)
       local it = menu.items[i]
       if not it then
         it = CreateFrame("Button", nil, menu)
-        it:SetSize(196, 20)
+        it:SetSize(256, 20)
         it:SetPoint("TOPLEFT", menu, "TOPLEFT", 2, -2 - (i - 1) * 20)
         it.t = it:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         it.t:SetPoint("LEFT", it, "LEFT", 8, 0)
@@ -721,12 +724,12 @@ function L.BuildPanel(parent, width, height)
         menu.items[i] = it
       end
       local sel = (c or nil) == L.char
-      it.t:SetText((sel and "|cff40ff40> " or "   ") .. (c and CP.ShortName(c) or "All characters") .. (sel and "|r" or ""))
+      it.t:SetText((sel and "|cff40ff40> " or "   ") .. (c and FullName(c) or "All characters") .. (sel and "|r" or ""))
       it:SetScript("OnClick", function() Pick(c or nil) end)
       it:Show()
     end
     for i = #names + 1, #menu.items do menu.items[i]:Hide() end
-    menu:SetSize(200, #names * 20 + 4)
+    menu:SetSize(260, #names * 20 + 4)
     menu:Show()
   end
   cb:SetScript("OnClick", function() if menu:IsShown() then menu:Hide() else OpenMenu() end end)
@@ -814,13 +817,13 @@ function L.Refresh()
       if fsx then fsx:SetTextColor(1, 0.82, 0) end
     end
   end
-  L.charBtn:SetText((L.char and CP.ShortName(L.char) or "All characters") .. "  v")
+  L.charBtn:SetText((L.char and FullName(L.char) or "All characters") .. "  v")
   do
     local lbl = { today = "Today", week = "Last 7 days", month = "Last 30 days", all = "All time" }
     local first
     for k in pairs(CP.db.ledger or {}) do if not first or k < first then first = k end end
     L.info:SetText(("Showing: |cff40ff40%s|r  -  %s  -  data recorded since %s"):format(
-      lbl[L.period] or L.period, L.char and CP.ShortName(L.char) or "all characters", first or "(nothing yet)"))
+      lbl[L.period] or L.period, L.char and FullName(L.char) or "all characters", first or "(nothing yet)"))
   end
   local rows, t = L.Rows(L.period, L.char)
   L.tiles.net:SetText(Signed(t.net))
