@@ -686,20 +686,51 @@ function L.BuildPanel(parent, width, height)
     L.pbtn[pl[1]] = b
     x = x + 84
   end
+  -- character dropdown (own small menu, so it never depends on Blizzard's dropdown templates)
   local cb = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
-  cb:SetSize(190, 22)
+  cb:SetSize(200, 22)
   cb:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
-  cb:SetScript("OnClick", function()
+  local menu = CreateFrame("Frame", nil, p, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  menu:SetFrameStrata("DIALOG")
+  menu:SetPoint("TOPRIGHT", cb, "BOTTOMRIGHT", 0, 0)
+  if menu.SetBackdrop then
+    menu:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    menu:SetBackdropColor(0.05, 0.05, 0.08, 0.97)
+    menu:SetBackdropBorderColor(0.6, 0.5, 0.2, 1)
+  end
+  menu:Hide()
+  menu.items = {}
+  L.menu = menu
+  local function Pick(ck) L.char = ck menu:Hide() L.Refresh() end
+  local function OpenMenu()
     local names = {}
     for c in pairs((CP.db and CP.db.ledgerChars) or {}) do names[#names + 1] = c end
     table.sort(names)
-    local nxt
-    if not L.char then nxt = names[1] else
-      for i, c in ipairs(names) do if c == L.char then nxt = names[i + 1] end end
+    table.insert(names, 1, false)
+    for i, c in ipairs(names) do
+      local it = menu.items[i]
+      if not it then
+        it = CreateFrame("Button", nil, menu)
+        it:SetSize(196, 20)
+        it:SetPoint("TOPLEFT", menu, "TOPLEFT", 2, -2 - (i - 1) * 20)
+        it.t = it:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        it.t:SetPoint("LEFT", it, "LEFT", 8, 0)
+        local hl = it:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints()
+        hl:SetColorTexture(1, 1, 1, 0.15)
+        menu.items[i] = it
+      end
+      local sel = (c or nil) == L.char
+      it.t:SetText((sel and "|cff40ff40> " or "   ") .. (c and CP.ShortName(c) or "All characters") .. (sel and "|r" or ""))
+      it:SetScript("OnClick", function() Pick(c or nil) end)
+      it:Show()
     end
-    L.char = nxt
-    L.Refresh()
-  end)
+    for i = #names + 1, #menu.items do menu.items[i]:Hide() end
+    menu:SetSize(200, #names * 20 + 4)
+    menu:Show()
+  end
+  cb:SetScript("OnClick", function() if menu:IsShown() then menu:Hide() else OpenMenu() end end)
+  p:HookScript("OnHide", function() menu:Hide() end)
   L.charBtn = cb
 
   -- four headline numbers
@@ -719,10 +750,13 @@ function L.BuildPanel(parent, width, height)
     L.tiles[t[1]] = v
   end
 
+  L.info = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+  L.info:SetPoint("TOPLEFT", p, "TOPLEFT", 2, -72)
+
   -- the scrolling table
   local scroll = CreateFrame("ScrollFrame", nil, p)
-  scroll:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -76)
-  scroll:SetSize(width - 4, height - 76)
+  scroll:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -90)
+  scroll:SetSize(width - 4, height - 90)
   scroll:EnableMouseWheel(true)
   scroll:SetScript("OnMouseWheel", function(self, delta)
     local cur, max = self:GetVerticalScroll(), self:GetVerticalScrollRange()
@@ -770,8 +804,24 @@ function L.Refresh()
   L.dirty = false
   -- a character that no longer exists falls back to everyone
   if L.char and not (CP.db.ledgerChars and CP.db.ledgerChars[L.char]) then L.char = nil end
-  for key, b in pairs(L.pbtn) do b:SetEnabled(key ~= L.period) end
-  L.charBtn:SetText(L.char and ("Character: " .. CP.ShortName(L.char)) or "All characters")
+  for key, b in pairs(L.pbtn) do
+    local fsx = b:GetFontString()
+    if key == L.period then
+      b:LockHighlight()
+      if fsx then fsx:SetTextColor(0.25, 1, 0.25) end
+    else
+      b:UnlockHighlight()
+      if fsx then fsx:SetTextColor(1, 0.82, 0) end
+    end
+  end
+  L.charBtn:SetText((L.char and CP.ShortName(L.char) or "All characters") .. "  v")
+  do
+    local lbl = { today = "Today", week = "Last 7 days", month = "Last 30 days", all = "All time" }
+    local first
+    for k in pairs(CP.db.ledger or {}) do if not first or k < first then first = k end end
+    L.info:SetText(("Showing: |cff40ff40%s|r  -  %s  -  data recorded since %s"):format(
+      lbl[L.period] or L.period, L.char and CP.ShortName(L.char) or "all characters", first or "(nothing yet)"))
+  end
   local rows, t = L.Rows(L.period, L.char)
   L.tiles.net:SetText(Signed(t.net))
   L.tiles.inn:SetText(M(t.inn))
