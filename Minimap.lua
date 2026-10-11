@@ -142,6 +142,11 @@ function MM.Toggle()
   CP:Print("Minimap button " .. (s.minimapHide and "hidden" or "shown") .. ".")
 end
 
+function MM.Apply()
+  local s = CP.db.settings
+  if btn then if s.minimapHide then btn:Hide() else btn:Show() end end
+end
+
 local f = CreateFrame("Frame")
 f:RegisterEvent("PLAYER_LOGIN")
 f:SetScript("OnEvent", function()
