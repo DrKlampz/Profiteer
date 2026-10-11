@@ -335,7 +335,7 @@ end
 -- filled in with the item, quantity and price; its button is the player's click
 gameMode, gameFrame, savedPoints = false, nil, nil
 
-local cbOwner, cbPoints
+local cbOwner, cbPoints, pbOwner, pbPoints
 function Sl.FromGameSell()
   if not gameMode then return end
   gameMode = false
@@ -352,6 +352,11 @@ function Sl.FromGameSell()
         for _, q in ipairs(cbPoints) do cbOwner:SetPoint(q[1], q[2], q[3], q[4], q[5]) end
       end
       cbOwner, cbPoints = nil, nil
+      if pbOwner and pbPoints then
+        pbOwner:ClearAllPoints()
+        for _, q in ipairs(pbPoints) do pbOwner:SetPoint(q[1], q[2], q[3], q[4], q[5]) end
+      end
+      pbOwner, pbPoints = nil, nil
       gameFrame:ClearAllPoints()
       for _, q in ipairs(savedPoints or {}) do gameFrame:SetPoint(q[1], q[2], q[3], q[4], q[5]) end
     end)
@@ -430,11 +435,17 @@ function Sl.ToGameSell(info)
             cb:ClearAllPoints()
             cb:SetPoint("BOTTOMLEFT", W.rp, "BOTTOMLEFT", 14, 8)
           end
-          for _, k in ipairs({ "PostButton", "TotalPrice", "Deposit" }) do
+          local pb = f.PostButton
+          if pb and pb.GetNumPoints then
+            if not pbPoints then pbPoints = {} for i = 1, pb:GetNumPoints() do pbPoints[i] = { pb:GetPoint(i) } end pbOwner = pb end
+            pb:ClearAllPoints()
+            pb:SetPoint("BOTTOMRIGHT", W.rp, "BOTTOMRIGHT", -12, 36)
+          end
+          for _, k in ipairs({ "TotalPrice", "Deposit" }) do
             local c = f[k]
             if c and c.GetBottom and c:GetBottom() and c:GetBottom() < low then low = c:GetBottom() end
           end
-          local needH, needW = (top - low) + 44, math.max(right - left, 1)
+          local needH, needW = (top - low) + 16, math.max(right - left, 1)
           local availH, availW = W.rp:GetHeight() - 12, W.rp:GetWidth() - 12
           local sc = math.min(1, availH / needH, availW / needW)
           if sc < 1 then
@@ -481,7 +492,8 @@ local function PostNext()
   if S().postBlocked or forbidden then
     -- the game does not let add-ons post by themselves: hand the item and price to the game's own Sell tab
     S().postBlocked = true
-    local info = { loc = loc, isC = isC, qty = isC and math.min(qty, e.count) or 1, price = queue.price, dur = queue.dur }
+    local maxStack = (C_Item and C_Item.GetItemMaxStackSizeByID and C_Item.GetItemMaxStackSizeByID(e.id)) or select(8, GetItemInfo(e.id)) or 1
+    local info = { loc = loc, isC = isC, qty = (isC and maxStack > 1) and math.min(qty, e.count) or 1, price = queue.price, dur = queue.dur }
     queue = nil
     Sl.ToGameSell(info)
     Sl.Draw()
