@@ -239,12 +239,34 @@ local function Own(id)
     if e and e.defaults then for k, v in pairs(e.defaults) do if w[k] == nil then w[k] = Copy(v) end end end
     return w
 end
+-- GreedUI (when it is installed and "dress my add-ons" is on) hands every window its colors, font and button look
+local function Shade(c, f) return { math.min(1, c[1] * f), math.min(1, c[2] * f), math.min(1, c[3] * f) } end
+local function GreedOverlay(w)
+    local G = _G.GreedUI
+    local t = G and G.GetTheme and G.GetTheme()
+    if not (t and w) then return w end
+    local o = Copy(w)
+    o.enabled = true
+    o.bgColor, o.alpha = Copy(t.bg), math.max(0.85, tonumber(t.bgAlpha) or 0.92)
+    o.edgeColor, o.titleColor, o.edgeAlpha = Copy(t.accent), Copy(t.accent), 1
+    o.bgStyle, o.edgeStyle, o.edgeSize = "solid", "line", tonumber(t.borderSize) or 1
+    o.buttons, o.btnBgStyle = true, "solid"
+    o.btnColor, o.btnHover = Shade(t.bg, 2.6), Shade(t.bg, 4.2)
+    o.btnEdgeStyle, o.btnEdgeColor, o.btnEdgeSize = "line", Copy(t.accent), 1
+    o.btnTextColor = Shade(t.accent, 1.05)
+    if t.font then FONT_PATH["greedui"] = t.font o.font = "greedui" end
+    o.greedStone, o.greedInlay = t.stone, t.inlay
+    return o
+end
 local function Eff(id)
     local L = Store()
     if not L then return nil end
-    if id == "_look" then return windows[1] and Own(windows[1].id) or nil end   -- this panel wears the first window's look
-    if L.sync and windows[1] then return Own(windows[1].id) end
-    return Own(id)
+    if id == "_look" then   -- this panel wears the first window's look
+        if windows[1] then return GreedOverlay(Own(windows[1].id)) end
+        return GreedOverlay(Defaults())
+    end
+    if L.sync and windows[1] then return GreedOverlay(Own(windows[1].id)) end
+    return GreedOverlay(Own(id))
 end
 
 ----------------------------------------------------------------------
@@ -537,6 +559,12 @@ local function ApplyOne(spec)
         local e = s.edgeColor
         bg:SetBackdropBorderColor(e[1], e[2], e[3], tonumber(s.edgeAlpha) or 0.95)
         bg:Show()
+        do   -- black stone with gold inlay, when GreedUI hands it over
+            local GU = _G.GreedUI
+            if GU and GU.Inlay and (s.greedStone or s.greedInlay) then
+                GU.Inlay(bg, { inset = inset + 3, studs = s.greedInlay and true or false, stoneAlpha = s.greedStone and 0.45 or 0, lineAlpha = s.greedInlay and 0.5 or 0 })
+            elseif GU and GU.InlayOff and bg.greedInlay then GU.InlayOff(bg) end
+        end
         -- a header bar behind the title (replaces the game's own strip)
         local hd = bg.lookHeader
         if s.header then
@@ -583,6 +611,7 @@ local function ApplyOne(spec)
         if spec.apply then Safe(spec.apply, frame, Own(spec.id), true) end
     else
         if bg then bg:Hide() end
+        if bg and bg.greedInlay and _G.GreedUI and _G.GreedUI.InlayOff then _G.GreedUI.InlayOff(bg) end
         Safe(Strip, frame, spec, false)
         if frame.lookScale then frame:SetScale(frame.lookScale) frame.lookScale = nil end
         if frame.lookAlpha then frame:SetAlpha(frame.lookAlpha) frame.lookAlpha = nil end
@@ -1501,6 +1530,12 @@ function Look.Setup(c)
         for _, spec in ipairs(windows) do
             local fr = spec.global and _G[spec.global]
             if fr then Look.Attach(spec.id, fr) end
+        end
+        -- GreedUI: show up in its add-on list and follow its look
+        local G = _G.GreedUI
+        if G and G.RegisterPlugin and cfg and cfg.title ~= "GreedUI" then
+            G.RegisterPlugin(cfg.title, { open = function() Look.Open() end, refresh = function() ApplyAll() end })
+            G.OnTheme(function() ApplyAll() end)
         end
     end)
 end
