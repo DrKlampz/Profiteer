@@ -137,35 +137,19 @@ end
 
 -- tint the game's own Browse page with the window look so it matches the rest (its art is grey, so a multiply recolors it)
 function AHTab.StyleGame()
+  -- the game's Browse page stays as the game draws it; undo any tint an earlier version left behind
   local AH = _G.AuctionHouseFrame
   if not AH then return end
-  local L = CP.WinLook
-  local r, g, b = 0.05, 0.05, 0.07
-  local er, eg, eb
-  if L and L.On and L.On("ah") then
-    local e = L.Effective("ah")
-    if e and e.bgColor then r, g, b = e.bgColor[1], e.bgColor[2], e.bgColor[3] end
-    if e and e.edgeColor then er, eg, eb = e.edgeColor[1], e.edgeColor[2], e.edgeColor[3] end
-  else
-    r, g, b = 1, 1, 1
-  end
-  local on = L and L.On and L.On("ah")
-  local function tint(t)
-    if not (t.SetVertexColor and t.GetObjectType and t:GetObjectType() == "Texture") then return end
-    if not on then if t.pfTinted then t:SetVertexColor(1, 1, 1) t.pfTinted = nil end return end
-    local w = t:GetWidth() or 0
-    if w < 6 then return end
-    t.pfTinted = true
-    t:SetVertexColor(math.min(1, r / 0.13), math.min(1, g / 0.13), math.min(1, b / 0.13))
-  end
   local function walk(f, depth)
     if not f or depth > 5 then return end
-    if f.GetRegions then for _, t in ipairs({ f:GetRegions() }) do pcall(tint, t) end end
+    if f.GetRegions then
+      for _, t in ipairs({ f:GetRegions() }) do
+        if t.pfTinted and t.SetVertexColor then pcall(t.SetVertexColor, t, 1, 1, 1) t.pfTinted = nil end
+      end
+    end
     if f.GetChildren then for _, c in ipairs({ f:GetChildren() }) do walk(c, depth + 1) end end
   end
-  for _, k in ipairs({ "CategoriesList", "BrowseResultsFrame", "SearchBar" }) do
-    if AH[k] then walk(AH[k], 0) end
-  end
+  for _, k in ipairs({ "CategoriesList", "BrowseResultsFrame", "SearchBar" }) do if AH[k] then walk(AH[k], 0) end end
 end
 
 -- the game's own Browse page, for searching the auction house the usual way

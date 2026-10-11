@@ -344,7 +344,8 @@ local function WalkFonts(obj, fn, depth)
     end
 end
 
-local function ApplyFonts(frame, s, on)
+local function ApplyFonts(frame, s, on, spec)
+    local skip = spec and spec.skinSkip
     WalkFonts(frame, function(fs)
         if not fs.GetFont or not fs.SetFont then return end
         if not fs.lookFont then
@@ -353,7 +354,8 @@ local function ApplyFonts(frame, s, on)
             fs.lookFont = { path, size or 12, flags or "" }
         end
         local o = fs.lookFont
-        if on then
+        local useOn = on and not (skip and skip(fs))
+        if useOn then
             local path = FONT_PATH[s.font] or o[1]
             local flags = o[3]
             if s.outline and not tostring(flags):find("OUTLINE") then flags = (flags ~= "" and (flags .. ",") or "") .. "OUTLINE" end
@@ -370,7 +372,8 @@ local function IsPanelButton(b)
     if not (b.GetObjectType and b:GetObjectType() == "Button") then return false end
     if b.lookNoSkin or b.lookBtn == false then return false end
     if b.Left and b.Right then return true end
-    if skinAll and not (skinSkip and skinSkip(b)) then
+    if type(b.lookBtn) == "table" and b.lookBtn.on then return true end
+    if skinAll then
         local fs = b.GetFontString and b:GetFontString()
         local w, h = b:GetWidth() or 0, b:GetHeight() or 0
         local nm = b.GetName and b:GetName() or ""
@@ -489,7 +492,7 @@ local function ApplyButtons(frame, s, on, spec)
     on = on and s.buttons and true or false
     skinAll = spec and spec.skinAll and true or false
     skinSkip = spec and spec.skinSkip
-    WalkButtons(frame, function(b) Safe(SkinButton, b, s, on) end)
+    WalkButtons(frame, function(b) Safe(SkinButton, b, s, on and not (skinSkip and skinSkip(b))) end)
     skinAll, skinSkip = false, nil
 end
 
@@ -574,7 +577,7 @@ local function ApplyOne(spec)
         end
         if not frame.lookAlpha then frame.lookAlpha = frame:GetAlpha() or 1 end
         frame:SetAlpha(math.max(0.1, math.min(1, tonumber(s.frameAlpha) or 1)))
-        Safe(ApplyFonts, frame, s, true)
+        Safe(ApplyFonts, frame, s, true, spec)
         Safe(ApplyButtons, frame, s, true, spec)
         frame.lookLock = s.lock and true or false
         if spec.apply then Safe(spec.apply, frame, Own(spec.id), true) end
@@ -587,7 +590,7 @@ local function ApplyOne(spec)
             local fs = spec.title(frame)
             if fs and fs.lookTitle then fs:SetTextColor(fs.lookTitle[1], fs.lookTitle[2], fs.lookTitle[3]) fs.lookTitle = nil end
         end
-        Safe(ApplyFonts, frame, s, false)
+        Safe(ApplyFonts, frame, s, false, spec)
         Safe(ApplyButtons, frame, s, false, spec)
         frame.lookLock = false
         if bg and bg.lookHeader then bg.lookHeader.fill:Hide() bg.lookHeader.line:Hide() end

@@ -60,17 +60,17 @@ CP.WinLook.Setup({
           apply = function(frame, _, on) if frame and frame.fitScale then frame:SetScale(on and math.min(frame:GetScale(), frame.fitScale) or frame.fitScale) end end },
         { id = "report", name = "Report box", global = "ProfiteerReportFrame", strip = "backdrop" },
         { id = "ah", name = "Auction house", global = "AuctionHouseFrame", strip = "template", defaultOn = true, skinAll = true,
-          -- only the real action buttons (Search, Filter and the like); the category list and column headers keep their own look
-          skinSkip = function(b)
+          -- the game's own Browse page (search, categories, results) is left exactly as the game draws it
+          skinSkip = function(obj)
             local AH = _G.AuctionHouseFrame
-            local p, n = b, 0
-            local cats = AH and AH.CategoriesList
-            local hdr = AH and AH.BrowseResultsFrame and AH.BrowseResultsFrame.ItemList and AH.BrowseResultsFrame.ItemList.HeaderContainer
-            while p and n < 6 do
-              if p == cats or p == hdr then return true end
+            if not AH then return false end
+            local stock = { AH.BrowseResultsFrame, AH.CategoriesList, AH.SearchBar }
+            local p, n = obj, 0
+            while p and n < 12 do
+              for _, f in ipairs(stock) do if p == f then return true end end
               p = p.GetParent and p:GetParent() n = n + 1
             end
-            return b.categoryInfo ~= nil or b.sortOrder ~= nil or b.GetName and (b:GetName() or ""):find("Header") ~= nil
+            return false
           end,
           hide = { "MoneyFrameBorder", "MoneyFrameInset" },
           title = function(f) return (f.TitleContainer and f.TitleContainer.TitleText) or f.TitleText end,
