@@ -167,8 +167,56 @@ local function Classify(delta)
   end
 end
 
+-- Snapshot of what this character has up on the auction house, so the ledger can show gold that is
+-- listed but not sold yet. The game only reports this while the auction house is open.
+local function ItemName(link)
+  if type(link) ~= "string" then return nil end
+  return link:match("%[(.-)%]") or link
+end
+local function MaxStack(link)
+  local gi = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  if not gi or not link then return 1 end
+  local _, _, _, _, _, _, _, stack = gi(link)
+  return tonumber(stack) or 1
+end
+
+function L.SnapshotListings()
+  if not (CP.db and CP.charKey) then return end
+  local items = {}
+  local ok = false
+  local AH = C_AuctionHouse
+  if AH and AH.GetNumOwnedAuctions and AH.GetOwnedAuctionInfo then
+    ok = true
+    for i = 1, AH.GetNumOwnedAuctions() or 0 do
+      local info = AH.GetOwnedAuctionInfo(i)
+      if info then
+        local qty = info.quantity or 1
+        local ask = info.buyoutAmount or 0
+        if ask == 0 then ask = info.bidAmount or 0 end
+        -- stackable goods are listed per unit: the asking price is for one
+        if qty > 1 and MaxStack(info.itemLink) > 1 then ask = ask * qty end
+        items[#items + 1] = { name = ItemName(info.itemLink) or "?", n = qty, ask = ask, sold = (info.status == 1) and true or nil }
+      end
+    end
+  elseif GetNumAuctionItems and GetAuctionItemInfo then
+    ok = true
+    local n = GetNumAuctionItems("owner")
+    for i = 1, tonumber(n) or 0 do
+      local name, _, count, _, _, _, _, minBid, _, buyout, _, _, _, _, _, saleStatus = GetAuctionItemInfo("owner", i)
+      if name then
+        local ask = (buyout and buyout > 0) and buyout or (minBid or 0)
+        items[#items + 1] = { name = name, n = count or 1, ask = ask, sold = (saleStatus == 1) and true or nil }
+      end
+    end
+  end
+  if not ok then return end
+  CP.db.listings = CP.db.listings or {}
+  CP.db.listings[CP.charKey] = { t = time(), items = items }
+  L.dirty = true
+end
+
 local f = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_MONEY", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "MERCHANT_SHOW", "MERCHANT_CLOSED",
+for _, e in ipairs({ "OWNED_AUCTIONS_UPDATED", "AUCTION_OWNED_LIST_UPDATE", "PLAYER_LOGIN", "PLAYER_MONEY", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "MERCHANT_SHOW", "MERCHANT_CLOSED",
   "MAIL_SHOW", "MAIL_CLOSED", "MAIL_INBOX_UPDATE", "PLAYER_LOGOUT", "TRADE_SHOW", "TRADE_CLOSED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "GUILDBANKFRAME_OPENED", "GUILDBANKFRAME_CLOSED", "TRAINER_SHOW", "TRAINER_CLOSED", "TAXIMAP_OPENED", "TAXIMAP_CLOSED", "QUEST_TURNED_IN" }) do
   CP.Register(f, e)
 end
@@ -205,7 +253,13 @@ f:SetScript("OnEvent", CP.Safe("ledger", function(_, event, a1, a2, a3)
   elseif event == "BANKFRAME_CLOSED" then ctx.bank = false
   elseif event == "GUILDBANKFRAME_OPENED" then ctx.guild = true
   elseif event == "GUILDBANKFRAME_CLOSED" then ctx.guild = false
-  elseif event == "AUCTION_HOUSE_SHOW" then ctx.ah = true
+  elseif event == "OWNED_AUCTIONS_UPDATED" or event == "AUCTION_OWNED_LIST_UPDATE" then
+    L.SnapshotListings()
+  elseif event == "AUCTION_HOUSE_SHOW" then
+    ctx.ah = true
+    -- ask for our own listings; the answer arrives as an update event
+    if C_AuctionHouse and C_AuctionHouse.QueryOwnedAuctions then pcall(C_AuctionHouse.QueryOwnedAuctions, {}) end
+    if C_Timer then C_Timer.After(2, function() pcall(L.SnapshotListings) end) end
   elseif event == "AUCTION_HOUSE_CLOSED" then ctx.ah = false
   elseif event == "MERCHANT_SHOW" then ctx.merchant = true
   elseif event == "MERCHANT_CLOSED" then ctx.merchant = false
@@ -556,6 +610,52 @@ function L.Rows(period, ck)
     row("|cffffd100AH result (after fees, deposits, buys)|r", Signed(sales - fees - (dep - depBack) + (tot.ahBuys or 0)))
     row("|cff9d9d9dA deposit comes back only when the item sells. Listings still up for sale look like a loss until they do.|r")
     gap()
+  end
+
+  -- listed but not sold yet (current, so not limited to the chosen period)
+  do
+    local lst = db.listings or {}
+    local per, names = {}, {}
+    local allSales, allCut = 0, 0
+    for _, d in pairs(db.ledger or {}) do allSales, allCut = allSales + (d.sales or 0), allCut + (d.cut or 0) end
+    local rate = (allSales > 0) and math.min(0.15, math.max(0, -allCut / allSales)) or 0.05
+    local totN, totAsk, soldAsk, big = 0, 0, 0, {}
+    for c, e in pairs(lst) do
+      if not ck or c == ck then
+        local n, ask = 0, 0
+        for _, it in ipairs(e.items or {}) do
+          if it.sold then soldAsk = soldAsk + it.ask
+          else
+            n, ask = n + 1, ask + it.ask
+            big[#big + 1] = it
+          end
+        end
+        per[c] = { n = n, ask = ask, t = e.t }
+        names[#names + 1] = c
+        totN, totAsk = totN + n, totAsk + ask
+      end
+    end
+    table.sort(names)
+    head("UNREALIZED: LISTED, NOT SOLD YET", "Listings", "Asking price", "After fees (est.)", "Updated")
+    if #names == 0 then
+      row("|cff9d9d9dOpen the auction house once on each character to record what you have listed.|r")
+    else
+      for _, c in ipairs(names) do
+        local p = per[c]
+        row(CP.ShortName(c), p.n, M(p.ask), M(math.floor(p.ask * (1 - rate))), date("%m-%d %H:%M", p.t))
+      end
+      row("|cffffd100Total unrealized|r", totN, M(totAsk), M(math.floor(totAsk * (1 - rate))))
+      if soldAsk > 0 then row("Sold, gold waiting in the mail", "", M(soldAsk), M(math.floor(soldAsk * (1 - rate)))) end
+      table.sort(big, function(a, b) return a.ask > b.ask end)
+      for i = 1, math.min(#big, 8) do
+        row("   " .. big[i].name .. (big[i].n > 1 and (" x" .. big[i].n) or ""), "", M(big[i].ask))
+      end
+      row("|cff9d9d9dAsking price is what you listed it for.|r")
+      row(("|cff9d9d9dFees estimated at %d%% from your sales so far.|r"):format(math.floor(rate * 100 + 0.5)))
+      row("|cff9d9d9dUpdated each time you open the auction house.|r")
+    end
+    gap()
+    L.unrealized = totAsk
   end
 
   -- overhead

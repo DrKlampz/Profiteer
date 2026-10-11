@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.2
+- Ledger: new "Unrealized: listed, not sold yet" section. For each character it shows how many auctions you have up, their total asking price and an estimate after the AH cut, any sold items whose gold is still in the mail, and your biggest listings. It updates every time you open the auction house.
+- Search: partial words and any word order now match, with the best name matches listed first.
+
 ## 0.8.1
 - Ledger character dropdown now shows "Name - Realm", so same-named characters on different realms are told apart.
 
