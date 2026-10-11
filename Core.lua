@@ -16,6 +16,8 @@ local DEFAULTS = {
   history = {},    -- [itemID] = { snapshot, ... }  (see History.lua)
   ledger = {},     -- [YYYY-MM-DD][category] = copper (see Ledger.lua)
   ledgerChars = {},-- [charKey][category] = copper, all time
+  ledgerItems = {},-- [day][item name] = { n sold, g gross, c fees }
+  worth = {},      -- [day][charKey] = { s = gold at first sight that day, e = latest }
   listings = {},   -- [itemID] = { t, sigs }  last scan's listings, for sales tracking
   lastScan = 0,
   sessions = 0,    -- how many times this file has been loaded (persistence check)

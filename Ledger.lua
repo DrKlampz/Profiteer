@@ -6,12 +6,19 @@ CP.Ledger = L
 
 L.INCOME = {
   { "sales", "AH sales" }, { "depositBack", "AH deposits returned" }, { "vendorSales", "Vendor sales" },
-  { "quests", "Quest rewards" }, { "loot", "Looted coin" }, { "mailIn", "Gold from mail" }, { "otherIn", "Other income" },
+  { "quests", "Quest rewards" }, { "loot", "Looted coin" }, { "mailIn", "Gold from mail" }, { "tradeIn", "Trades received" },
+  { "otherIn", "Other income" },
 }
 L.COSTS = {
   { "deposits", "AH deposits" }, { "cut", "AH cut (sale fees)" }, { "ahBuys", "AH purchases" },
   { "vendorBuys", "Vendor purchases" }, { "repairs", "Repairs" }, { "mailOut", "Postage / COD" },
-  { "training", "Training" }, { "flights", "Flights" }, { "otherOut", "Other spending" },
+  { "training", "Training" }, { "flights", "Flights" }, { "bank", "Bank slots" }, { "tradeOut", "Trades given" },
+  { "otherOut", "Other spending" },
+}
+-- moved between your own characters or into the guild bank: not earned, not spent
+L.MOVED = {
+  { "transferIn", "Mailed in from your characters" }, { "transferOut", "Mailed out to your characters" },
+  { "guildOut", "Put in guild bank" }, { "guildIn", "Taken from guild bank" },
 }
 
 local function DayKey(t) return date("%Y-%m-%d", t or time()) end
@@ -30,13 +37,48 @@ function L.Record(cat, copper)
   end
 end
 
+local lastMoney
+
+-- what each item earned (from sale invoices), per day
+function L.RecordItem(name, sale, cut)
+  if not (CP.db and name) then return end
+  CP.db.ledgerItems = CP.db.ledgerItems or {}
+  local d = CP.db.ledgerItems[DayKey()]
+  if not d then d = {} CP.db.ledgerItems[DayKey()] = d end
+  local e = d[name]
+  if not e then e = { n = 0, g = 0, c = 0 } d[name] = e end
+  e.n, e.g, e.c = e.n + 1, e.g + (sale or 0), e.c + (cut or 0)
+end
+
+-- gold on hand per character, per day: the first value seen that day and the latest
+local function Worth()
+  if not (CP.db and CP.charKey) then return end
+  CP.db.worth = CP.db.worth or {}
+  local d = CP.db.worth[DayKey()]
+  if not d then d = {} CP.db.worth[DayKey()] = d end
+  local e = d[CP.charKey]
+  local m = GetMoney()
+  if not e then d[CP.charKey] = { s = lastMoney or m, e = m } else e.e = m end
+end
+
 ------------------------------------------------------------------------
 -- What is going on right now (decides which category a money change belongs to)
 ------------------------------------------------------------------------
-local ctx = { ah = false, merchant = false, mail = false, trainer = false, taxi = false }
-local lastMoney
+local ctx = { ah = false, merchant = false, mail = false, trainer = false, taxi = false, trade = false, bank = false, guild = false }
 local postedAt, repairAt, questAt, questMoney = -10, -10, -10, 0
 local pending = {}          -- seller invoices taken from the mailbox, waiting for their money to arrive
+local snap = {}             -- mailbox index -> { sender, money } as last seen (the hooks run after the money is gone)
+local sendMoney, sendTo = 0, nil   -- gold attached to the mail being sent
+local sessionStart, sessionMoney
+
+local function IsMine(name)
+  if not (name and CP.db) then return false end
+  name = name:match("^([^%-]+)") or name
+  for k in pairs(CP.db.chars or {}) do
+    if CP.ShortName(k):lower() == name:lower() then return true end
+  end
+  return false
+end
 
 local function Now() return GetTime and GetTime() or 0 end
 
@@ -51,10 +93,15 @@ local function Classify(delta)
       local i = 1
       while i <= #pending and delta > 0 do
         local p = pending[i]
-        if p.net <= delta then
+        if p.net <= delta and p.transfer then
+          L.Record("transferIn", p.net)
+          delta = delta - p.net
+          table.remove(pending, i)
+        elseif p.net <= delta then
           L.Record("sales", p.sale)
           L.Record("depositBack", p.deposit)
           L.Record("cut", -p.cut)
+          L.RecordItem(p.item, p.sale, p.cut)
           delta = delta - p.net
           table.remove(pending, i)
         else
@@ -71,6 +118,8 @@ local function Classify(delta)
       delta = delta - q
       if delta <= 0 then return end
     end
+    if ctx.guild then L.Record("guildIn", delta) return end
+    if ctx.trade then L.Record("tradeIn", delta) return end
     if ctx.merchant then L.Record("vendorSales", delta) return end
     L.Record("loot", delta)
   else
@@ -79,7 +128,19 @@ local function Classify(delta)
       if t - postedAt < 2 then L.Record("deposits", -c) else L.Record("ahBuys", -c) end
     elseif ctx.merchant then
       if t - repairAt < 2 then L.Record("repairs", -c) else L.Record("vendorBuys", -c) end
-    elseif ctx.mail then L.Record("mailOut", -c)
+    elseif ctx.guild then L.Record("guildOut", -c)
+    elseif ctx.trade then L.Record("tradeOut", -c)
+    elseif ctx.mail then
+      if sendMoney > 0 and IsMine(sendTo) and c >= sendMoney then
+        L.Record("transferOut", -sendMoney)
+        c = c - sendMoney
+        sendMoney = 0
+        if c > 0 then L.Record("mailOut", -c) end
+      else
+        sendMoney = 0
+        L.Record("mailOut", -c)
+      end
+    elseif ctx.bank then L.Record("bank", -c)
     elseif ctx.trainer then L.Record("training", -c)
     elseif ctx.taxi then L.Record("flights", -c)
     else L.Record("otherOut", -c) end
@@ -88,17 +149,36 @@ end
 
 local f = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_MONEY", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "MERCHANT_SHOW", "MERCHANT_CLOSED",
-  "MAIL_SHOW", "MAIL_CLOSED", "TRAINER_SHOW", "TRAINER_CLOSED", "TAXIMAP_OPENED", "TAXIMAP_CLOSED", "QUEST_TURNED_IN" }) do
+  "MAIL_SHOW", "MAIL_CLOSED", "MAIL_INBOX_UPDATE", "PLAYER_LOGOUT", "TRADE_SHOW", "TRADE_CLOSED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "GUILDBANKFRAME_OPENED", "GUILDBANKFRAME_CLOSED", "TRAINER_SHOW", "TRAINER_CLOSED", "TAXIMAP_OPENED", "TAXIMAP_CLOSED", "QUEST_TURNED_IN" }) do
   CP.Register(f, e)
 end
 f:SetScript("OnEvent", CP.Safe("ledger", function(_, event, a1, a2, a3)
   if event == "PLAYER_LOGIN" then
     lastMoney = GetMoney()
+    sessionStart, sessionMoney = time(), lastMoney
+    Worth()
+  elseif event == "PLAYER_LOGOUT" then
+    Worth()
   elseif event == "PLAYER_MONEY" then
     local now = GetMoney()
     local delta = now - (lastMoney or now)
-    lastMoney = now
     if delta ~= 0 then Classify(delta) end
+    lastMoney = now
+    Worth()
+  elseif event == "MAIL_INBOX_UPDATE" then
+    snap = {}
+    if GetInboxNumItems and GetInboxHeaderInfo then
+      for i = 1, GetInboxNumItems() or 0 do
+        local _, _, sender, _, money = GetInboxHeaderInfo(i)
+        snap[i] = { sender = sender, money = money or 0 }
+      end
+    end
+  elseif event == "TRADE_SHOW" then ctx.trade = true
+  elseif event == "TRADE_CLOSED" then ctx.trade = false
+  elseif event == "BANKFRAME_OPENED" then ctx.bank = true
+  elseif event == "BANKFRAME_CLOSED" then ctx.bank = false
+  elseif event == "GUILDBANKFRAME_OPENED" then ctx.guild = true
+  elseif event == "GUILDBANKFRAME_CLOSED" then ctx.guild = false
   elseif event == "AUCTION_HOUSE_SHOW" then ctx.ah = true
   elseif event == "AUCTION_HOUSE_CLOSED" then ctx.ah = false
   elseif event == "MERCHANT_SHOW" then ctx.merchant = true
@@ -124,21 +204,34 @@ Hook(_G.C_AuctionHouse, "PostCommodity", Posted)
 Hook(_G, "StartAuction", Posted)
 Hook(_G, "RepairAllItems", function() repairAt = Now() end)
 
+-- gold you attach to mail, and who it goes to (mail to your own characters is a transfer, not spending)
+Hook(_G, "SetSendMailMoney", function(amount) sendMoney = tonumber(amount) or 0 end)
+Hook(_G, "SendMail", function(recipient) sendTo = recipient end)
+
 -- Mailbox: remember what a sale invoice says before the money arrives.
 local function TookMail(index)
-  if not (GetInboxInvoiceInfo and index) then return end
-  local ok, kind, _, _, bid, buyout, deposit, consignment = pcall(GetInboxInvoiceInfo, index)
-  if not ok or kind ~= "seller" then return end
+  if not index then return end
+  local sn = snap[index]
+  local ok, kind, item, _, bid, buyout, deposit, consignment
+  if GetInboxInvoiceInfo then ok, kind, item, _, bid, buyout, deposit, consignment = pcall(GetInboxInvoiceInfo, index) end
+  local t = Now()
+  if not (ok and kind == "seller") then
+    -- plain gold from one of your own characters: a transfer
+    if sn and (sn.money or 0) > 0 and IsMine(sn.sender) then
+      pending[#pending + 1] = { net = sn.money, transfer = true, t = t }
+      sn.money = 0
+    end
+    return
+  end
   local sale = (bid and bid > 0) and bid or (buyout or 0)
   deposit, consignment = deposit or 0, consignment or 0
   local net = sale + deposit - consignment
   if net <= 0 then return end
   -- the same open mailbox can fire both hooks for one mail; ignore an identical entry added a moment ago
-  local t = Now()
   for _, p in ipairs(pending) do
     if p.sale == sale and p.cut == consignment and p.deposit == deposit and t - p.t < 1 then return end
   end
-  pending[#pending + 1] = { sale = sale, deposit = deposit, cut = consignment, net = net, t = t }
+  pending[#pending + 1] = { sale = sale, deposit = deposit, cut = consignment, net = net, t = t, item = item }
 end
 Hook(_G, "TakeInboxMoney", TookMail)
 Hook(_G, "AutoLootMailItem", TookMail)
@@ -162,63 +255,147 @@ local function Block(lines, title, rows, tot)
   for _, r in ipairs(rows) do
     local v = tot[r[1]] or 0
     if v ~= 0 then
-      lines[#lines + 1] = ("  %-24s %s"):format(r[2], CP.MoneyPlain(math.abs(v)))
+      lines[#lines + 1] = ("  %-30s %s"):format(r[2], CP.MoneyPlain(math.abs(v)))
       sum = sum + v
     end
   end
   return sum
 end
 
-function L.Lines(period)
-  local db = CP.db
-  local ledger = db and db.ledger or {}
-  local days, label = {}, "all time"
-  if period == "all" or not PERIODS[period] then
-    days = ledger
-  else
-    local cutoff = DayKey(time() - PERIODS[period] * 86400)
-    for k, d in pairs(ledger) do if k >= cutoff then days[k] = d end end
+local function Period(period)
+  local db = CP.db or {}
+  local cutoff, label = nil, "all time"
+  if PERIODS[period] then
+    cutoff = DayKey(time() - PERIODS[period] * 86400)
     label = period == "today" and "today" or period == "week" and "last 7 days" or "last 30 days"
   end
+  local function pick(src)
+    local out = {}
+    for k, d in pairs(src or {}) do if not cutoff or k >= cutoff then out[k] = d end end
+    return out
+  end
+  return pick(db.ledger), pick(db.ledgerItems), pick(db.worth), label
+end
+
+local function Fmt(label, v) return ("  %-30s %s"):format(label, CP.MoneyPlain(v)) end
+
+function L.Lines(period)
+  local db = CP.db or {}
+  local days, items, worth, label = Period(period)
   local tot = Sum(days)
   local lines = { ("Gold ledger, %s (all your characters)"):format(label), "" }
+
   local income = Block(lines, "COMING IN", L.INCOME, tot)
-  lines[#lines + 1] = ("  %-24s %s"):format("Total in", CP.MoneyPlain(income))
+  lines[#lines + 1] = Fmt("Total in", income)
   lines[#lines + 1] = ""
   local spent = Block(lines, "GOING OUT", L.COSTS, tot)
-  lines[#lines + 1] = ("  %-24s %s"):format("Total out", CP.MoneyPlain(-spent))
+  lines[#lines + 1] = Fmt("Total out", -spent)
   lines[#lines + 1] = ""
   local net = income + spent
-  lines[#lines + 1] = ("NET  %s"):format(CP.MoneyPlain(net))
-  -- overhead = what it costs to run the business: deposits kept after refunds, sale fees, repairs, travel, training
-  local overhead = -((tot.deposits or 0) + (tot.depositBack or 0) + (tot.cut or 0) + (tot.repairs or 0) + (tot.flights or 0) + (tot.training or 0))
-  lines[#lines + 1] = ("OVERHEAD (deposits kept, sale fees, repairs, flights, training)  %s"):format(CP.MoneyPlain(overhead))
+  lines[#lines + 1] = ("NET PROFIT  %s"):format(CP.MoneyPlain(net))
+  local overhead = -((tot.deposits or 0) + (tot.depositBack or 0) + (tot.cut or 0) + (tot.repairs or 0) + (tot.flights or 0) + (tot.training or 0) + (tot.bank or 0))
+  lines[#lines + 1] = ("OVERHEAD  %s   (deposits kept, sale fees, repairs, flights, training, bank slots)"):format(CP.MoneyPlain(overhead))
   if tot.sales and tot.sales > 0 then
-    lines[#lines + 1] = ("AH net after fees and deposits: %s"):format(CP.MoneyPlain(tot.sales + (tot.cut or 0) + (tot.deposits or 0) + (tot.depositBack or 0)))
+    local ahNet = tot.sales + (tot.cut or 0) + (tot.deposits or 0) + (tot.depositBack or 0) + (tot.ahBuys or 0)
+    lines[#lines + 1] = ("AH RESULT  %s   (sales minus fees, deposits and what you bought there)"):format(CP.MoneyPlain(ahNet))
+    lines[#lines + 1] = ("Overhead is %d%% of your AH sales"):format(math.floor(100 * overhead / tot.sales + 0.5))
   end
-  -- per day
-  local keys = {}
-  for k in pairs(days) do keys[#keys + 1] = k end
-  table.sort(keys, function(a, b) return a > b end)
-  if #keys > 1 then
+
+  -- moved around, not earned or spent
+  local moved = {}
+  for _, r in ipairs(L.MOVED) do
+    local v = tot[r[1]] or 0
+    if v ~= 0 then moved[#moved + 1] = Fmt(r[2], math.abs(v)) end
+  end
+  if #moved > 0 then
     lines[#lines + 1] = ""
-    lines[#lines + 1] = "BY DAY (net)"
-    for i = 1, math.min(#keys, 30) do
-      local n = 0
-      for _, v in pairs(days[keys[i]]) do n = n + v end
-      lines[#lines + 1] = ("  %s  %s"):format(keys[i], CP.MoneyPlain(n))
+    lines[#lines + 1] = "MOVED, NOT EARNED OR SPENT"
+    for _, m in ipairs(moved) do lines[#lines + 1] = m end
+  end
+
+  -- what sold best
+  local byItem = {}
+  for _, d in pairs(items) do
+    for name, e in pairs(d) do
+      local x = byItem[name]
+      if not x then x = { n = 0, g = 0, c = 0 } byItem[name] = x end
+      x.n, x.g, x.c = x.n + e.n, x.g + e.g, x.c + e.c
     end
   end
-  if period == "all" and db and db.ledgerChars then
+  local list = {}
+  for name, e in pairs(byItem) do list[#list + 1] = { name = name, e = e } end
+  table.sort(list, function(a, b) return a.e.g > b.e.g end)
+  if #list > 0 then
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "BEST SELLERS (gross, from sale invoices)"
+    for i = 1, math.min(#list, 10) do
+      local e = list[i].e
+      lines[#lines + 1] = ("  %-28s %3d sold   %s   (fees %s)"):format(list[i].name, e.n, CP.MoneyPlain(e.g), CP.MoneyPlain(e.c))
+    end
+  end
+
+  -- gold on hand and a cross-check against the ledger
+  local startSum, endSum, chars = 0, 0, {}
+  local keys = {}
+  for k in pairs(worth) do keys[#keys + 1] = k end
+  table.sort(keys)
+  for _, k in ipairs(keys) do
+    for ck, e in pairs(worth[k]) do
+      if not chars[ck] then chars[ck] = { s = e.s, e = e.e } else chars[ck].e = e.e end
+    end
+  end
+  local any = false
+  for _, c in pairs(chars) do startSum, endSum, any = startSum + c.s, endSum + c.e, true end
+  if any then
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "GOLD ON HAND (latest seen)"
+    for ck, c in pairs(chars) do lines[#lines + 1] = Fmt(CP.ShortName(ck), c.e) end
+    lines[#lines + 1] = Fmt("All characters", endSum)
+    local change = endSum - startSum
+    local moves = (tot.guildIn or 0) + (tot.guildOut or 0) + (tot.transferIn or 0) + (tot.transferOut or 0)
+    local unexplained = change - net - moves
+    lines[#lines + 1] = ("Change over this period: %s"):format(CP.MoneyPlain(change))
+    if math.abs(unexplained) >= 100 then
+      lines[#lines + 1] = ("Not explained by the ledger: %s  (gold from a source Profiteer can't see, or before tracking began)"):format(CP.MoneyPlain(unexplained))
+    else
+      lines[#lines + 1] = "The ledger accounts for all of it."
+    end
+  end
+
+  -- this session
+  if sessionStart and sessionMoney then
+    local gained = GetMoney() - sessionMoney
+    local hrs = math.max((time() - sessionStart) / 3600, 1 / 60)
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = ("THIS SESSION: %s so far, about %s per hour"):format(CP.MoneyPlain(gained), CP.MoneyPlain(gained / hrs))
+  end
+
+  -- per day
+  local dkeys = {}
+  for k in pairs(days) do dkeys[#dkeys + 1] = k end
+  table.sort(dkeys, function(a, b) return a > b end)
+  if #dkeys > 1 then
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "BY DAY (in / out / net)"
+    for i = 1, math.min(#dkeys, 30) do
+      local d = days[dkeys[i]]
+      local inn, out = 0, 0
+      for _, r in ipairs(L.INCOME) do inn = inn + (d[r[1]] or 0) end
+      for _, r in ipairs(L.COSTS) do out = out + (d[r[1]] or 0) end
+      lines[#lines + 1] = ("  %s   +%s   -%s   = %s"):format(dkeys[i], CP.MoneyPlain(inn), CP.MoneyPlain(-out), CP.MoneyPlain(inn + out))
+    end
+  end
+  if period == "all" and db.ledgerChars then
     lines[#lines + 1] = ""
     lines[#lines + 1] = "BY CHARACTER (net, all time)"
     for ck, c in pairs(db.ledgerChars) do
       local n = 0
-      for _, v in pairs(c) do n = n + v end
-      lines[#lines + 1] = ("  %-20s %s"):format(CP.ShortName(ck), CP.MoneyPlain(n))
+      for _, r in ipairs(L.INCOME) do n = n + (c[r[1]] or 0) end
+      for _, r in ipairs(L.COSTS) do n = n + (c[r[1]] or 0) end
+      lines[#lines + 1] = Fmt(CP.ShortName(ck), n)
     end
   end
-  if next(ledger) == nil then
+  if next(db.ledger or {}) == nil then
     lines[#lines + 1] = ""
     lines[#lines + 1] = "Nothing recorded yet. The ledger counts every gold change from now on."
   end
@@ -234,5 +411,5 @@ function L.Show(period)
 end
 
 function L.Reset()
-  if CP.db then CP.db.ledger, CP.db.ledgerChars = {}, {} end
+  if CP.db then CP.db.ledger, CP.db.ledgerChars, CP.db.ledgerItems, CP.db.worth = {}, {}, {}, {} end
 end

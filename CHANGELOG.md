@@ -3,6 +3,7 @@
 ## 0.8.0
 - New gold ledger: Profiteer now tracks every copper in and out, across all your characters, by source. Coming in: AH sales, returned deposits, vendor sales, quest rewards, looted coin, mail gold. Going out: AH deposits, the AH cut, AH purchases, vendor purchases, repairs, postage/COD, training, flights.
 - Overhead and net profit are worked out for you (deposits kept after refunds + sale fees + repairs + flights + training).
+- Also tracked: trades, bank slot purchases, gold mailed between your own characters and guild bank deposits/withdrawals (shown as "moved", not earned or spent), a best-sellers list from your sale invoices, gold on hand per character, gold per hour for the session, and a check that tells you if any change in your gold isn't explained by the ledger.
 - `/pf ledger [today|week|month|all]` or the new Ledger button on the Profiteer window; `/pf ledger reset` clears it. Adding a new file: restart the game once.
 
 ## 0.7.9
