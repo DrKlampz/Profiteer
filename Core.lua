@@ -84,6 +84,7 @@ function CP.ItemName(id)
     return n
   end
   n = CP.db and CP.db.names[id]
+  if not n and C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, id) end
   return n or ("item " .. id)
 end
 

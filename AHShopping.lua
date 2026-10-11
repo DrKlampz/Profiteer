@@ -524,7 +524,7 @@ end
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "COMMODITY_SEARCH_RESULTS_UPDATED", "ITEM_SEARCH_RESULTS_UPDATED", "COMMODITY_PRICE_UPDATED",
   "COMMODITY_PRICE_UNAVAILABLE", "COMMODITY_PURCHASE_SUCCEEDED", "COMMODITY_PURCHASE_FAILED",
-  "AUCTION_HOUSE_THROTTLED_SYSTEM_READY", "BAG_UPDATE_DELAYED" }) do ev:RegisterEvent(e) end
+  "AUCTION_HOUSE_THROTTLED_SYSTEM_READY", "BAG_UPDATE_DELAYED", "GET_ITEM_INFO_RECEIVED" }) do ev:RegisterEvent(e) end
 ev:SetScript("OnEvent", CP.Safe("shopping-event", function(_, event, a, b)
   if not pane or not pane:IsShown() then return end
   local e = list[sel]
@@ -566,6 +566,12 @@ ev:SetScript("OnEvent", CP.Safe("shopping-event", function(_, event, a, b)
     S.Draw()
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
     if state.pending then S.Search() end
+  elseif event == "GET_ITEM_INFO_RECEIVED" then
+    -- names arrive a few at a time; redraw once they settle
+    if not S.namePending then
+      S.namePending = true
+      C_Timer.After(0.2, function() S.namePending = nil if pane and pane:IsShown() then S.Draw() end end)
+    end
   elseif event == "BAG_UPDATE_DELAYED" then
     S.Draw()
   end

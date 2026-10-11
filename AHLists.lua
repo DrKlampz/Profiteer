@@ -25,7 +25,10 @@ end
 local function Entries(ids, want)
   local out = {}
   for _, id in ipairs(ids) do
-    if Known(id) then out[#out + 1] = { id = id, want = want or 20 } end
+    if Known(id) then
+      out[#out + 1] = { id = id, want = want or 20 }
+      if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, id) end
+    end
   end
   return out
 end
