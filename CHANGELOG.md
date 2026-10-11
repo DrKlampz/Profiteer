@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.1
+- Ledger character dropdown now shows "Name - Realm", so same-named characters on different realms are told apart.
+
 ## 0.8.0
 - New gold ledger: Profiteer now tracks every copper in and out, across all your characters, by source. Coming in: AH sales, returned deposits, vendor sales, quest rewards, looted coin, mail gold. Going out: AH deposits, the AH cut, AH purchases, vendor purchases, repairs, postage/COD, training, flights.
 - Overhead and net profit are worked out for you (deposits kept after refunds + sale fees + repairs + flights + training).
