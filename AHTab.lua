@@ -33,7 +33,15 @@ local function SetSelected(t, on)
 end
 
 -- the host's background follows the window look of the auction house, when one is switched on
+-- the auction house's title keeps one fixed, stock gold whatever the window look says
+function AHTab.Title()
+  local AH = _G.AuctionHouseFrame
+  local fs = AH and ((AH.TitleContainer and AH.TitleContainer.TitleText) or AH.TitleText)
+  if fs and fs.SetTextColor then fs:SetTextColor(1, 0.82, 0.2) end
+end
+
 function AHTab.Restyle()
+  AHTab.Title()
   if not hostBg then return end
   local r, g, b, a = 0.05, 0.05, 0.07, 1
   local L = CP.WinLook
@@ -180,6 +188,7 @@ function AHTab.Game()
     if f and f.Show then pcall(f.Show, f) end
   end
   Mark("game")
+  AHTab.Title()
   if CP.db and CP.db.settings then CP.db.settings.ahLastTab = "game" end
   if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end
   CP.After(0.1, function() if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end AHTab.StyleGame() end)
@@ -242,6 +251,7 @@ local function Create()
     else
       t:SetPoint("LEFT", prev, "RIGHT", 2, 0)
     end
+    if k[1] == "game" then t.lookNoSkin = true end   -- the game's own page keeps a plain tab
     t:SetScript("OnClick", function() if k[1] == "game" then AHTab.Game() else AHTab.Go(k[1]) end end)
     SetSelected(t, false)
     made[k[1]] = t

@@ -74,7 +74,6 @@ CP.WinLook.Setup({
             return false
           end,
           hide = { "MoneyFrameBorder", "MoneyFrameInset" },
-          title = function(f) return (f.TitleContainer and f.TitleContainer.TitleText) or f.TitleText end,
           apply = function() if CP.AHTab and CP.AHTab.Restyle then CP.AHTab.Restyle() end end },
     },
 })
