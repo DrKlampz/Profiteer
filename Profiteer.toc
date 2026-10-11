@@ -22,5 +22,7 @@ Analyzer.lua
 Shop.lua
 UI.lua
 Report.lua
+AHTab.lua
 Tooltip.lua
 Minimap.lua
+Probe.lua

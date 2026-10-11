@@ -4,8 +4,8 @@ CP.UI = UI
 
 local ROWS, ROW_H, GAP = 16, 20, 4
 local COLS = {
-  { key = "name",     label = "Item",        w = 170, align = "LEFT",  sortable = true },
-  { key = "crafters", label = "Crafters",    w = 90,  align = "LEFT" },
+  { key = "name",     label = "Item",        w = 140, align = "LEFT",  sortable = true },
+  { key = "crafters", label = "Crafters",    w = 70,  align = "LEFT" },
   { key = "cost",     label = "Cost",        w = 85,  align = "RIGHT", sortable = true },
   { key = "revenue",  label = "Sells (net)", w = 85,  align = "RIGHT", sortable = true },
   { key = "profit",   label = "Profit",      w = 85,  align = "RIGHT", sortable = true },
@@ -368,6 +368,7 @@ function UI.Create()
 
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", -6, -6)
+  f.closeBtn = close
 
 
   -- Tabs: Crafts / Ledger
@@ -608,6 +609,7 @@ local function CreateAHButton()
   b:RegisterForDrag("LeftButton", "RightButton")
   b:SetFrameStrata("DIALOG")
   b:SetScript("OnClick", function()
+    if CP.AHTab and CP.AHTab.Select then CP.AHTab.Select() return end
     if UI.frame and UI.frame:IsShown() and UI.frame.docked then
       UI.frame:Hide()
     else
