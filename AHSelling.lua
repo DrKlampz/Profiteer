@@ -168,7 +168,8 @@ function Sl.Build(parent, w, h)
   listf.refresh = Sl.Draw
 
   local rx = leftW + 28
-  local rp = W.rp
+  local rp = CreateFrame("Frame", nil, pane)
+  rp:SetAllPoints(pane)   -- text and icons sit above the panels
   W.icon = rp:CreateTexture(nil, "ARTWORK")
   W.icon:SetSize(40, 40)
   W.icon:SetPoint("TOPLEFT", rx - 12 + 0, -10)

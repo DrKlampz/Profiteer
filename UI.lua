@@ -5,7 +5,7 @@ CP.UI = UI
 local ROWS, ROW_H, GAP = 16, 20, 4
 local COLS = {
   { key = "name",     label = "Item",        w = 142, align = "LEFT",  sortable = true },
-  { key = "crafters", label = "Crafters",    w = 70,  align = "LEFT" },
+  { key = "crafters", label = "Crafters",    w = 70,  align = "LEFT",  sortable = true },
   { key = "cost",     label = "Cost",        w = 85,  align = "RIGHT", sortable = true },
   { key = "revenue",  label = "Sells (net)", w = 85,  align = "RIGHT", sortable = true },
   { key = "profit",   label = "Profit",      w = 85,  align = "RIGHT", sortable = true },
@@ -13,7 +13,7 @@ local COLS = {
   { key = "listed",   label = "Listed",      w = 45,  align = "RIGHT", sortable = true },
   { key = "perday",   label = "Sold/day",    w = 52,  align = "RIGHT", sortable = true },
   { key = "make",     label = "Can make",    w = 64,  align = "RIGHT", sortable = true },
-  { key = "depth",    label = "Buy up to",   w = 60,  align = "RIGHT" },
+  { key = "depth",    label = "Buy up to",   w = 60,  align = "RIGHT", sortable = true },
 }
 local TOTAL_W = 0
 for _, c in ipairs(COLS) do TOTAL_W = TOTAL_W + c.w + GAP end
@@ -175,6 +175,15 @@ end
 function UI.Update()
   if not UI.frame or not UI.frame:IsShown() then return end
   if UI.tab ~= "crafts" then return end
+  if UI.headers then
+    local s = CP.db.settings
+    for _, h in ipairs(UI.headers) do
+      if h.fs then
+        local mark = (h.key and s.sortKey == h.key) and (s.sortDesc and " v" or " ^") or ""
+        h.fs:SetText(h.label .. mark)
+      end
+    end
+  end
   local res = UI.results or {}
   local maxOff = MaxOffset()
   if UI.offset > maxOff then UI.offset = maxOff end
@@ -433,13 +442,25 @@ function UI.Create()
     fs:SetAllPoints()
     fs:SetJustifyH(c.align)
     fs:SetText(c.label)
+    h.fs, h.label = fs, c.label
+    local hl = h:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(1, 1, 1, 0.12)
     if c.sortable then
       h.key = c.key
       h:SetScript("OnClick", HeaderClick)
+      h:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText("Click to sort by " .. (self.label or ""), 1, 1, 1)
+        GameTooltip:AddLine("Click again to reverse the order.", 0.8, 0.8, 0.8)
+        GameTooltip:Show()
+      end)
+      h:SetScript("OnLeave", function() GameTooltip:Hide() end)
     end
     x = x + c.w + GAP
   end
 
+  UI.headers = headers
   -- Rows
   for i = 1, ROWS do rows[i] = CreateRow(i) end
 

@@ -199,6 +199,17 @@ local SORTERS = {
   listed = function(g) return g.listed end,
   make   = function(g) return g.best end,
   perday = function(g) return g.perDay or -1 end,
+  crafters = function(g)
+    local k = g.chars and g.chars[1]
+    return k and tostring(CP.ShortName(k)):lower() or ""
+  end,
+  depth = function(g)
+    if g.depth == nil then
+      local ok, d = pcall(CP.BuyDepth, CP, g)
+      g.depth = ok and d or false
+    end
+    return g.depth and g.depth.crafts or -1
+  end,
 }
 
 -- Vendor sell price of an item if the client already knows it

@@ -34,6 +34,7 @@ end
 
 local function Read()
   auctions = {}
+  local groups = {}
   if not (C_AuctionHouse and C_AuctionHouse.GetNumOwnedAuctions) then return end
   local n = C_AuctionHouse.GetNumOwnedAuctions() or 0
   local activeStatus = Enum and Enum.AuctionStatus and Enum.AuctionStatus.Active or 0
@@ -48,8 +49,19 @@ local function Read()
       if not low then status = "no scan"
       elseif unit > low * 1.0005 + 0 then status = "undercut"
       else status = "lowest" end
-      auctions[#auctions + 1] = { id = id, auctionID = a.auctionID, qty = a.quantity or 1, unit = unit, low = low,
-        status = status, left = TimeLeft(a), link = a.itemLink }
+      local gkey = tostring(id) .. ":" .. tostring(math.floor(unit + 0.5)) .. ":" .. status
+      local g = groups[gkey]
+      local secs = type(a.timeLeftSeconds) == "number" and a.timeLeftSeconds or ((a.timeLeft or 0) * 1000)
+      if not g then
+        g = { id = id, ids = {}, qty = 0, count = 0, unit = unit, low = low, status = status, left = TimeLeft(a), secs = secs, link = a.itemLink }
+        groups[gkey] = g
+        auctions[#auctions + 1] = g
+      end
+      g.ids[#g.ids + 1] = a.auctionID
+      g.auctionID = g.ids[1]
+      g.count = g.count + 1
+      g.qty = g.qty + (a.quantity or 1)
+      if secs < g.secs then g.secs = secs g.left = TimeLeft(a) end
     end
   end
   table.sort(auctions, function(x, y)
@@ -70,7 +82,7 @@ function C.Draw()
     if a then
       r.a = a
       r.icon:SetTexture(H.Icon(a.id or 0))
-      r.name:SetText(a.link or (a.id and CP.ItemName(a.id)) or "?")
+      r.name:SetText((a.link or (a.id and CP.ItemName(a.id)) or "?") .. (a.count > 1 and ("  |cff9d9d9dx" .. a.count .. " auctions|r") or ""))
       r.qty:SetText(tostring(a.qty))
       r.mine:SetText(H.Money(a.unit))
       r.low:SetText(a.low and H.Money(a.low) or "|cff888888-|r")
@@ -83,7 +95,9 @@ function C.Draw()
     end
   end
   W.next:SetEnabled(under > 0 and H.IsOpen())
-  W.count:SetText(#auctions .. " active auctions, " .. under .. " undercut (compared with your last scan)")
+  local total = 0
+  for _, a in ipairs(auctions) do total = total + a.count end
+  W.count:SetText(total .. " active auctions in " .. #auctions .. " groups, " .. under .. " groups undercut (compared with your last scan)")
 end
 
 function C.Refresh()
@@ -131,7 +145,7 @@ function C.Build(parent, w, h)
     r:SetScript("OnEnter", function(self)
       self.hl:Show()
       GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:AddLine("Click to cancel this auction", 1, 0.82, 0)
+      GameTooltip:AddLine((self.a and self.a.count or 1) > 1 and ("Click to cancel one of these " .. self.a.count .. " auctions") or "Click to cancel this auction", 1, 0.82, 0)
       GameTooltip:Show()
     end)
     r:SetScript("OnLeave", function(self) self.hl:Hide() GameTooltip:Hide() end)
