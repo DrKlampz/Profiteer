@@ -436,6 +436,12 @@ function Sl.ToGameSell(info)
             cb:SetPoint("BOTTOMLEFT", W.rp, "BOTTOMLEFT", 14, 8)
           end
           local pb = f.PostButton
+          if not pb then
+            for _, c in ipairs({ f:GetChildren() }) do
+              local t = c.GetText and c:GetText()
+              if c.GetObjectType and c:GetObjectType() == "Button" and type(t) == "string" and t:lower():find("create") then pb = c break end
+            end
+          end
           if pb and pb.GetNumPoints then
             if not pbPoints then pbPoints = {} for i = 1, pb:GetNumPoints() do pbPoints[i] = { pb:GetPoint(i) } end pbOwner = pb end
             pb:ClearAllPoints()
