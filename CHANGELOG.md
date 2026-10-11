@@ -5,6 +5,7 @@
 - Overhead and net profit are worked out for you (deposits kept after refunds + sale fees + repairs + flights + training).
 - Also tracked: trades, bank slot purchases, gold mailed between your own characters and guild bank deposits/withdrawals (shown as "moved", not earned or spent), a best-sellers list from your sale invoices, gold on hand per character, gold per hour for the session, and a check that tells you if any change in your gold isn't explained by the ledger.
 - The ledger is a tab in the Profiteer window (Crafts | Ledger): today / 7 days / 30 days / all time, per character or all, headline numbers, income and spending by source with percentages, an auction house breakdown (sales made, average sale, fees, deposits lost), overhead, best sellers, per character, per day, gold on hand and the cross-check. `/pf ledger [today|week|month|all]` opens it; `/pf ledger text` gives a copyable version; `/pf ledger reset` clears it.
+- Ledger fixes: gold on hand no longer drops to 0 for characters you log out on; the headline is now "Net cash flow" with a "net before buying stock" line; unsold listings' deposits are shown as "not returned yet"; `/pf ledger log` lists the last recorded changes and what each was filed under.
 - Search box on the Crafts tab: type part of a craft, material, profession or character name. Adding a new file: restart the game once.
 
 ## 0.7.9

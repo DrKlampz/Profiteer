@@ -23,8 +23,20 @@ L.MOVED = {
 
 local function DayKey(t) return date("%Y-%m-%d", t or time()) end
 
+local function ContextName()
+  for _, k in ipairs({ "ah", "merchant", "mail", "trade", "bank", "guild", "trainer", "taxi" }) do
+    if L.ctx and L.ctx[k] then return k end
+  end
+  return "-"
+end
+
 function L.Record(cat, copper)
   if not CP.db or not copper or copper == 0 then return end
+  -- the last 80 entries, so /pf ledger log can show where a number came from
+  local log = CP.db.ledgerLog
+  if not log then log = {} CP.db.ledgerLog = log end
+  log[#log + 1] = { t = time(), c = cat, v = copper, w = ContextName(), who = CP.charKey and CP.ShortName(CP.charKey) or "?" }
+  while #log > 80 do table.remove(log, 1) end
   CP.db.ledger = CP.db.ledger or {}
   local d = CP.db.ledger[DayKey()]
   if not d then d = {} CP.db.ledger[DayKey()] = d end
@@ -72,6 +84,7 @@ end
 -- What is going on right now (decides which category a money change belongs to)
 ------------------------------------------------------------------------
 local ctx = { ah = false, merchant = false, mail = false, trainer = false, taxi = false, trade = false, bank = false, guild = false }
+L.ctx = ctx
 local postedAt, repairAt, questAt, questMoney = -10, -10, -10, 0
 local pending = {}          -- seller invoices taken from the mailbox, waiting for their money to arrive
 local snap = {}             -- mailbox index -> { sender, money } as last seen (the hooks run after the money is gone)
@@ -163,9 +176,13 @@ f:SetScript("OnEvent", CP.Safe("ledger", function(_, event, a1, a2, a3)
   if event == "PLAYER_LOGIN" then
     lastMoney = GetMoney()
     sessionStart, sessionMoney = time(), lastMoney
+    -- earlier versions saved a bogus 0 at logout: repair those entries
+    for _, d in pairs((CP.db and CP.db.worth) or {}) do
+      for _, e in pairs(d) do if e.e == 0 and (e.s or 0) > 0 then e.e = e.s end end
+    end
     Worth()
   elseif event == "PLAYER_LOGOUT" then
-    Worth()
+    -- GetMoney() reads 0 while logging out, so nothing is recorded here
   elseif event == "PLAYER_MONEY" then
     local now = GetMoney()
     local delta = now - (lastMoney or now)
@@ -174,9 +191,11 @@ f:SetScript("OnEvent", CP.Safe("ledger", function(_, event, a1, a2, a3)
     Worth()
   elseif event == "MAIL_INBOX_UPDATE" then
     snap = {}
-    if GetInboxNumItems and GetInboxHeaderInfo then
-      for i = 1, GetInboxNumItems() or 0 do
-        local _, _, sender, _, money = GetInboxHeaderInfo(i)
+    local num = GetInboxNumItems or (C_Mail and C_Mail.GetInboxNumItems)
+    local hdr = GetInboxHeaderInfo or (C_Mail and C_Mail.GetInboxHeaderInfo)
+    if num and hdr then
+      for i = 1, num() or 0 do
+        local _, _, sender, _, money = hdr(i)
         snap[i] = { sender = sender, money = money or 0 }
       end
     end
@@ -214,6 +233,7 @@ Hook(_G, "RepairAllItems", function() repairAt = Now() end)
 -- gold you attach to mail, and who it goes to (mail to your own characters is a transfer, not spending)
 Hook(_G, "SetSendMailMoney", function(amount) sendMoney = tonumber(amount) or 0 end)
 Hook(_G, "SendMail", function(recipient) sendTo = recipient end)
+Hook(_G.C_Mail, "SendMail", function(recipient) sendTo = recipient end)
 
 -- Mailbox: remember what a sale invoice says before the money arrives.
 local function TookMail(index)
@@ -242,6 +262,8 @@ local function TookMail(index)
 end
 Hook(_G, "TakeInboxMoney", TookMail)
 Hook(_G, "AutoLootMailItem", TookMail)
+Hook(_G.C_Mail, "TakeInboxMoney", TookMail)
+Hook(_G.C_Mail, "AutoLootMailItem", TookMail)
 
 ------------------------------------------------------------------------
 -- Report
@@ -299,7 +321,7 @@ function L.Lines(period)
   lines[#lines + 1] = Fmt("Total out", -spent)
   lines[#lines + 1] = ""
   local net = income + spent
-  lines[#lines + 1] = ("NET PROFIT  %s"):format(CP.MoneyPlain(net))
+  lines[#lines + 1] = ("NET CASH FLOW  %s   (everything in minus everything out, including buying stock)"):format(CP.MoneyPlain(net))
   local overhead = -((tot.deposits or 0) + (tot.depositBack or 0) + (tot.cut or 0) + (tot.repairs or 0) + (tot.flights or 0) + (tot.training or 0) + (tot.bank or 0))
   lines[#lines + 1] = ("OVERHEAD  %s   (deposits kept, sale fees, repairs, flights, training, bank slots)"):format(CP.MoneyPlain(overhead))
   if tot.sales and tot.sales > 0 then
@@ -465,6 +487,8 @@ function L.Rows(period, ck)
   table.sort(keys)
   head("SUMMARY")
   row("Days with activity", #keys)
+  row("Net cash flow (everything in minus everything out)", Signed(net))
+  row("Net before buying stock", Signed(net - (-(tot.ahBuys or 0)) - (-(tot.vendorBuys or 0))), "buying is stock, not loss")
   if #keys > 0 then
     local best, worst
     for _, k in ipairs(keys) do
@@ -527,9 +551,10 @@ function L.Rows(period, ck)
     row("Fees (the AH cut)", M(fees), Pct(fees, sales) .. (sales > 0 and " of sales" or ""))
     row("Deposits paid", M(dep))
     row("Deposits returned", M(depBack))
-    row("Deposits lost (expired or cancelled)", M(math.max(0, dep - depBack)))
+    row("Deposits not returned yet", M(math.max(0, dep - depBack)), "unsold, expired or cancelled")
     row("Spent buying on the AH", M(-(tot.ahBuys or 0)))
-    row("|cffffd100AH result|r", Signed(sales - fees - (dep - depBack) + (tot.ahBuys or 0)), "sales minus fees and lost deposits, minus buys")
+    row("|cffffd100AH result (after fees, deposits, buys)|r", Signed(sales - fees - (dep - depBack) + (tot.ahBuys or 0)))
+    row("|cff9d9d9dA deposit comes back only when the item sells. Listings still up for sale look like a loss until they do.|r")
     gap()
   end
 
@@ -537,7 +562,7 @@ function L.Rows(period, ck)
   local overhead = fees + (dep - depBack) + -(tot.repairs or 0) + -(tot.flights or 0) + -(tot.training or 0) + -(tot.bank or 0)
   head("OVERHEAD (cost of doing business)", "Amount", "% of sales")
   row("AH fees", M(fees), Pct(fees, sales))
-  row("Deposits lost", M(math.max(0, dep - depBack)), Pct(math.max(0, dep - depBack), sales))
+  row("Deposits not returned", M(math.max(0, dep - depBack)), Pct(math.max(0, dep - depBack), sales))
   if (tot.repairs or 0) ~= 0 then row("Repairs", M(-tot.repairs), Pct(-tot.repairs, sales)) end
   if (tot.flights or 0) ~= 0 then row("Flights", M(-tot.flights), Pct(-tot.flights, sales)) end
   if (tot.training or 0) ~= 0 then row("Training", M(-tot.training), Pct(-tot.training, sales)) end
@@ -626,7 +651,7 @@ function L.Rows(period, ck)
     local moves = (tot.guildIn or 0) + (tot.guildOut or 0) + (tot.transferIn or 0) + (tot.transferOut or 0)
     local unexplained = (endSum - startSum) - net - moves
     if math.abs(unexplained) >= 100 then
-      row("Not explained by the ledger", Signed(unexplained), "a source Profiteer can't see, or before tracking began")
+      row("Not explained by the ledger", Signed(unexplained))
     else
       row("|cff40ff40The ledger accounts for all of it|r")
     end
@@ -638,7 +663,7 @@ function L.Rows(period, ck)
 end
 
 local PERIOD_LABELS = { { "today", "Today" }, { "week", "7 days" }, { "month", "30 days" }, { "all", "All time" } }
-local COLW = { 270, 120, 130, 110, 110 }
+local COLW = { 290, 110, 130, 100, 100 }
 local ROWH = 16
 
 function L.BuildPanel(parent, width, height)
@@ -680,7 +705,7 @@ function L.BuildPanel(parent, width, height)
   -- four headline numbers
   L.tiles = {}
   local tw = math.floor((width - 3 * 8) / 4)
-  local tiles = { { "net", "NET PROFIT" }, { "inn", "TOTAL IN" }, { "out", "TOTAL OUT" }, { "overhead", "OVERHEAD" } }
+  local tiles = { { "net", "NET CASH FLOW" }, { "inn", "TOTAL IN" }, { "out", "TOTAL OUT" }, { "overhead", "OVERHEAD" } }
   for i, t in ipairs(tiles) do
     local bg = p:CreateTexture(nil, "BACKGROUND")
     bg:SetColorTexture(1, 1, 1, 0.06)
@@ -766,4 +791,14 @@ function L.Refresh()
     for c = 1, 5 do L.lines[i].fs[c]:Hide() end
   end
   L.content:SetHeight(math.max(10, #rows * ROWH + 8))
+end
+
+-- the most recent entries, newest last: where each number came from
+function L.LogLines()
+  local lines = { "Last gold changes Profiteer recorded (newest at the bottom):", "" }
+  for _, e in ipairs((CP.db and CP.db.ledgerLog) or {}) do
+    lines[#lines + 1] = ("%s  %-10s %-14s %-12s %s"):format(date("%H:%M:%S", e.t), e.who or "?", e.c, e.w or "-", CP.MoneyPlain(e.v))
+  end
+  if #lines == 2 then lines[3] = "Nothing recorded yet." end
+  return lines
 end
