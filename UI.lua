@@ -184,21 +184,39 @@ function UI.SetStatus(text)
   if UI.status then UI.status:SetText(text or "") end
 end
 
--- Does a craft match the search text? Looks at the item and recipe name, profession, materials and who can make it.
+-- Does a craft match the search text? Every word typed must appear (as part of a word) somewhere in the
+-- item or recipe name, profession, materials or who can make it. Returns a rank: 3 = name starts with it,
+-- 2 = a word in the name starts with it, 1 = found inside the name, 0 = found only elsewhere; nil = no match.
 local function Matches(g, q)
   local names = CP.db and CP.db.names or {}
-  local function has(x) return x and tostring(x):lower():find(q, 1, true) end
-  if has(g.name) or has(g.rname) or has(g.prof) then return true end
+  local words = {}
+  for w in q:gmatch("%S+") do words[#words + 1] = w end
+  if #words == 0 then return 1 end
+  local function lower(x) return x and tostring(x):lower() end
+  local mine = { lower(g.name), lower(g.rname) }
+  local other = { lower(g.prof) }
   for _, r in ipairs(g.reagents or {}) do
-    if has(r.name) then return true end
-    for _, id in ipairs(r.ids or { r.id }) do
-      if has(names[id]) then return true end
+    other[#other + 1] = lower(r.name)
+    for _, id in ipairs(r.ids or { r.id }) do other[#other + 1] = lower(names[id]) end
+  end
+  for _, ck in ipairs(g.chars or {}) do other[#other + 1] = lower(CP.ShortName(ck)) end
+  local rank = 3
+  for _, w in ipairs(words) do
+    local best
+    for _, n in ipairs(mine) do
+      local at = n and n:find(w, 1, true)
+      if at then
+        local r = (at == 1) and 3 or ((n:sub(at - 1, at - 1):match("%W")) and 2 or 1)
+        if not best or r > best then best = r end
+      end
     end
+    if not best then
+      for _, n in ipairs(other) do if n and n:find(w, 1, true) then best = 0 break end end
+    end
+    if not best then return nil end
+    if best < rank then rank = best end
   end
-  for _, ck in ipairs(g.chars or {}) do
-    if has(CP.ShortName(ck)) then return true end
-  end
-  return false
+  return rank
 end
 
 function UI.ApplyFilter()
@@ -207,8 +225,15 @@ function UI.ApplyFilter()
   if q == "" then
     UI.results = all
   else
+    local ranked = {}
+    for i, g in ipairs(all) do
+      local r = Matches(g, q)
+      if r then ranked[#ranked + 1] = { g = g, r = r, i = i } end
+    end
+    -- best name matches first; otherwise keep the usual profit order
+    table.sort(ranked, function(a, b) if a.r ~= b.r then return a.r > b.r end return a.i < b.i end)
     local out = {}
-    for _, g in ipairs(all) do if Matches(g, q) then out[#out + 1] = g end end
+    for _, e in ipairs(ranked) do out[#out + 1] = e.g end
     UI.results = out
   end
 end
