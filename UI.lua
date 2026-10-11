@@ -131,7 +131,7 @@ local function CreateRow(i)
     row.cols[c.key] = fs
     x = x + c.w + GAP
   end
-  if CP.AH and CP.AH.AddDivider then CP.AH.AddDivider(row) end
+  if CP.AH and CP.AH.AddDivider then CP.AH.AddDivider(row, i) end
   row:SetScript("OnEnter", ShowTooltip)
   row:SetScript("OnLeave", function() GameTooltip:Hide() end)
   row:RegisterForClicks("LeftButtonUp", "RightButtonUp")

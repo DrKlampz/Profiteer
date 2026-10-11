@@ -26,6 +26,12 @@ local function Options()
             L.Koff("Open the Profiteer panel with the auction house", st, "ahAutoOpen"),
             L.Kon("Show Profiteer lines in item tooltips", st, "tooltips"),
             L.Koff("Draw dividing bars between rows (Shopping, Selling, Cancelling and Crafts lists)", st, "rowDividers", function() if CP.AH then CP.AH.ApplyDividers() end end),
+            L.Choice("Divider color", st, "rowDivMode", { { "accent", "Follow the window border color" }, { "custom", "Pick my own color" } }, function() if CP.AH then CP.AH.ApplyDividers() end end),
+            L.Color("Divider color (when picking my own)", st, "rowDivColor", { 0.88, 0.69, 0.29 }, function() if CP.AH then CP.AH.ApplyDividers() end end),
+            L.Slider("Divider opacity", st, "rowDivAlpha", 0.1, 1, 0.05, "%.2f", function() if CP.AH then CP.AH.ApplyDividers() end end),
+            L.Slider("Divider thickness (pixels)", st, "rowDivSize", 1, 4, 1, nil, function() if CP.AH then CP.AH.ApplyDividers() end end),
+            L.Slider("Divider indent from the row edges", st, "rowDivInset", 0, 40, 2, nil, function() if CP.AH then CP.AH.ApplyDividers() end end),
+            L.Koff("Shade every other row", st, "rowStripes", function() if CP.AH then CP.AH.ApplyDividers() end end),
             L.Koff("Keep the game's own Buy / Sell / Auctions tabs (Profiteer's tabs go after them; reopen the auction house)", st, "keepGameTabs"),
         } },
         { id = "mmap", title = "Minimap", rows = {

@@ -56,6 +56,7 @@ local function Embed()
     f.fitScale = sc
     f:SetScale(sc)
     if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end
+    if CP.AH and CP.AH.ApplyDividers then CP.AH.ApplyDividers() end
   end
   AHTab.Fit = Fit
   if f.SetBackdropColor then f:SetBackdropColor(0, 0, 0, 0) f:SetBackdropBorderColor(0, 0, 0, 0) end

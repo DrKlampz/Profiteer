@@ -75,23 +75,47 @@ function H.Panel(parent, w, h)
   return f
 end
 
--- thin bars between list rows (Options: "Draw dividing bars between rows")
+-- thin bars between list rows (Options: Auction house > row dividers)
 local dividers = {}
-function H.AddDivider(row)
+local function Px()
+  local _, h = 0, 0
+  if GetPhysicalScreenSize then _, h = GetPhysicalScreenSize() end
+  if not h or h <= 0 then return 1 end
+  return 768 / h
+end
+function H.AddDivider(row, index)
   local d = row:CreateTexture(nil, "ARTWORK")
-  d:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
-  d:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
-  d:SetHeight(1.5)
+  d:SetTexture("Interface\\Buttons\\WHITE8X8")
+  if d.SetSnapToPixelGrid then d:SetSnapToPixelGrid(true) end
+  if d.SetTexelSnappingBias then d:SetTexelSnappingBias(0) end
+  local z = row:CreateTexture(nil, "BACKGROUND")
+  z:SetTexture("Interface\\Buttons\\WHITE8X8")
+  z:SetAllPoints(row)
+  d.row, d.stripe, d.index = row, z, index or 0
   dividers[#dividers + 1] = d
-  H.ApplyDividers()
+  row:HookScript("OnShow", function() H.ApplyDivider(d) end)
+  H.ApplyDivider(d)
+end
+function H.ApplyDivider(d)
+  local s = CP.db and CP.db.settings or {}
+  local on = s.rowDividers and true or false
+  local c = s.rowDivMode == "custom" and type(s.rowDivColor) == "table" and s.rowDivColor or H.Accent()
+  local inset = tonumber(s.rowDivInset) or 0
+  local n = math.max(1, math.min(4, math.floor(tonumber(s.rowDivSize) or 1)))
+  local scale = d:GetEffectiveScale()
+  if not scale or scale <= 0 then scale = 1 end
+  local row = d.row
+  d:ClearAllPoints()
+  d:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", inset, 0)
+  d:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -inset, 0)
+  d:SetHeight(n * Px() / scale)
+  d:SetVertexColor(c[1], c[2], c[3], tonumber(s.rowDivAlpha) or 0.35)
+  d:SetShown(on)
+  d.stripe:SetVertexColor(1, 1, 1, 0.045)
+  d.stripe:SetShown(s.rowStripes and d.index % 2 == 0 or false)
 end
 function H.ApplyDividers()
-  local on = CP.db and CP.db.settings and CP.db.settings.rowDividers and true or false
-  local a = H.Accent()
-  for _, d in ipairs(dividers) do
-    d:SetColorTexture(a[1], a[2], a[3], 0.35)
-    d:SetShown(on)
-  end
+  for _, d in ipairs(dividers) do H.ApplyDivider(d) end
 end
 
 -- after a list scrolls, the row under the mouse changed: drop the old tooltip and show the new row's
@@ -124,7 +148,7 @@ function H.RowList(parent, rows, rowH, make)
     r:SetScript("OnEnter", function(self) self.hl:Show() end)
     r:SetScript("OnLeave", function(self) self.hl:Hide() end)
     make(r, i)
-    H.AddDivider(r)
+    H.AddDivider(r, i)
     L.rows[i] = r
   end
   parent:EnableMouseWheel(true)
