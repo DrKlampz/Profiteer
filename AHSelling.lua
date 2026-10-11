@@ -11,6 +11,7 @@ local items = {}       -- aggregated bag contents
 local sel
 local filter = ""
 local sortMode = "worth"
+local gameQ   -- the rest of a multi-item batch while the game's own form is borrowed
 local gameMode, gameFrame, savedPoints   -- the game's own sell form shown inside this pane
 local forbidden        -- set when the game says an add-on may not call a function
 local queue            -- { id, sizes = {..}, price, dur, done, total }
@@ -336,6 +337,39 @@ end
 gameMode, gameFrame, savedPoints = false, nil, nil
 
 local cbOwner, cbPoints, pbOwner, pbPoints
+-- the form's own gray panel and frame art are faded while it sits in our pane (our dark pane is the background); put back afterwards
+local faded = {}
+local function FadeFormArt(f)
+  local function Fade(o)
+    if o and o.SetAlpha and faded[o] == nil then faded[o] = o:GetAlpha() or 1 o:SetAlpha(0) end
+  end
+  for _, r in ipairs({ f:GetRegions() }) do
+    if r.GetObjectType and r:GetObjectType() == "Texture" then Fade(r) end
+  end
+  Fade(f.NineSlice) Fade(f.Background) Fade(f.Bg) Fade(f.Inset) Fade(f.TopBorder)
+  for _, c in ipairs({ f:GetChildren() }) do
+    local n = c.GetName and c:GetName() or ""
+    if c ~= f.PostButton and (n:find("Inset") or n:find("Border") or n:find("NineSlice") or c == f.NineSlice) then Fade(c) end
+  end
+end
+local function RestoreFormArt()
+  for o, a in pairs(faded) do pcall(o.SetAlpha, o, a) faded[o] = nil end
+end
+-- the game re-opens its own sell form now and then; while one of our tabs is up (and we are not borrowing it) it goes straight back
+function Sl.KeepGameFormAway()
+  local AH = _G.AuctionHouseFrame
+  if not (AH and CP.AHTab and CP.AHTab.Current and CP.AHTab.Current()) then return end
+  -- the game's own lists (its auctions / prices on the right) never belong behind our pane, even while its form is borrowed
+  for _, k in ipairs({ "ItemSellList", "CommoditiesSellList", "ItemBuyFrame", "CommoditiesBuyFrame", "AuctionsFrame" }) do
+    local f = AH[k]
+    if f and f.IsShown and f:IsShown() then pcall(f.Hide, f) end
+  end
+  if gameMode then return end
+  for _, k in ipairs({ "CommoditiesSellFrame", "ItemSellFrame" }) do
+    local f = AH[k]
+    if f and f.IsShown and f:IsShown() then pcall(f.Hide, f) end
+  end
+end
 function Sl.FromGameSell()
   if not gameMode then return end
   gameMode = false
@@ -362,6 +396,8 @@ function Sl.FromGameSell()
     end)
   end
   gameFrame, savedPoints = nil, nil
+  RestoreFormArt()
+  if CP.After then CP.After(0.05, Sl.KeepGameFormAway) CP.After(0.4, Sl.KeepGameFormAway) end
   if W.ov then W.ov:Show() end
   if W.back then W.back:Hide() end
   Sl.Draw()
@@ -411,11 +447,20 @@ function Sl.ToGameSell(info)
     end
     if not f then SetStatus("The game's sell form was not found.") Sl.FromGameSell() return end
     gameFrame = f
+    for _, k in ipairs({ "CommoditiesSellFrame", "ItemSellFrame", "ItemSellList", "CommoditiesSellList", "ItemBuyFrame", "CommoditiesBuyFrame" }) do
+      local g = AH[k]
+      if g and g.HookScript and not g.pfAway then
+        g.pfAway = true
+        g:HookScript("OnShow", function() if CP.After then CP.After(0, Sl.KeepGameFormAway) end end)
+      end
+    end
+    for _, d in ipairs({ 0, 0.1, 0.3, 0.8 }) do CP.After(d, Sl.KeepGameFormAway) end
     savedPoints = {}
     for i = 1, f:GetNumPoints() do savedPoints[i] = { f:GetPoint(i) } end
     -- step 2: place the form inside this pane, lay it out and fill it in while it is still invisible, then show it once, finished
     local function Layout()
       pcall(function()
+        FadeFormArt(f)
         f:SetScale(1)
         f:ClearAllPoints()
         f:SetPoint("TOPLEFT", W.rp, "TOPLEFT", 6, -6)
@@ -520,6 +565,7 @@ local function PostNext()
     S().postBlocked = true
     local maxStack = (C_Item and C_Item.GetItemMaxStackSizeByID and C_Item.GetItemMaxStackSizeByID(e.id)) or select(8, GetItemInfo(e.id)) or 1
     local info = { loc = loc, isC = isC, qty = (isC and maxStack > 1) and math.min(qty, e.count) or 1, price = queue.price, dur = queue.dur }
+    gameQ = (queue.total or 1) > 1 and queue or nil
     queue = nil
     Sl.ToGameSell(info)
     Sl.Draw()
@@ -757,10 +803,10 @@ function Sl.Build(parent, w, h)
   W.back = H.Button(pane, "Back to prices", 120, 22)
   W.back:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", -14, 8)
   W.back:SetFrameLevel((W.rp:GetFrameLevel() or 1) + 200)
-  W.back:SetScript("OnClick", Sl.FromGameSell)
+  W.back:SetScript("OnClick", function() gameQ = nil Sl.FromGameSell() end)
   W.back:Hide()
 
-  pane:SetScript("OnHide", function() Sl.FromGameSell() end)
+  pane:SetScript("OnHide", function() gameQ = nil Sl.FromGameSell() end)
   pane:SetScript("OnShow", function()
     W.uval:SetText(tostring(S().undercutMode == "percent" and (S().undercutPct or 1) or (S().undercut or 1)))
     ScanBags()
@@ -795,8 +841,18 @@ ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
       C_Timer.After(0.4, CP.Safe("selling-next", PostNext))
     end
   elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
+    local gq = gameQ
+    gameQ = nil
     if gameMode then Sl.FromGameSell() end
     SetStatus("Posted.")
+    if gq then
+      gq.done = gq.done + 1
+      if gq.done < gq.total then
+        queue = gq
+        SetStatus("Posted " .. gq.done .. " of " .. gq.total .. "...")
+        C_Timer.After(0.7, CP.Safe("selling-next", PostNext))
+      else SetStatus("Posted " .. gq.total .. " auctions.") end
+    end
   elseif event == "UI_ERROR_MESSAGE" then
     if gameMode then
       CP:Print("Game message " .. tostring(a1) .. ": " .. tostring(a2))

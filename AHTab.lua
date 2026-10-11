@@ -300,6 +300,9 @@ function AHTab.Start()
   if pick == "game" then AHTab.Game() else AHTab.Go(pick) end
 end
 
+-- the key of the Profiteer tab being shown, or nil when the game's own page is up
+function AHTab.Current() return current ~= "game" and host and host:IsShown() and current or nil end
+
 function AHTab.Select() return AHTab.Go(current or "shopping") end
 
 -- the game's own page (categories list, results and their scroll arrows) can hang lower than the window's edge:
