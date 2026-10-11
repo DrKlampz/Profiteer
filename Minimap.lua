@@ -52,6 +52,7 @@ local function ShowTooltip(self)
   GameTooltip:AddLine("Profiteer", 1, 0.82, 0)
   GameTooltip:AddLine("Left-click: open / close window", 1, 1, 1)
   GameTooltip:AddLine("Right-click: full AH scan (AH must be open)", 1, 1, 1)
+  GameTooltip:AddLine("Alt-click: window looks", 1, 1, 1)
   GameTooltip:AddLine("Drag: slide around the ring. Shift+drag: place anywhere.", 0.7, 0.7, 0.7)
   local last = CP.db.lastScan
   if last and last > 0 then
@@ -87,6 +88,7 @@ local function Create()
   border:SetPoint("TOPLEFT")
 
   btn:SetScript("OnClick", function(_, button)
+    if IsAltKeyDown() and CP.WinLook then CP.WinLook.Toggle() return end
     if button == "RightButton" then
       CP.Scanner:Start()
     else
