@@ -38,6 +38,7 @@ local function Embed()
   if f.SetBackdropColor then f:SetBackdropColor(0, 0, 0, 0) f:SetBackdropBorderColor(0, 0, 0, 0) end
   if f.bgTex then f.bgTex:Hide() end
   if f.closeBtn then f.closeBtn:Hide() end
+  if f.titleFS then f.titleFS:Hide() end   -- the tab already says Profiteer
   embedded = true
   f:Show()
   -- the look system may have put its own background behind the window; the AH provides one
@@ -57,6 +58,7 @@ local function Unembed()
   if f.SetBackdropColor then f:SetBackdropColor(1, 1, 1, 1) f:SetBackdropBorderColor(1, 1, 1, 1) end
   if f.bgTex then f.bgTex:Show() end
   if f.closeBtn then f.closeBtn:Show() end
+  if f.titleFS then f.titleFS:Show() end
   f:ClearAllPoints()
   f:SetPoint("CENTER")
   if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end
@@ -68,6 +70,8 @@ function AHTab.Leave()
   if host then host:Hide() end
   SetSelected(tab, false)
 end
+
+function AHTab.IsReady() return tab ~= nil and host ~= nil end
 
 function AHTab.Select()
   if not (tab and host and AuctionHouseFrame and AuctionHouseFrame:IsShown()) then return end

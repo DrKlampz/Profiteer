@@ -4,7 +4,7 @@ CP.UI = UI
 
 local ROWS, ROW_H, GAP = 16, 20, 4
 local COLS = {
-  { key = "name",     label = "Item",        w = 140, align = "LEFT",  sortable = true },
+  { key = "name",     label = "Item",        w = 142, align = "LEFT",  sortable = true },
   { key = "crafters", label = "Crafters",    w = 70,  align = "LEFT" },
   { key = "cost",     label = "Cost",        w = 85,  align = "RIGHT", sortable = true },
   { key = "revenue",  label = "Sells (net)", w = 85,  align = "RIGHT", sortable = true },
@@ -12,7 +12,7 @@ local COLS = {
   { key = "ratio",    label = "ROI",         w = 50,  align = "RIGHT", sortable = true },
   { key = "listed",   label = "Listed",      w = 45,  align = "RIGHT", sortable = true },
   { key = "perday",   label = "Sold/day",    w = 52,  align = "RIGHT", sortable = true },
-  { key = "make",     label = "Can make",    w = 55,  align = "RIGHT", sortable = true },
+  { key = "make",     label = "Can make",    w = 64,  align = "RIGHT", sortable = true },
   { key = "depth",    label = "Buy up to",   w = 60,  align = "RIGHT" },
 }
 local TOTAL_W = 0
@@ -365,6 +365,7 @@ function UI.Create()
   local title = f:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
   title:SetPoint("TOPRIGHT", f, "TOPRIGHT", -52, -18)
   title:SetText("Profiteer")
+  f.titleFS = title
 
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", -6, -6)
@@ -533,6 +534,10 @@ function UI.SetTab(key)
 end
 
 function UI.Toggle()
+  if AuctionHouseFrame and AuctionHouseFrame:IsShown() and CP.AHTab and CP.AHTab.IsReady and CP.AHTab.IsReady() then
+    if UI.frame and UI.frame:IsShown() then CP.AHTab.Leave() else CP.AHTab.Select() end
+    return
+  end
   UI.Create()
   if UI.frame:IsShown() then
     UI.frame:Hide()
@@ -660,7 +665,12 @@ ahFrame:SetScript("OnEvent", CP.Safe("ah-integration", function(_, event)
   if not CP.db then return end
   if event == "AUCTION_HOUSE_SHOW" then
     CreateAHButton()
-    if CP.db.settings.ahAutoOpen then CP.After(0.3, UI.ShowDocked) end
+    if CP.db.settings.ahAutoOpen then
+      -- with the Profiteer tab in the AH, "open with the AH" selects that tab; the floating window is only a fallback
+      CP.After(0.6, function()
+        if CP.AHTab and CP.AHTab.IsReady and CP.AHTab.IsReady() then CP.AHTab.Select() else UI.ShowDocked() end
+      end)
+    end
   elseif UI.frame and UI.frame.docked then
     UI.frame:Hide()
     Undock()
