@@ -1,6 +1,9 @@
 # Changelog
 
 ## 0.8.2
+- Ledger fix: the Unrealized total counted a stack's price once instead of for every item in it (a 150-stack priced at 1s98c each counted as 1s98c, not 2g97s), so it came out far too low. Stacks are now priced per item times the quantity, and item names show correctly.
+- Ledger fix: gold mailed between your own characters is now always recognized as a transfer (not income and not spending). It no longer depends on the game call that sets the gold, the receiving character now books it too, and gold already recorded as mail in and mail out is paired up and corrected once.
+- Ledger fix: auction deposits are matched to the auctions being created, so a slow posting no longer shows up as "AH purchases".
 - Ledger: new "Unrealized: listed, not sold yet" section. For each character it shows how many auctions you have up, their total asking price and an estimate after the AH cut, any sold items whose gold is still in the mail, and your biggest listings. It updates every time you open the auction house.
 - Crafts: new "Buy up to" column and tooltip section. Walks each material up the AH price ladder from your last scan and tells you how many crafts you can buy materials for before the next one stops paying (and how much of each material, at what top price, and the total profit). Notes when the AH simply runs out of a material.
 - Search: partial words and any word order now match, with the best name matches listed first.

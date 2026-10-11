@@ -86,6 +86,7 @@ end
 local ctx = { ah = false, merchant = false, mail = false, trainer = false, taxi = false, trade = false, bank = false, guild = false }
 L.ctx = ctx
 local postedAt, repairAt, questAt, questMoney = -10, -10, -10, 0
+local posting, depositGrace = 0, -10   -- auctions being created right now (their deposit is taken as they are created)
 local pending = {}          -- seller invoices taken from the mailbox, waiting for their money to arrive
 local snap = {}             -- mailbox index -> { sender, money } as last seen (the hooks run after the money is gone)
 local sendMoney, sendTo = 0, nil   -- gold attached to the mail being sent
@@ -128,6 +129,25 @@ local function Classify(delta)
           i = i + 1
         end
       end
+      -- gold another of your characters mailed (it left a note when it sent it)
+      if delta > 0 and CP.db and CP.db.transit and CP.charKey then
+        local me = CP.ShortName(CP.charKey):lower()
+        local list = CP.db.transit[me]
+        if list then
+          for i = #list, 1, -1 do if time() - (list[i].t or 0) > 14 * 86400 then table.remove(list, i) end end
+          table.sort(list, function(a, b) return a.amt > b.amt end)
+          local i = 1
+          while i <= #list and delta > 0 do
+            if list[i].amt <= delta then
+              L.Record("transferIn", list[i].amt)
+              delta = delta - list[i].amt
+              table.remove(list, i)
+            else
+              i = i + 1
+            end
+          end
+        end
+      end
       if delta > 0 then L.Record("mailIn", delta) end
       return
     end
@@ -145,21 +165,30 @@ local function Classify(delta)
   else
     local c = -delta
     if ctx.ah then
-      if t - postedAt < 2 then L.Record("deposits", -c) else L.Record("ahBuys", -c) end
+      if posting > 0 or t - postedAt < 4 or t < depositGrace then L.Record("deposits", -c) else L.Record("ahBuys", -c) end
     elseif ctx.merchant then
       if t - repairAt < 2 then L.Record("repairs", -c) else L.Record("vendorBuys", -c) end
     elseif ctx.guild then L.Record("guildOut", -c)
     elseif ctx.trade then L.Record("tradeOut", -c)
     elseif ctx.mail then
-      if sendMoney > 0 and IsMine(sendTo) and c >= sendMoney then
-        L.Record("transferOut", -sendMoney)
-        c = c - sendMoney
-        sendMoney = 0
+      local xfer = sendMoney
+      -- if the game call that sets the gold wasn't seen, everything above the 30c postage is the gold sent
+      if xfer <= 0 and sendTo and c > 30 and IsMine(sendTo) then xfer = c - 30 end
+      if xfer > 0 and sendTo and IsMine(sendTo) and c >= xfer then
+        L.Record("transferOut", -xfer)
+        -- let the receiving character know, so it books the gold as a transfer too
+        if CP.db then
+          CP.db.transit = CP.db.transit or {}
+          local who = (sendTo:match("^([^%-]+)") or sendTo):lower()
+          CP.db.transit[who] = CP.db.transit[who] or {}
+          table.insert(CP.db.transit[who], { amt = xfer, t = time() })
+        end
+        c = c - xfer
         if c > 0 then L.Record("mailOut", -c) end
       else
-        sendMoney = 0
         L.Record("mailOut", -c)
       end
+      sendMoney, sendTo = 0, nil
     elseif ctx.bank then L.Record("bank", -c)
     elseif ctx.trainer then L.Record("training", -c)
     elseif ctx.taxi then L.Record("flights", -c)
@@ -172,6 +201,17 @@ end
 local function ItemName(link)
   if type(link) ~= "string" then return nil end
   return link:match("%[(.-)%]") or link
+end
+local function NameFromInfo(info)
+  local n = ItemName(info.itemLink)
+  if n then return n end
+  local id = info.itemKey and info.itemKey.itemID
+  if id then
+    local gi = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+    local name = gi and gi(id)
+    if type(name) == "string" then return name end
+  end
+  return nil
 end
 local function MaxStack(link)
   local gi = (C_Item and C_Item.GetItemInfo) or GetItemInfo
@@ -193,9 +233,9 @@ function L.SnapshotListings()
         local qty = info.quantity or 1
         local ask = info.buyoutAmount or 0
         if ask == 0 then ask = info.bidAmount or 0 end
-        -- stackable goods are listed per unit: the asking price is for one
-        if qty > 1 and MaxStack(info.itemLink) > 1 then ask = ask * qty end
-        items[#items + 1] = { name = ItemName(info.itemLink) or "?", n = qty, ask = ask, sold = (info.status == 1) and true or nil }
+        -- stacks are listed per unit (only single items have a whole-item price): the asking price is for one
+        if qty > 1 then ask = ask * qty end
+        items[#items + 1] = { name = NameFromInfo(info) or "?", n = qty, ask = ask, sold = (info.status == 1) and true or nil }
       end
     end
   elseif GetNumAuctionItems and GetAuctionItemInfo then
@@ -211,8 +251,60 @@ function L.SnapshotListings()
   end
   if not ok then return end
   CP.db.myAuctions = CP.db.myAuctions or {}
-  CP.db.myAuctions[CP.charKey] = { t = time(), items = items }
+  CP.db.myAuctions[CP.charKey] = { t = time(), v = 2, items = items }
   L.dirty = true
+end
+
+-- Earlier versions booked gold mailed between your own characters as ordinary mail in and out. Pair them up
+-- (one character's mail out matches another's mail in, the difference being postage) and book them as transfers.
+function L.RepairTransfers()
+  local db = CP.db
+  if not db or db.transferFix == 2 then return end
+  db.transferFix = 2
+  local function Move(tbl, key, cat, amt, sign)
+    tbl[key] = (tbl[key] or 0) - amt * sign     -- take it out of mailIn / mailOut
+    tbl[cat] = (tbl[cat] or 0) + amt * sign
+  end
+  -- first day (in order) whose numbers can give up that amount
+  local function Days(tbl, fn)
+    local days = {}
+    for day in pairs(tbl or {}) do days[#days + 1] = day end
+    table.sort(days)
+    for _, day in ipairs(days) do if fn(tbl[day], day) then return end end
+  end
+  local totals = db.ledgerChars or {}
+  local ins, outs = {}, {}
+  for ck, c in pairs(totals) do
+    if (c.mailIn or 0) > 0 then ins[#ins + 1] = { ck = ck, amt = c.mailIn } end
+    if (c.mailOut or 0) < 0 then outs[#outs + 1] = { ck = ck, amt = -c.mailOut } end
+  end
+  table.sort(ins, function(a, b) return a.amt > b.amt end)
+  for _, i in ipairs(ins) do
+    local best
+    for _, o in ipairs(outs) do
+      local diff = o.amt - i.amt
+      if o.ck ~= i.ck and not o.used and diff >= 0 and diff <= 3000 and (not best or diff < best.amt - i.amt) then best = o end
+    end
+    if best then
+      best.used = true
+      local amt = i.amt
+      Move(totals[i.ck], "mailIn", "transferIn", amt, 1)
+      Move(totals[best.ck], "mailOut", "transferOut", amt, -1)
+      Days(db.ledger, function(d)
+        if (d.mailIn or 0) >= amt and (d.mailOut or 0) <= -amt then
+          Move(d, "mailIn", "transferIn", amt, 1)
+          Move(d, "mailOut", "transferOut", amt, -1)
+          return true
+        end
+      end)
+      Days(db.ledgerDC, function(chars)
+        local a, b = chars[i.ck], chars[best.ck]
+        if a and (a.mailIn or 0) >= amt then Move(a, "mailIn", "transferIn", amt, 1) end
+        if b and (b.mailOut or 0) <= -amt then Move(b, "mailOut", "transferOut", amt, -1) end
+        return (a and true) or (b and true) or false
+      end)
+    end
+  end
 end
 
 local f = CreateFrame("Frame")
@@ -220,6 +312,7 @@ for _, e in ipairs({ "OWNED_AUCTIONS_UPDATED", "AUCTION_OWNED_LIST_UPDATE", "PLA
   "MAIL_SHOW", "MAIL_CLOSED", "MAIL_INBOX_UPDATE", "PLAYER_LOGOUT", "TRADE_SHOW", "TRADE_CLOSED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED", "GUILDBANKFRAME_OPENED", "GUILDBANKFRAME_CLOSED", "TRAINER_SHOW", "TRAINER_CLOSED", "TAXIMAP_OPENED", "TAXIMAP_CLOSED", "QUEST_TURNED_IN" }) do
   CP.Register(f, e)
 end
+pcall(f.RegisterEvent, f, "AUCTION_HOUSE_AUCTION_CREATED")
 f:SetScript("OnEvent", CP.Safe("ledger", function(_, event, a1, a2, a3)
   if event == "PLAYER_LOGIN" then
     -- 0.8.2 briefly saved my own auctions inside db.listings, which belongs to the price tracker: move them out
@@ -232,6 +325,7 @@ f:SetScript("OnEvent", CP.Safe("ledger", function(_, event, a1, a2, a3)
         end
       end
     end
+    L.RepairTransfers()
     lastMoney = GetMoney()
     sessionStart, sessionMoney = time(), lastMoney
     -- earlier versions saved a bogus 0 at logout: repair those entries
@@ -267,10 +361,14 @@ f:SetScript("OnEvent", CP.Safe("ledger", function(_, event, a1, a2, a3)
     L.SnapshotListings()
   elseif event == "AUCTION_HOUSE_SHOW" then
     ctx.ah = true
+    posting = 0
     -- ask for our own listings; the answer arrives as an update event
     if C_AuctionHouse and C_AuctionHouse.QueryOwnedAuctions then pcall(C_AuctionHouse.QueryOwnedAuctions, {}) end
     if C_Timer then C_Timer.After(2, function() pcall(L.SnapshotListings) end) end
-  elseif event == "AUCTION_HOUSE_CLOSED" then ctx.ah = false
+  elseif event == "AUCTION_HOUSE_AUCTION_CREATED" then
+    posting = math.max(0, posting - 1)
+    depositGrace = Now() + 2
+  elseif event == "AUCTION_HOUSE_CLOSED" then ctx.ah = false posting = 0
   elseif event == "MERCHANT_SHOW" then ctx.merchant = true
   elseif event == "MERCHANT_CLOSED" then ctx.merchant = false
   elseif event == "MAIL_SHOW" then ctx.mail = true
@@ -288,7 +386,7 @@ end))
 local function Hook(tbl, name, fn)
   if tbl and type(tbl[name]) == "function" then pcall(hooksecurefunc, tbl, name, CP.Safe("ledger hook", fn)) end
 end
-local function Posted() postedAt = Now() end
+local function Posted() postedAt = Now() posting = posting + 1 end
 Hook(_G.C_AuctionHouse, "PostItem", Posted)
 Hook(_G.C_AuctionHouse, "PostCommodity", Posted)
 Hook(_G, "StartAuction", Posted)
@@ -296,6 +394,7 @@ Hook(_G, "RepairAllItems", function() repairAt = Now() end)
 
 -- gold you attach to mail, and who it goes to (mail to your own characters is a transfer, not spending)
 Hook(_G, "SetSendMailMoney", function(amount) sendMoney = tonumber(amount) or 0 end)
+Hook(_G.C_Mail, "SetSendMailMoney", function(amount) sendMoney = tonumber(amount) or 0 end)
 Hook(_G, "SendMail", function(recipient) sendTo = recipient end)
 Hook(_G.C_Mail, "SendMail", function(recipient) sendTo = recipient end)
 
@@ -634,6 +733,8 @@ function L.Rows(period, ck)
       if not ck or c == ck then
         local n, ask = 0, 0
         for _, it in ipairs(e.items or {}) do
+          -- snapshots from before 0.8.2 stored a stack's per-unit price when the item name was unknown
+          if e.v ~= 2 and (it.n or 1) > 1 and it.name == "?" and not it.fixed then it.ask = it.ask * it.n it.fixed = true end
           if it.sold then soldAsk = soldAsk + it.ask
           else
             n, ask = n + 1, ask + it.ask
