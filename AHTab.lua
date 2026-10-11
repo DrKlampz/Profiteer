@@ -37,7 +37,20 @@ end
 function AHTab.Title()
   local AH = _G.AuctionHouseFrame
   local fs = AH and ((AH.TitleContainer and AH.TitleContainer.TitleText) or AH.TitleText)
-  if fs and fs.SetTextColor then fs:SetTextColor(1, 0.82, 0.2) end
+  if not (fs and fs.SetTextColor) then return end
+  fs:SetTextColor(1, 0.82, 0.2)
+  -- and one fixed name: the game retitles the window for each of its pages, so keep putting ours back
+  if not fs.pfTitle then
+    fs.pfTitle = true
+    hooksecurefunc(fs, "SetText", function(self, t)
+      if self.pfSetting or t == "Auction House" then return end
+      self.pfSetting = true
+      self:SetText("Auction House")
+      self:SetTextColor(1, 0.82, 0.2)
+      self.pfSetting = nil
+    end)
+  end
+  if fs.GetText and fs:GetText() ~= "Auction House" then fs.pfSetting = true fs:SetText("Auction House") fs.pfSetting = nil end
 end
 
 function AHTab.Restyle()
