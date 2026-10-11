@@ -365,10 +365,17 @@ local function ApplyFonts(frame, s, on)
 end
 
 -- game buttons (the red "panel" buttons) wearing the window's button look
+local skinAll = false   -- a window can ask for every labelled button to be skinned (the auction house's own pages)
 local function IsPanelButton(b)
     if not (b.GetObjectType and b:GetObjectType() == "Button") then return false end
     if b.lookNoSkin or b.lookBtn == false then return false end
     if b.Left and b.Right then return true end
+    if skinAll then
+        local fs = b.GetFontString and b:GetFontString()
+        local w, h = b:GetWidth() or 0, b:GetHeight() or 0
+        local nm = b.GetName and b:GetName() or ""
+        if fs and fs:GetText() and fs:GetText() ~= "" and w >= 40 and h >= 16 and h <= 44 and not nm:find("Tab") and not b.GetItemButtonCount then return true end
+    end
     local nt = b.GetNormalTexture and b:GetNormalTexture()
     local p = nt and nt.GetTexture and nt:GetTexture()
     return type(p) == "string" and p:find("Panel%-Button") and true or false
@@ -478,9 +485,11 @@ local function WalkButtons(obj, fn, depth)
     end
 end
 
-local function ApplyButtons(frame, s, on)
+local function ApplyButtons(frame, s, on, spec)
     on = on and s.buttons and true or false
+    skinAll = spec and spec.skinAll and true or false
     WalkButtons(frame, function(b) Safe(SkinButton, b, s, on) end)
+    skinAll = false
 end
 
 local function ApplyOne(spec)
@@ -565,7 +574,7 @@ local function ApplyOne(spec)
         if not frame.lookAlpha then frame.lookAlpha = frame:GetAlpha() or 1 end
         frame:SetAlpha(math.max(0.1, math.min(1, tonumber(s.frameAlpha) or 1)))
         Safe(ApplyFonts, frame, s, true)
-        Safe(ApplyButtons, frame, s, true)
+        Safe(ApplyButtons, frame, s, true, spec)
         frame.lookLock = s.lock and true or false
         if spec.apply then Safe(spec.apply, frame, Own(spec.id), true) end
     else
@@ -578,7 +587,7 @@ local function ApplyOne(spec)
             if fs and fs.lookTitle then fs:SetTextColor(fs.lookTitle[1], fs.lookTitle[2], fs.lookTitle[3]) fs.lookTitle = nil end
         end
         Safe(ApplyFonts, frame, s, false)
-        Safe(ApplyButtons, frame, s, false)
+        Safe(ApplyButtons, frame, s, false, spec)
         frame.lookLock = false
         if bg and bg.lookHeader then bg.lookHeader.fill:Hide() bg.lookHeader.line:Hide() end
         if spec.apply then Safe(spec.apply, frame, Own(spec.id), false) end

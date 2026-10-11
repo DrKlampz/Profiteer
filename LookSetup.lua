@@ -23,6 +23,8 @@ local function Options()
         } },
         { id = "ah", title = "Auction house", open = true, rows = {
             L.Kon("Scan automatically when the auction house opens (if data is stale)", st, "autoScan"),
+            L.Choice("Open the auction house on", st, "ahStartTab", { { "game", "Auction House (the game's own search)" }, { "shopping", "Shopping" }, { "selling", "Selling" },
+                { "cancelling", "Cancelling" }, { "crafts", "Crafts" }, { "ledger", "Ledger" }, { "last", "Whichever tab I used last" } }),
             L.Koff("Open the Profiteer panel with the auction house", st, "ahAutoOpen"),
             L.Kon("Show Profiteer lines in item tooltips", st, "tooltips"),
             L.Koff("Draw dividing bars between rows (Shopping, Selling, Cancelling and Crafts lists)", st, "rowDividers", function() if CP.AH then CP.AH.ApplyDividers() end end),
@@ -57,7 +59,7 @@ CP.WinLook.Setup({
         { id = "main", name = "Main window", global = "ProfiteerFrame", strip = "backdrop", hide = { "bgTex" },
           apply = function(frame, _, on) if frame and frame.fitScale then frame:SetScale(on and math.min(frame:GetScale(), frame.fitScale) or frame.fitScale) end end },
         { id = "report", name = "Report box", global = "ProfiteerReportFrame", strip = "backdrop" },
-        { id = "ah", name = "Auction house", global = "AuctionHouseFrame", strip = "template", defaultOn = true,
+        { id = "ah", name = "Auction house", global = "AuctionHouseFrame", strip = "template", defaultOn = true, skinAll = true,
           hide = { "MoneyFrameBorder", "MoneyFrameInset" },
           title = function(f) return (f.TitleContainer and f.TitleContainer.TitleText) or f.TitleText end,
           apply = function() if CP.AHTab and CP.AHTab.Restyle then CP.AHTab.Restyle() end end },

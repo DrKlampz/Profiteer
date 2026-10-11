@@ -129,6 +129,7 @@ function AHTab.Go(key)
   host:Show()
   Embed()
   current = key
+  if CP.db and CP.db.settings then CP.db.settings.ahLastTab = key end
   Mark(key)
   CP.UI.SetTab(key)
   return true
@@ -181,9 +182,18 @@ function AHTab.Game()
     if f and f.Show then pcall(f.Show, f) end
   end
   Mark("game")
+  if CP.db and CP.db.settings then CP.db.settings.ahLastTab = "game" end
   if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end
   CP.After(0.1, function() if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end AHTab.StyleGame() end)
   CP.After(0.6, function() if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end AHTab.StyleGame() end)
+end
+
+-- the tab the auction house opens on (Options: "Open the auction house on")
+function AHTab.Start()
+  local st = CP.db.settings
+  local pick = st.ahStartTab or "game"
+  if pick == "last" then pick = st.ahLastTab or "game" end
+  if pick == "game" then AHTab.Game() else AHTab.Go(pick) end
 end
 
 function AHTab.Select() return AHTab.Go(current or "shopping") end
@@ -258,6 +268,6 @@ ev:SetScript("OnEvent", CP.Safe("ah-tab", function()
   CP.After(0.2, CP.Safe("ah-tab-create", function()
     Create()
     if CP.UI.ahButton then CP.UI.ahButton:Hide() end
-    if tabs and not CP.db.settings.keepGameTabs and not current then AHTab.Go("shopping") end
+    if tabs and not CP.db.settings.keepGameTabs and not current then AHTab.Start() end
   end))
 end))

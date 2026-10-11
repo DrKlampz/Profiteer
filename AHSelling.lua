@@ -772,7 +772,22 @@ ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
     if gameMode then Sl.FromGameSell() end
     SetStatus("Posted.")
   elseif event == "UI_ERROR_MESSAGE" then
-    if gameMode then CP:Print("Game message " .. tostring(a1) .. ": " .. tostring(a2)) end
+    if gameMode then
+      CP:Print("Game message " .. tostring(a1) .. ": " .. tostring(a2))
+      pcall(function()
+        local f = gameFrame
+        local it = f and f.GetItem and f:GetItem()
+        local link = it and C_Item and C_Item.GetItemLink and C_Item.GetItemLink(it)
+        local bag, slot = it and it.GetBagAndSlot and it:GetBagAndSlot()
+        CP.db.postDebug = { t = time(), msg = tostring(a2), id = a1, link = link, bag = bag, slot = slot,
+          shown = f and (f == _G.AuctionHouseFrame.CommoditiesSellFrame and "commodity" or "item"),
+          qty = f and f.QuantityInput and f.QuantityInput.GetQuantity and f.QuantityInput:GetQuantity(),
+          price = f and f.PriceInput and f.PriceInput.GetAmount and f.PriceInput:GetAmount(),
+          dur = f and f.DurationDropDown and f.DurationDropDown.GetSelectedValue and f.DurationDropDown:GetSelectedValue(),
+          bound = it and C_Item and C_Item.IsBound and C_Item.IsBound(it),
+          stack = link and select(8, GetItemInfo(link)) }
+      end)
+    end
     return
   elseif event == "AUCTION_HOUSE_POST_ERROR" and gameMode and gameFrame then
     local it = gameFrame.GetItem and gameFrame:GetItem()
