@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.5
+- Auction House: keep Blizzard's native Buy, Sell and Auctions tabs, remove Profiteer's redundant Auction House and Selling tabs, and fit the remaining Profiteer tabs beside the native tabs.
+- Native auction handoff: open Blizzard's Sell tab and leave item selection and auction creation in the game UI. Profiteer's Selling tab is no longer available.
+- Non-stackable items: classify duplicate copies as item auctions rather than commodity auctions.
+
 ## 0.8.4
 - Shopping list: clicking a craft now lists every material that can itself be crafted both ways, the made item and its raw materials (copper bar and copper ore, a bolt of cloth and its cloth, and anything your characters have captured), so you can buy whichever is cheaper.
 

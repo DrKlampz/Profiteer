@@ -390,6 +390,7 @@ local function PrintHelp()
   CP:Print("  /pf missing          list the crafts left out for lack of prices, and why")
   CP:Print("  /pf why <craft>      show how one craft's cost and price were worked out")
   CP:Print("  /pf report           copyable diagnostic report (use this when something's wrong)")
+  CP:Print("  /pf postdebug        copyable details from the last failed auction post")
   CP:Print("  /pf debug [rows]     client/API diagnostics   /pf errors   captured errors")
   CP:Print("  /pf reset prices     wipe price data and history")
 end
@@ -498,6 +499,9 @@ SlashCmdList["PROFITEER"] = function(msg)
     CP.Minimap.Command(arg)
   elseif cmd == "debug" then
     Debug(arg)
+  elseif cmd == "postdebug" then
+    if CP.AHSelling and CP.AHSelling.PostDebug then CP.AHSelling.PostDebug()
+    else CP:Print("Auction selling diagnostics are unavailable.") end
   elseif cmd == "report" then
     CP.Report.Show()
   elseif cmd == "missing" then

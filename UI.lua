@@ -384,7 +384,7 @@ function UI.Create()
   f.closeBtn = close
 
 
-  -- Tabs: Crafts / Ledger
+  -- Main window navigation tabs.
   local tabs = {}
   local function MakeTab(key, label, x)
     local t = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -396,9 +396,8 @@ function UI.Create()
   end
   MakeTab("crafts", "Crafts", 24)
   MakeTab("shopping", "Shopping", 110)
-  MakeTab("selling", "Selling", 196)
-  MakeTab("cancelling", "Cancelling", 282)
-  MakeTab("ledger", "Ledger", 368)
+  MakeTab("cancelling", "Cancelling", 196)
+  MakeTab("ledger", "Ledger", 282)
   UI.tabs = tabs
 
   -- Search box (Crafts tab): part of a craft, material, profession or character name
@@ -541,7 +540,7 @@ function UI.Create()
   for _, h in ipairs(headers) do UI.craftWidgets[#UI.craftWidgets + 1] = h end
   CP.Ledger.BuildPanel(f, TOTAL_W + 12, 470 - 48 - 52)
   UI.panes = {}
-  for key, mod in pairs({ shopping = CP.AHShopping, selling = CP.AHSelling, cancelling = CP.AHCancel }) do
+  for key, mod in pairs({ shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
     if mod and mod.Build then
       local ok, p = pcall(mod.Build, f, TOTAL_W + 12, 470 - 52 - 12)
       if ok and p then p:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -52) UI.panes[key] = p else CP.RecordError("build " .. key, p) end
@@ -550,9 +549,10 @@ function UI.Create()
   UI.SetTab(UI.tab or "crafts")
 end
 
--- Switch between Crafts, Shopping, Selling, Cancelling and the Ledger
+-- Switch between Crafts, Shopping, Cancelling and the Ledger.
 function UI.SetTab(key)
   if not UI.frame then return end
+  if not (UI.tabs and UI.tabs[key]) then key = "crafts" end
   UI.tab = key
   local crafts = key == "crafts"
   for _, w in ipairs(UI.craftWidgets or {}) do w:SetShown(crafts) end

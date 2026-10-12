@@ -13,6 +13,18 @@ local filter = ""
 local sortMode = "worth"
 local gameQ   -- the rest of a multi-item batch while the game's own form is borrowed
 local gameMode, gameFrame, savedPoints   -- the game's own sell form shown inside this pane
+local nativeSellMode
+local gamePostInfo
+local gamePosting
+local CapturePostDebug
+local TracePostDebug
+local TraceNativePostState
+local EndNativeSellObservation
+local postAPIHookStatus = {}
+local postThrottleOverlay
+local postThrottleWatchPending
+local postButtonOriginalOnClick
+local postClickBlocked
 local forbidden        -- set when the game says an add-on may not call a function
 local queue            -- { id, sizes = {..}, price, dur, done, total }
 local DURATIONS = { { 1, "12 hours" }, { 2, "24 hours" }, { 3, "48 hours" } }
@@ -20,6 +32,122 @@ local DURATIONS = { { 1, "12 hours" }, { 2, "24 hours" }, { 3, "48 hours" } }
 local function S() return CP.db.settings end
 local function SetStatus(t) if W.status then W.status:SetText(t or "") end end
 local function DurIdx() return math.max(1, math.min(3, tonumber(S().sellDuration) or 2)) end
+local function PostThrottleReady()
+  if not (C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady) then return true end
+  local ok, ready = pcall(C_AuctionHouse.IsThrottledMessageSystemReady)
+  return ok and ready == true
+end
+local function UpdatePostThrottleGuard()
+  if not postThrottleOverlay then return end
+  if (not gameMode and not nativeSellMode) or gamePosting then
+    postThrottleOverlay:Hide()
+    return
+  end
+  if nativeSellMode and gameFrame then
+    local button = gameFrame.PostButton
+    local allowed
+    local reason
+    if type(gameFrame.CanPostItem) == "function" then
+      local ok, value, why = pcall(gameFrame.CanPostItem, gameFrame)
+      if ok then allowed, reason = value, why end
+    end
+    local ready = PostThrottleReady()
+    if button then
+      if not ready and button.IsEnabled and button:IsEnabled() then
+        button.pfThrottleDisabledByProfiteer = true
+        if button.Disable then button:Disable() end
+        if TracePostDebug then
+          TracePostDebug("Native throttle guard blocked Create", "ready=" .. tostring(ready),
+            "canPost=" .. tostring(allowed), "reason=" .. tostring(reason))
+        end
+      elseif ready and button.pfThrottleDisabledByProfiteer and allowed == true then
+        button.pfThrottleDisabledByProfiteer = false
+        if button.Enable then button:Enable() end
+        if TracePostDebug then TracePostDebug("Native throttle guard released Create") end
+      end
+    end
+    if ready and not (button and button.pfThrottleDisabledByProfiteer) then
+      postThrottleOverlay:Hide()
+    else
+      postThrottleOverlay:Show()
+    end
+    return
+  end
+  if PostThrottleReady() then postThrottleOverlay:Hide() else postThrottleOverlay:Show() end
+end
+local function WatchPostThrottle()
+  if (not gameMode and not nativeSellMode) or not postThrottleOverlay or postThrottleWatchPending then return end
+  postThrottleWatchPending = true
+  C_Timer.After(0.25, function()
+    postThrottleWatchPending = false
+    if (not gameMode and not nativeSellMode) or not postThrottleOverlay then return end
+    UpdatePostThrottleGuard()
+    if postThrottleOverlay:IsShown() then WatchPostThrottle() end
+  end)
+end
+local function AttachPostThrottleGuard(frame)
+  local button = frame and frame.PostButton
+  if not button then return end
+  if not frame.pfNativeThrottleClickHooked and button.HookScript then
+    frame.pfNativeThrottleClickHooked = true
+    button:HookScript("PreClick", function()
+      if not nativeSellMode or gameFrame ~= frame then return end
+      gamePosting = true
+      CP.db.postDebug = { trace = {}, traceStarted = GetTime and GetTime() or time() }
+      local function Value(control, methodName)
+        local method = control and control[methodName]
+        if type(method) ~= "function" then return nil end
+        local ok, value = pcall(method, control)
+        if ok then return value end
+      end
+      TracePostDebug("Native pre-click values",
+        "prefilledQuantity=" .. tostring(gamePostInfo.qty),
+        "formQuantity=" .. tostring(Value(frame.QuantityInput, "GetQuantity")),
+        "prefilledPrice=" .. tostring(gamePostInfo.price),
+        "formPrice=" .. tostring(Value(frame.PriceInput, "GetAmount")),
+        "prefilledDuration=" .. tostring(gamePostInfo.dur),
+        "formDuration=" .. tostring(Value(frame.Duration, "GetDuration")),
+        "throttledReady=" .. tostring(PostThrottleReady()))
+      TracePostDebug("POST_BUTTON_PRECLICK")
+      TraceNativePostState("Native form before Create")
+      TracePostDebug("Post API hooks", "PostItem=" .. tostring(postAPIHookStatus.PostItem),
+        "PostCommodity=" .. tostring(postAPIHookStatus.PostCommodity))
+      CapturePostDebug("POST_BUTTON_CLICK")
+      local submitted = gamePostInfo
+      C_Timer.After(30, function()
+        if not (nativeSellMode and gamePosting and gamePostInfo == submitted) then return end
+        TracePostDebug("POST_RESULT_TIMEOUT")
+        CapturePostDebug("POST_RESULT_TIMEOUT")
+        EndNativeSellObservation()
+        CP:Print("No auction result was received from the native Sell page. Type /pf postdebug for details.")
+      end)
+    end)
+  end
+  local parent = button:GetParent()
+  if not postThrottleOverlay then
+    postThrottleOverlay = CreateFrame("Frame", nil, parent)
+    postThrottleOverlay:EnableMouse(true)
+    local function ExplainThrottleWait()
+      SetStatus("Auction House is processing requests. Wait for the Create button to unlock.")
+    end
+    postThrottleOverlay:SetScript("OnMouseDown", ExplainThrottleWait)
+    postThrottleOverlay:SetScript("OnMouseUp", ExplainThrottleWait)
+    local shade = postThrottleOverlay:CreateTexture(nil, "BACKGROUND")
+    shade:SetAllPoints()
+    shade:SetColorTexture(0.12, 0.12, 0.14, 0.9)
+    local label = postThrottleOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    label:SetPoint("CENTER")
+    label:SetText("Please wait...")
+  elseif postThrottleOverlay:GetParent() ~= parent then
+    postThrottleOverlay:SetParent(parent)
+  end
+  postThrottleOverlay:ClearAllPoints()
+  postThrottleOverlay:SetAllPoints(button)
+  postThrottleOverlay:SetFrameStrata(button:GetFrameStrata())
+  postThrottleOverlay:SetFrameLevel(button:GetFrameLevel() + 5)
+  UpdatePostThrottleGuard()
+  WatchPostThrottle()
+end
 
 local function ScanBags()
   items = {}
@@ -64,6 +192,12 @@ end
 
 local function Selected() for _, e in ipairs(items) do if e.id == sel then return e end end end
 
+local function MaxStackSize(id)
+  local size = C_Item and C_Item.GetItemMaxStackSizeByID and C_Item.GetItemMaxStackSizeByID(id)
+  if type(size) ~= "number" then size = GetItemInfo and select(8, GetItemInfo(id)) end
+  return tonumber(size) or 1
+end
+
 local function Commodity(e)
   local loc = ItemLocation and ItemLocation:CreateFromBagAndSlot(e.bag, e.slot)
   if not loc then return false end
@@ -72,7 +206,7 @@ local function Commodity(e)
     local ok2, st = pcall(C_AuctionHouse.GetItemCommodityStatus, key)
     if ok2 then return st == (Enum and Enum.ItemCommodityStatus and Enum.ItemCommodityStatus.Commodity or 2), loc end
   end
-  return (e.count or 1) > 1, loc
+  return (e.count or 1) > 1 and MaxStackSize(e.id) > 1, loc
 end
 
 local function VendorPrice(id)
@@ -332,8 +466,7 @@ local function UsePrice(v)
   Sl.Draw()
 end
 
--- fallback: the game does not let add-ons post, so its own "Create Auction" form is brought into this pane,
--- filled in with the item, quantity and price; its button is the player's click
+-- fallback when Profiteer's direct post API is unavailable: embed the game's Sell form in this pane
 gameMode, gameFrame, savedPoints = false, nil, nil
 
 local cbOwner, cbPoints, pbOwner, pbPoints
@@ -373,6 +506,9 @@ end
 function Sl.FromGameSell()
   if not gameMode then return end
   gameMode = false
+  gamePostInfo = nil
+  gamePosting = false
+  if postThrottleOverlay then postThrottleOverlay:Hide() end
   do
     local AH = _G.AuctionHouseFrame
     if AH then for _, k in ipairs({ "CommoditiesSellFrame", "ItemSellFrame" }) do if AH[k] and AH[k].SetAlpha then AH[k]:SetAlpha(1) end end end
@@ -403,10 +539,11 @@ function Sl.FromGameSell()
   Sl.Draw()
 end
 
-function Sl.ToGameSell(info)
+local function ToEmbeddedGameSell(info)
   local AH = _G.AuctionHouseFrame
   if not AH then return end
   gameMode = true
+  gamePostInfo = info
   if W.ov then W.ov:Hide() end
   W.back:Show()
   SetStatus("Opening the game's sell form...")
@@ -447,6 +584,16 @@ function Sl.ToGameSell(info)
     end
     if not f then SetStatus("The game's sell form was not found.") Sl.FromGameSell() return end
     gameFrame = f
+    if TracePostDebug and f.CachePendingPost and not f.pfPostDebugHooked then
+      f.pfPostDebugHooked = true
+      local ok, err = pcall(hooksecurefunc, f, "CachePendingPost", function(_, ...)
+        TracePostDebug("CachePendingPost", ...)
+      end)
+      if not ok then
+        f.pfPostDebugHooked = false
+        CP.RecordError("hook pending auction post", err)
+      end
+    end
     for _, k in ipairs({ "CommoditiesSellFrame", "ItemSellFrame", "ItemSellList", "CommoditiesSellList", "ItemBuyFrame", "CommoditiesBuyFrame" }) do
       local g = AH[k]
       if g and g.HookScript and not g.pfAway then
@@ -483,10 +630,126 @@ function Sl.ToGameSell(info)
           if not pbPoints then pbPoints = {} for i = 1, pb:GetNumPoints() do pbPoints[i] = { pb:GetPoint(i) } end pbOwner = pb end
           pb:ClearAllPoints()
           pb:SetPoint("BOTTOMRIGHT", W.rp, "BOTTOMRIGHT", -12, 36)
+          if not postThrottleOverlay then
+            postThrottleOverlay = CreateFrame("Frame", nil, pb:GetParent())
+            postThrottleOverlay:SetFrameStrata(pb:GetFrameStrata())
+            postThrottleOverlay:SetFrameLevel(pb:GetFrameLevel() + 5)
+            postThrottleOverlay:EnableMouse(true)
+            local function ExplainThrottleWait()
+              SetStatus("Auction House is processing requests. Wait for the Create button to unlock.")
+            end
+            postThrottleOverlay:SetScript("OnMouseDown", ExplainThrottleWait)
+            postThrottleOverlay:SetScript("OnMouseUp", ExplainThrottleWait)
+            local shade = postThrottleOverlay:CreateTexture(nil, "BACKGROUND")
+            shade:SetAllPoints()
+            shade:SetColorTexture(0.12, 0.12, 0.14, 0.9)
+            local label = postThrottleOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            label:SetPoint("CENTER")
+            label:SetText("Please wait...")
+          end
+          postThrottleOverlay:ClearAllPoints()
+          postThrottleOverlay:SetAllPoints(pb)
+          postThrottleOverlay:SetFrameStrata(pb:GetFrameStrata())
+          postThrottleOverlay:SetFrameLevel(pb:GetFrameLevel() + 5)
+          UpdatePostThrottleGuard()
+          WatchPostThrottle()
           if not pb.pfHooked then
             pb.pfHooked = true
-            -- the game clears the form the moment the post goes out; keep that from showing
-            pb:HookScript("OnClick", function() if gameMode and gameFrame then gameFrame:SetAlpha(0) SetStatus("Posting...") end end)
+            postButtonOriginalOnClick = pb:GetScript("OnClick")
+            pb:SetScript("OnClick", function(button, ...)
+              if postClickBlocked then
+                postClickBlocked = false
+                return
+              end
+              if gameMode and not PostThrottleReady() then
+                postClickBlocked = true
+                CP.db.postDebug = { trace = {}, traceStarted = GetTime and GetTime() or time() }
+                TracePostDebug("POST_BLOCKED_THROTTLED")
+                CapturePostDebug("POST_BLOCKED_THROTTLED")
+                SetStatus("Auction House is processing requests. Wait for the Create button to unlock.")
+                UpdatePostThrottleGuard()
+                WatchPostThrottle()
+                postClickBlocked = false
+                return
+              end
+              if postButtonOriginalOnClick then postButtonOriginalOnClick(button, ...) end
+            end)
+            pb:HookScript("PreClick", function()
+              if gameMode and gameFrame then
+                if not PostThrottleReady() then
+                  postClickBlocked = true
+                  CP.db.postDebug = { trace = {}, traceStarted = GetTime and GetTime() or time() }
+                  TracePostDebug("POST_BLOCKED_THROTTLED")
+                  CapturePostDebug("POST_BLOCKED_THROTTLED")
+                  SetStatus("Auction House is processing requests. Wait for the Create button to unlock.")
+                  UpdatePostThrottleGuard()
+                  return
+                end
+                postClickBlocked = false
+                gamePosting = true
+                CP.db.postDebug = { trace = {}, traceStarted = GetTime and GetTime() or time() }
+                TracePostDebug("POST_BUTTON_PRECLICK")
+                TraceNativePostState("Native form before PostItem")
+                TracePostDebug("Post API hooks", "PostItem=" .. tostring(postAPIHookStatus.PostItem),
+                  "PostCommodity=" .. tostring(postAPIHookStatus.PostCommodity))
+                TracePostDebug("Pending-post cache hook", tostring(gameFrame and gameFrame.pfPostDebugHooked))
+                CapturePostDebug("POST_BUTTON_CLICK")
+                local submitted = gamePostInfo
+                C_Timer.After(30, function()
+                  if not (gameMode and gamePosting and gamePostInfo == submitted) then return end
+                  TracePostDebug("POST_RESULT_TIMEOUT")
+                  CapturePostDebug("POST_RESULT_TIMEOUT")
+                  gameQ = nil
+                  Sl.FromGameSell()
+                  SetStatus("No auction result received. Returned to Selling; type /pf postdebug for details.")
+                end)
+              end
+            end)
+            pb:HookScript("PostClick", function()
+              if gameMode and gameFrame then
+                TracePostDebug("POST_BUTTON_POSTCLICK")
+                TraceNativePostState("Native form after PostItem")
+                CapturePostDebug("POST_BUTTON_RESULT")
+                if gameFrame.pendingPost == nil then
+                  TracePostDebug("POST_API_REJECTED_WITHOUT_PENDING_POST")
+                  CapturePostDebug("POST_API_REJECTED")
+                  gamePosting = false
+                  local submittedInfo = gamePostInfo
+                  local attempts = 0
+                  local function RestoreRejectedPost()
+                    if not gameMode or gamePostInfo ~= submittedInfo then return end
+                    attempts = attempts + 1
+                    if PostThrottleReady() then
+                      local ok, err = pcall(function()
+                        if gameFrame.GetItem and gameFrame:GetItem() == nil and gameFrame.SetItem then
+                          gameFrame:SetItem(submittedInfo.loc)
+                        end
+                        if gameFrame.PriceInput and gameFrame.PriceInput.SetAmount then
+                          gameFrame.PriceInput:SetAmount(submittedInfo.price)
+                        end
+                        if gameFrame.QuantityInput and gameFrame.QuantityInput.SetQuantity then
+                          gameFrame.QuantityInput:SetQuantity(submittedInfo.qty)
+                        end
+                        if gameFrame.Duration and gameFrame.Duration.SetDuration then
+                          gameFrame.Duration:SetDuration(submittedInfo.dur)
+                        end
+                      end)
+                      if not ok then CP.RecordError("restore rejected auction form", err) end
+                      SetStatus("The game did not queue this post. The form is restored; wait for the AH to be ready, then retry.")
+                      UpdatePostThrottleGuard()
+                      WatchPostThrottle()
+                    elseif attempts < 120 then
+                      C_Timer.After(0.25, RestoreRejectedPost)
+                    else
+                      SetStatus("The game did not queue this post. Wait for the AH, then reselect the item.")
+                    end
+                  end
+                  C_Timer.After(0.25, RestoreRejectedPost)
+                else
+                  SetStatus("Waiting for the auction result...")
+                end
+              end
+            end)
           end
         end
         for _, k in ipairs({ "TotalPrice", "Deposit" }) do
@@ -513,7 +776,7 @@ function Sl.ToGameSell(info)
       pcall(function()
         if f.PriceInput and f.PriceInput.SetAmount then f.PriceInput:SetAmount(info.price) end
         if f.QuantityInput and f.QuantityInput.SetQuantity then f.QuantityInput:SetQuantity(info.qty) end
-        if f.DurationDropDown and f.DurationDropDown.SetSelectedValue then f.DurationDropDown:SetSelectedValue(info.dur) end
+        if f.Duration and f.Duration.SetDuration then f.Duration:SetDuration(info.dur) end
       end)
     end
     C_Timer.After(0.1, function()
@@ -532,11 +795,126 @@ function Sl.ToGameSell(info)
           if not gameMode then return end
           Layout()   -- once more: the form re-lays itself out when its prices arrive
           f:SetAlpha(1)
-          SetStatus("Press Create Auction in the form.")
+          if PostThrottleReady() then SetStatus("Press Create Auction in the form.")
+          else SetStatus("Auction House is processing requests. Wait for the Create button to unlock.") end
+          UpdatePostThrottleGuard()
+          WatchPostThrottle()
         end)
       end)
     end)
   end)
+end
+
+EndNativeSellObservation = function()
+  nativeSellMode = false
+  gamePosting = false
+  gamePostInfo = nil
+  gameFrame = nil
+  UpdatePostThrottleGuard()
+end
+
+function Sl.ToGameSell(info)
+  local AH = _G.AuctionHouseFrame
+  local modes = _G.AuctionHouseFrameDisplayMode
+  if not (AH and modes and AH.SetDisplayMode) then
+    CP:Print("Profiteer could not open the game's native Sell page.")
+    return
+  end
+
+  if gameMode then Sl.FromGameSell() end
+  if CP.AHTab and CP.AHTab.Leave then CP.AHTab.Leave() end
+  if CP.AHTab and CP.AHTab.origH then pcall(AH.SetHeight, AH, CP.AHTab.origH) end
+  for _, key in ipairs({ "ItemSellFrame", "CommoditiesSellFrame" }) do
+    local sellFrame = AH[key]
+    if sellFrame and type(sellFrame.SetItem) == "function" then
+      local cleared, clearErr = pcall(sellFrame.SetItem, sellFrame, nil, nil, false)
+      if not cleared then
+        CP.RecordError("clear native " .. key, clearErr)
+        CP:Print("Profiteer could not clear the native Sell forms. See /pf errors.")
+        return
+      end
+    end
+  end
+  if info.loc and type(info.loc.IsValid) == "function" then
+    local valid, isValid = pcall(info.loc.IsValid, info.loc)
+    if not valid or not isValid then
+      CP:Print("The selected bag item is no longer available. Refresh your bags and try again.")
+      return
+    end
+  end
+  local displayMode = info.isC and modes.CommoditiesSell or modes.ItemSell
+  local sellTab = _G.AuctionHouseFrameSellTab
+  if sellTab and type(sellTab.Click) == "function" then
+    local clicked, clickErr = pcall(sellTab.Click, sellTab)
+    if not clicked then CP.RecordError("select native auction Sell tab", clickErr) end
+  end
+  local setMode, modeErr = pcall(AH.SetDisplayMode, AH, displayMode)
+  if not setMode then
+    CP.RecordError("open native auction sell page", modeErr)
+    CP:Print("Profiteer could not switch to the game's Sell page. See /pf errors.")
+    return
+  end
+
+  local frame = info.isC and AH.CommoditiesSellFrame or AH.ItemSellFrame
+  if not frame then
+    CP:Print("Profiteer could not find the native Sell form.")
+    return
+  end
+
+  nativeSellMode = true
+  gamePosting = false
+  gamePostInfo = info
+  gameFrame = frame
+  CP.db.postDebug = { trace = {}, traceStarted = GetTime and GetTime() or time() }
+  AttachPostThrottleGuard(frame)
+  local function ApplyDefaultsAfterManualSelection()
+    if not nativeSellMode or gamePostInfo ~= info or info.defaultsApplied then return end
+    local selected = frame.GetItem and frame:GetItem()
+    if not selected then return end
+    if selected.IsValid then
+      local ok, valid = pcall(selected.IsValid, selected)
+      if not ok or not valid then return end
+    end
+    local applied, applyErr = pcall(function()
+      if frame.PriceInput and frame.PriceInput.SetAmount then
+        frame.PriceInput:SetAmount(info.price)
+      end
+      if frame.QuantityInput and frame.QuantityInput.SetQuantity then
+        frame.QuantityInput:SetQuantity(info.qty)
+      end
+      if frame.Duration and frame.Duration.SetDuration then
+        frame.Duration:SetDuration(info.dur)
+      end
+      local buyout = frame.BuyoutModeCheckButton
+      if buyout and buyout.GetChecked and not info.isC and not buyout:GetChecked() then
+        if buyout.Click then buyout:Click() else buyout:SetChecked(true) end
+      end
+    end)
+    if not applied then
+      CP.RecordError("fill native auction sell form", applyErr)
+      CP:Print("The native Sell form has your item, but Profiteer couldn't fill all values. Check the form before posting; see /pf errors.")
+      return
+    end
+    info.defaultsApplied = true
+    TraceNativePostState("Native form ready")
+    CapturePostDebug("NATIVE_SELL_FORM_READY")
+    CP:Print("Profiteer filled the native Sell form. Review the price and settings, then click Create Auction.")
+  end
+  if frame.SetItem and hooksecurefunc and not frame.pfManualSellSelectionHooked then
+    local hooked, hookErr = pcall(hooksecurefunc, frame, "SetItem", function()
+      if nativeSellMode and gameFrame == frame then
+        C_Timer.After(0.15, ApplyDefaultsAfterManualSelection)
+      end
+    end)
+    if hooked then
+      frame.pfManualSellSelectionHooked = true
+    else
+      CP.RecordError("watch native manual item selection", hookErr)
+    end
+  end
+  TraceNativePostState("Native Sell page opened; awaiting manual item selection")
+  CapturePostDebug("NATIVE_SELL_FORM_READY")
+  CP:Print("Native Sell is open. Drag the selected item from your bags into the form; Profiteer will fill its price after selection.")
 end
 
 local function PostNext()
@@ -549,44 +927,15 @@ local function PostNext()
   if not qty then queue = nil Sl.Draw() return end
   local isC, loc = Commodity(e)
   if not loc then SetStatus("Could not find the item in your bags.") queue = nil Sl.Draw() return end
-  forbidden = nil
-  local ok, err
-  if not S().postBlocked then
-    if queue.confirm then
-      -- second click: the game asked for a confirmation of this post
-      queue.confirm = nil
-      if isC then ok, err = pcall(C_AuctionHouse.ConfirmPostCommodity, loc, queue.dur, math.min(qty, e.count), queue.price)
-      else ok, err = pcall(C_AuctionHouse.ConfirmPostItem, loc, queue.dur, 1, nil, queue.price) end
-      err = nil
-    elseif isC then ok, err = pcall(C_AuctionHouse.PostCommodity, loc, queue.dur, math.min(qty, e.count), queue.price)
-    else ok, err = pcall(C_AuctionHouse.PostItem, loc, queue.dur, 1, nil, queue.price) end
-    if ok and err == true and not forbidden then
-      queue.confirm = true
-      SetStatus("The game wants a confirmation. Click the button again.")
-      W.post:SetText("Confirm post")
-      W.post:Enable()
-      return
-    end
-  end
-  if S().postBlocked or forbidden then
-    -- the game does not let add-ons post by themselves: hand the item and price to the game's own Sell tab
-    S().postBlocked = true
-    local maxStack = (C_Item and C_Item.GetItemMaxStackSizeByID and C_Item.GetItemMaxStackSizeByID(e.id)) or select(8, GetItemInfo(e.id)) or 1
-    local info = { loc = loc, isC = isC, qty = (isC and maxStack > 1) and math.min(qty, e.count) or 1, price = queue.price, dur = queue.dur }
-    gameQ = (queue.total or 1) > 1 and queue or nil
-    queue = nil
-    Sl.ToGameSell(info)
-    Sl.Draw()
-    return
-  end
-  if not ok then
-    CP.RecordError("post auction", err)
-    SetStatus("Could not post. See /pf errors.")
-    queue = nil
-    Sl.Draw()
-    return
-  end
-  SetStatus("Posting " .. (queue.done + 1) .. " of " .. queue.total .. "...")
+  local maxStack = MaxStackSize(e.id)
+  local info = { id = e.id, loc = loc, isC = isC,
+    qty = (isC and maxStack > 1) and math.min(qty, e.count) or 1,
+    price = queue.price, dur = queue.dur }
+  gameQ = (queue.total or 1) > 1 and queue or nil
+  queue = nil
+  Sl.ToGameSell(info)
+  Sl.Draw()
+  return
 end
 
 local function Post()
@@ -600,6 +949,229 @@ local function Post()
   queue = { id = e.id, sizes = sizes, price = price, dur = DURATIONS[DurIdx()][1], done = 0, total = #sizes }
   Sl.Draw()
   PostNext()
+end
+
+local function ControlValue(frame, controlName, methodName)
+  local control = frame and frame[controlName]
+  local method = control and control[methodName]
+  if type(method) ~= "function" then return nil end
+  local ok, value = pcall(method, control)
+  if ok then return value end
+end
+
+local function AuctionDuration(frame)
+  if frame and type(frame.GetDuration) == "function" then
+    local ok, value = pcall(frame.GetDuration, frame)
+    if ok then return value end
+  end
+  return ControlValue(frame, "Duration", "GetDuration")
+end
+
+local function DebugArg(value)
+  if value == nil then return "nil" end
+  if type(value) == "string" then return value:sub(1, 100) end
+  if type(value) == "number" or type(value) == "boolean" then return tostring(value) end
+  if type(value) == "table" or type(value) == "userdata" then
+    if value.GetBagAndSlot then
+      local ok, bag, slot = pcall(value.GetBagAndSlot, value)
+      if ok and bag then return tostring(value) .. " bag=" .. tostring(bag) .. " slot=" .. tostring(slot) end
+    end
+  end
+  return tostring(value):sub(1, 100)
+end
+
+TraceNativePostState = function(label)
+  local frame = gameFrame
+  if not frame then return end
+  local canPost, reason
+  if type(frame.CanPostItem) == "function" then
+    local ok, allowed, why = pcall(frame.CanPostItem, frame)
+    if ok then canPost, reason = allowed, why end
+  end
+  local item = frame.GetItem and frame:GetItem()
+  local itemExists
+  if item and item.IsValid then
+    local ok, value = pcall(item.IsValid, item)
+    if ok then itemExists = value end
+  end
+  local deposit
+  if type(frame.GetDepositAmount) == "function" then
+    local ok, value = pcall(frame.GetDepositAmount, frame)
+    if ok then deposit = value end
+  end
+  TracePostDebug(label, "canPost=" .. DebugArg(canPost), "reason=" .. DebugArg(reason),
+    "buttonEnabled=" .. DebugArg(ControlValue(frame, "PostButton", "IsEnabled")),
+    "itemValid=" .. DebugArg(itemExists), "pendingPost=" .. DebugArg(frame.pendingPost ~= nil),
+    "duration=" .. DebugArg(AuctionDuration(frame)), "deposit=" .. DebugArg(deposit),
+    "money=" .. DebugArg(GetMoney and GetMoney()),
+    "throttledReady=" .. DebugArg(PostThrottleReady()))
+end
+
+TracePostDebug = function(label, ...)
+  if not (gameMode or nativeSellMode) or not CP.db then return end
+  local debug = CP.db.postDebug or {}
+  debug.trace = debug.trace or {}
+  local values = {}
+  for i = 1, select("#", ...) do values[#values + 1] = DebugArg(select(i, ...)) end
+  if label == "C_AuctionHouse.PostItem" or label == "C_AuctionHouse.PostCommodity" then
+    local frame = gameFrame
+    local ready
+    if C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady then
+      local ok, value = pcall(C_AuctionHouse.IsThrottledMessageSystemReady)
+      if ok then ready = value end
+    end
+    values[#values + 1] = "formDuration=" .. DebugArg(ControlValue(frame, "DurationDropDown", "GetSelectedValue"))
+    values[#values + 1] = "formDurationValue=" .. DebugArg(ControlValue(frame, "DurationDropDown", "GetValue"))
+    values[#values + 1] = "nativeDuration=" .. DebugArg(AuctionDuration(frame))
+    values[#values + 1] = "durationLabel=" .. DebugArg(ControlValue(frame, "Duration", "GetText"))
+    values[#values + 1] = "throttledReady=" .. DebugArg(ready)
+  end
+  local elapsed = GetTime and GetTime() - (debug.traceStarted or GetTime()) or 0
+  debug.trace[#debug.trace + 1] = ("+%.3fs %s%s"):format(elapsed, tostring(label),
+    #values > 0 and (": " .. table.concat(values, " | ")) or "")
+  if #debug.trace > 60 then table.remove(debug.trace, 1) end
+  CP.db.postDebug = debug
+end
+
+CapturePostDebug = function(event, a1, a2)
+  local f = gameFrame
+  local item
+  if f and f.GetItem then
+    local ok, value = pcall(f.GetItem, f)
+    if ok then item = value end
+  end
+  local link
+  if item and C_Item and C_Item.GetItemLink then
+    local ok, value = pcall(C_Item.GetItemLink, item)
+    if ok then link = value end
+  end
+  local bag, slot
+  if item and item.GetBagAndSlot then
+    local ok, b, s = pcall(item.GetBagAndSlot, item)
+    if ok then bag, slot = b, s end
+  end
+  local old = CP.db.postDebug
+  local itemID = CP.ItemID(link) or (queue and queue.id) or (gameQ and gameQ.id) or (gamePostInfo and gamePostInfo.id)
+  local sameAttempt = event ~= "POST_BUTTON_CLICK" and old and old.itemID == itemID and old.time and time() - old.time <= 10
+  local maxStack
+  if itemID then
+    local ok, value = pcall(MaxStackSize, itemID)
+    if ok then maxStack = value end
+  end
+  local bound
+  if item and C_Item and C_Item.IsBound then
+    local ok, value = pcall(C_Item.IsBound, item)
+    if ok then bound = value end
+  end
+  local throttledReady
+  if C_AuctionHouse and C_AuctionHouse.IsThrottledMessageSystemReady then
+    local ok, value = pcall(C_AuctionHouse.IsThrottledMessageSystemReady)
+    if ok then throttledReady = value end
+  end
+  local pendingPost = f and f.pendingPost ~= nil
+  local postButtonEnabled = ControlValue(f, "PostButton", "IsEnabled")
+  local durationLabel = ControlValue(f, "Duration", "GetText")
+  if not f and sameAttempt then
+    pendingPost = old.pendingPost
+    postButtonEnabled = old.postButtonEnabled
+  end
+  if throttledReady == nil and sameAttempt then throttledReady = old.throttledReady end
+  local debug = {
+    time = time(), event = event,
+    message = event == "UI_ERROR_MESSAGE" and tostring(a2)
+      or (event == "UI_ERROR_DISPLAY" and tostring(a1)) or nil,
+    trace = old and old.trace, traceStarted = old and old.traceStarted,
+    uiErrorCode = event == "UI_ERROR_MESSAGE" and tostring(a1) or (sameAttempt and old.uiErrorCode),
+    auctionErrorCode = event == "AUCTION_HOUSE_POST_ERROR" and tostring(a1) or (sameAttempt and old.auctionErrorCode),
+    itemID = itemID, link = link or (sameAttempt and old.link), bag = bag or (sameAttempt and old.bag), slot = slot or (sameAttempt and old.slot),
+    form = f and (f == (_G.AuctionHouseFrame and _G.AuctionHouseFrame.CommoditiesSellFrame) and "commodity" or "item")
+      or (gamePostInfo and (gamePostInfo.isC and "commodity" or "item")) or (sameAttempt and old.form) or "not open",
+    itemSet = item ~= nil or (sameAttempt and old.itemSet) or false,
+    itemAfterClick = event ~= "POST_BUTTON_CLICK" and (item ~= nil or (sameAttempt and old.itemAfterClick) or false)
+      or (sameAttempt and old.itemAfterClick),
+    pendingPost = pendingPost,
+    postButtonEnabled = postButtonEnabled,
+    throttledReady = throttledReady,
+    submittedQuantity = (event == "POST_BUTTON_CLICK" or event == "POST_API_CALL") and ControlValue(f, "QuantityInput", "GetQuantity")
+      or (sameAttempt and old.submittedQuantity),
+    submittedPrice = (event == "POST_BUTTON_CLICK" or event == "POST_API_CALL") and ControlValue(f, "PriceInput", "GetAmount")
+      or (sameAttempt and old.submittedPrice),
+    submittedDuration = (event == "POST_BUTTON_CLICK" or event == "POST_API_CALL") and AuctionDuration(f)
+      or (sameAttempt and old.submittedDuration),
+    quantity = ControlValue(f, "QuantityInput", "GetQuantity") or (gamePostInfo and gamePostInfo.qty) or (queue and queue.sizes[queue.done + 1]) or (sameAttempt and old.quantity),
+    price = ControlValue(f, "PriceInput", "GetAmount") or (gamePostInfo and gamePostInfo.price) or (queue and queue.price) or (sameAttempt and old.price),
+    duration = AuctionDuration(f)
+      or (gamePostInfo and gamePostInfo.dur) or (queue and queue.dur) or (sameAttempt and old.duration),
+    durationLabel = durationLabel or (sameAttempt and old.durationLabel),
+    buyoutMode = ControlValue(f, "BuyoutModeCheckButton", "GetChecked"),
+    bound = bound ~= nil and bound or (sameAttempt and old.bound),
+    maxStack = maxStack, postBlocked = nativeSellMode and true or false,
+    requestedForm = gamePostInfo and (gamePostInfo.isC and "commodity" or "item") or nil,
+    requestedQuantity = gamePostInfo and gamePostInfo.qty or (queue and queue.sizes[queue.done + 1]),
+    source = nativeSellMode and "native game sell page" or (f and "game sell form" or "Profiteer post API"),
+  }
+  if sameAttempt then
+    debug.message = debug.message or old.message
+    debug.uiErrorCode = debug.uiErrorCode or old.uiErrorCode
+    debug.auctionErrorCode = debug.auctionErrorCode or old.auctionErrorCode
+  end
+  CP.db.postDebug = debug
+  return debug
+end
+
+function Sl.PostDebug()
+  local d = CP.db and CP.db.postDebug
+  if not d then
+    CP:Print("No auction post error has been captured yet. Try /pf postdebug after a failed post.")
+    return
+  end
+  local lines = {
+    "Profiteer auction post diagnostic",
+    "Time: " .. tostring(date and date("%Y-%m-%d %H:%M:%S", d.time or 0) or d.time),
+    "Client: " .. tostring(GetBuildInfo and select(1, GetBuildInfo()) or "?"),
+    "Event: " .. tostring(d.event),
+    "Post result: " .. (d.event == "UI_ERROR_DISPLAY" and "The game displayed an error message."
+      or d.event == "UI_ERROR_MESSAGE" and "The game reported an auction error."
+      or d.event == "NATIVE_SELL_FORM_READY" and "Native Sell form is ready; no post click was captured."
+      or d.event == "POST_RESULT_TIMEOUT" and "No auction result event was received."
+      or d.event == "POST_API_REJECTED" and "The native form cleared the item without caching a pending post."
+      or d.event == "POST_BUTTON_RESULT" and "Button click completed; awaiting auction response."
+      or d.event == "POST_BUTTON_CLICK" and "Button click captured before game processing."
+      or "Auction event captured."),
+    "Source: " .. tostring(d.source),
+    "Error message: " .. tostring(d.message or "none"),
+    "UI error code: " .. tostring(d.uiErrorCode or "none"),
+    "Auction post error code: " .. tostring(d.auctionErrorCode or "none"),
+    "Item: " .. tostring(d.link or d.itemID or "unknown"),
+    "Item ID: " .. tostring(d.itemID or "unknown"),
+    "Item set in form: " .. tostring(d.itemSet),
+    "Item still set after click: " .. tostring(d.itemAfterClick),
+    "Game pending-post state: " .. tostring(d.pendingPost),
+    "Post button enabled: " .. tostring(d.postButtonEnabled),
+    "AH throttled system ready: " .. tostring(d.throttledReady),
+    "Values at submit: quantity " .. tostring(d.submittedQuantity or "unknown")
+      .. ", price " .. tostring(d.submittedPrice or "unknown")
+      .. ", duration " .. tostring(d.submittedDuration or "unknown"),
+    "Bag/slot: " .. tostring(d.bag or "?") .. "/" .. tostring(d.slot or "?"),
+    "Sell form: " .. tostring(d.form),
+    "Quantity: " .. tostring(d.quantity or "unknown"),
+    "Price: " .. tostring(d.price or "unknown"),
+    "Duration: " .. tostring(d.duration or "unknown"),
+    "Duration label: " .. tostring(d.durationLabel or "unknown"),
+    "Buyout mode: " .. tostring(d.buyoutMode),
+    "Bound: " .. tostring(d.bound),
+    "Max stack size: " .. tostring(d.maxStack or "unknown"),
+    "Profiteer requested form: " .. tostring(d.requestedForm or "unknown"),
+    "Profiteer requested quantity: " .. tostring(d.requestedQuantity or "unknown"),
+    "Native Sell handoff: " .. tostring(d.postBlocked),
+  }
+  lines[#lines + 1] = "Post event/API trace:"
+  if d.trace and #d.trace > 0 then
+    for _, entry in ipairs(d.trace) do lines[#lines + 1] = entry end
+  else
+    lines[#lines + 1] = "No trace events were captured."
+  end
+  CP.Report.Open("Auction post diagnostic", lines, "Ctrl+C copies this report. Paste it when reporting the failed auction.")
 end
 
 local function Bump(box, delta, min, max)
@@ -824,17 +1396,144 @@ function Sl.Build(parent, w, h)
 end
 
 local ev = CreateFrame("Frame")
-for _, e in ipairs({ "AUCTION_HOUSE_AUCTION_CREATED", "BAG_UPDATE_DELAYED", "GET_ITEM_INFO_RECEIVED" }) do ev:RegisterEvent(e) end
+for _, e in ipairs({ "AUCTION_HOUSE_AUCTION_CREATED", "NEW_AUCTION_UPDATE", "AUCTION_MULTISELL_START",
+  "AUCTION_MULTISELL_UPDATE", "AUCTION_MULTISELL_FAILURE", "CHAT_MSG_SYSTEM",
+  "AUCTION_HOUSE_CLOSED",
+  "AUCTION_HOUSE_THROTTLED_SYSTEM_READY", "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED",
+  "AUCTION_HOUSE_THROTTLED_MESSAGE_SENT", "AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED",
+  "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED",
+  "BAG_UPDATE_DELAYED", "GET_ITEM_INFO_RECEIVED" }) do
+  pcall(ev.RegisterEvent, ev, e)
+end
 pcall(ev.RegisterEvent, ev, "AUCTION_HOUSE_POST_ERROR")
 ev:RegisterEvent("ADDON_ACTION_FORBIDDEN")
 pcall(ev.RegisterEvent, ev, "UI_ERROR_MESSAGE")
 ev:RegisterEvent("ADDON_ACTION_BLOCKED")
-ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
+if _G.UIErrorsFrame and type(_G.UIErrorsFrame.AddMessage) == "function" and hooksecurefunc then
+  local ok, err = pcall(hooksecurefunc, _G.UIErrorsFrame, "AddMessage", function(_, message)
+    if nativeSellMode and gamePosting and type(message) == "string" then
+      TracePostDebug("UIErrorsFrame.AddMessage", message)
+      CapturePostDebug("UI_ERROR_DISPLAY", message)
+      gameQ = nil
+      EndNativeSellObservation()
+    end
+  end)
+  if not ok then CP.RecordError("observe native auction error display", err) end
+end
+for _, apiName in ipairs({ "PostItem", "PostCommodity" }) do
+  if C_AuctionHouse and type(C_AuctionHouse[apiName]) == "function" and hooksecurefunc then
+    local hookedName = apiName
+    local ok, err = pcall(hooksecurefunc, C_AuctionHouse, hookedName, function(location, duration, quantity, bid, buyout)
+      if nativeSellMode and not gamePosting then
+        gamePosting = true
+        TracePostDebug("Native post API returned", hookedName)
+        CapturePostDebug("POST_API_CALL")
+      end
+      TracePostDebug("C_AuctionHouse." .. hookedName, location, duration, quantity, bid, buyout)
+    end)
+    postAPIHookStatus[apiName] = ok
+    if not ok then CP.RecordError("hook auction post API " .. hookedName, err) end
+  else
+    postAPIHookStatus[apiName] = false
+  end
+end
+ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, ...)
+  local a1, a2 = ...
+  if (gameMode or nativeSellMode) and gamePosting then TracePostDebug("EVENT " .. tostring(event), a1, a2) end
+  if event == "AUCTION_HOUSE_CLOSED" then
+    nativeSellMode = false
+    gamePosting = false
+    gamePostInfo = nil
+    gameFrame = nil
+    UpdatePostThrottleGuard()
+    if gameMode then Sl.FromGameSell() end
+    return
+  end
+  if event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY"
+      or event == "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED"
+      or event == "AUCTION_HOUSE_THROTTLED_MESSAGE_SENT"
+      or event == "AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED"
+      or event == "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED" then
+    UpdatePostThrottleGuard()
+    if (gameMode or nativeSellMode) and postThrottleOverlay and postThrottleOverlay:IsShown() then WatchPostThrottle() end
+    return
+  end
   if event == "ADDON_ACTION_FORBIDDEN" or event == "ADDON_ACTION_BLOCKED" then
     if a1 == ADDON then
       forbidden = tostring(a2 or "?")
       print("|cffff6060Profiteer: the game blocked " .. tostring(a2 or "an action") .. " (" .. event .. ")|r")
       SetStatus("The game blocked " .. tostring(a2 or "an action") .. ".")
+    end
+    return
+  end
+  local legacyPostSuccess = event == "CHAT_MSG_SYSTEM"
+    and type(ERR_AUCTION_STARTED) == "string" and a1 == ERR_AUCTION_STARTED
+  if gameMode and gamePosting and (event == "NEW_AUCTION_UPDATE" or legacyPostSuccess
+      or event == "AUCTION_HOUSE_AUCTION_CREATED") then
+    CapturePostDebug(event)
+    local gq = gameQ
+    gameQ = nil
+    Sl.FromGameSell()
+    SetStatus("Posted.")
+    if gq then
+      gq.done = gq.done + 1
+      if gq.done < gq.total then
+        queue = gq
+        SetStatus("Posted " .. gq.done .. " of " .. gq.total .. "...")
+        C_Timer.After(0.7, CP.Safe("selling-next", PostNext))
+      else
+        SetStatus("Posted " .. gq.total .. " auctions.")
+      end
+    end
+    return
+  elseif event == "AUCTION_MULTISELL_FAILURE" and gameMode and gamePosting then
+    CapturePostDebug(event, a1)
+    gameQ = nil
+    Sl.FromGameSell()
+    SetStatus("Auction failed. Profiteer returned to Selling; type /pf postdebug for details.")
+    return
+  elseif event == "AUCTION_MULTISELL_START" and gameMode and gamePosting then
+    CapturePostDebug(event)
+  elseif event == "AUCTION_MULTISELL_UPDATE" and gameMode and gamePosting then
+    CapturePostDebug(event, a1, a2)
+  end
+  if nativeSellMode and gamePosting and event == "UI_ERROR_MESSAGE" then
+    CapturePostDebug(event, a1, a2)
+    CP:Print("Native Sell page message " .. tostring(a1) .. ": " .. tostring(a2)
+      .. ". Type /pf postdebug for details.")
+    gameQ = nil
+    EndNativeSellObservation()
+    return
+  elseif nativeSellMode and gamePosting and event == "AUCTION_HOUSE_POST_ERROR" then
+    CapturePostDebug(event, a1)
+    CP:Print("Native Sell page rejected the post (error " .. tostring(a1)
+      .. "). Type /pf postdebug for details.")
+    gameQ = nil
+    EndNativeSellObservation()
+    return
+  elseif nativeSellMode and gamePosting and event == "AUCTION_MULTISELL_FAILURE" then
+    CapturePostDebug(event, a1)
+    CP:Print("Native Sell page reported an auction failure. Type /pf postdebug for details.")
+    gameQ = nil
+    EndNativeSellObservation()
+    return
+  elseif nativeSellMode and gamePosting and (event == "NEW_AUCTION_UPDATE"
+      or legacyPostSuccess or event == "AUCTION_HOUSE_AUCTION_CREATED") then
+    CapturePostDebug(event)
+    local gq = gameQ
+    gameQ = nil
+    EndNativeSellObservation()
+    if gq then
+      gq.done = gq.done + 1
+      if gq.done < gq.total then
+        queue = gq
+        SetStatus("Posted " .. gq.done .. " of " .. gq.total .. "... Select the next auction on the native Sell page.")
+        C_Timer.After(0.7, CP.Safe("selling-next", PostNext))
+      else
+        SetStatus("Posted " .. gq.total .. " auctions.")
+      end
+    else
+      CP:Print("Auction posted from the native Sell page.")
     end
     return
   end
@@ -862,32 +1561,22 @@ ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, a1, a2)
       else SetStatus("Posted " .. gq.total .. " auctions.") end
     end
   elseif event == "UI_ERROR_MESSAGE" then
-    if gameMode then
+    if gameMode and gamePosting then
       CP:Print("Game message " .. tostring(a1) .. ": " .. tostring(a2))
-      if gameFrame then gameFrame:SetAlpha(1) end
-      pcall(function()
-        local f = gameFrame
-        local it = f and f.GetItem and f:GetItem()
-        local link = it and C_Item and C_Item.GetItemLink and C_Item.GetItemLink(it)
-        local bag, slot = it and it.GetBagAndSlot and it:GetBagAndSlot()
-        CP.db.postDebug = { t = time(), msg = tostring(a2), id = a1, link = link, bag = bag, slot = slot,
-          shown = f and (f == _G.AuctionHouseFrame.CommoditiesSellFrame and "commodity" or "item"),
-          qty = f and f.QuantityInput and f.QuantityInput.GetQuantity and f.QuantityInput:GetQuantity(),
-          price = f and f.PriceInput and f.PriceInput.GetAmount and f.PriceInput:GetAmount(),
-          dur = f and f.DurationDropDown and f.DurationDropDown.GetSelectedValue and f.DurationDropDown:GetSelectedValue(),
-          bound = it and C_Item and C_Item.IsBound and C_Item.IsBound(it),
-          stack = link and select(8, GetItemInfo(link)) }
-      end)
+      CapturePostDebug(event, a1, a2)
+      gameQ = nil
+      Sl.FromGameSell()
+      SetStatus("Auction failed. Profiteer returned to Selling; type /pf postdebug for details.")
     end
     return
   elseif event == "AUCTION_HOUSE_POST_ERROR" and gameMode and gameFrame then
-    local it = gameFrame.GetItem and gameFrame:GetItem()
-    local q = gameFrame.QuantityInput and gameFrame.QuantityInput.GetQuantity and gameFrame.QuantityInput:GetQuantity()
-    local pr = gameFrame.PriceInput and gameFrame.PriceInput.GetAmount and gameFrame.PriceInput:GetAmount()
-    CP:Print("The game refused the post (error " .. tostring(a1) .. "). Item set: " .. tostring(it ~= nil) .. ", quantity " .. tostring(q) .. ", price " .. tostring(pr) .. ".")
-    gameFrame:SetAlpha(1)
-    SetStatus("The auction house refused the post.")
+    CapturePostDebug(event, a1)
+    CP:Print("The game refused the post (error " .. tostring(a1) .. "). Type /pf postdebug for details.")
+    gameQ = nil
+    Sl.FromGameSell()
+    SetStatus("Auction failed. Profiteer returned to Selling; type /pf postdebug for details.")
   elseif event == "AUCTION_HOUSE_POST_ERROR" and queue then
+    CapturePostDebug(event, a1)
     SetStatus("The auction house refused the post. Stopped after " .. queue.done .. " of " .. queue.total .. ".")
     queue = nil
   end

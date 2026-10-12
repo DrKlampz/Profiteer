@@ -1,12 +1,10 @@
 local ADDON, CP = ...
--- Profiteer inside the auction house window.
--- The game's Buy / Sell / Auctions tabs are replaced by Profiteer's own: Shopping, Selling, Cancelling, Crafts and Ledger.
--- A panel covers the AH body and holds Profiteer's window; the game's own frames underneath are left untouched
--- (Options: "Keep the game's own tabs" adds ours after the game's instead of replacing them).
+-- Profiteer's tabs sit beside the game's native Buy / Sell / Auctions tabs.
+-- A panel covers the AH body and holds Profiteer's window; the game's own frames underneath are left untouched.
 local AHTab = {}
 CP.AHTab = AHTab
 
-local KEYS = { { "game", "Auction House" }, { "shopping", "Shopping" }, { "selling", "Selling" }, { "cancelling", "Cancelling" }, { "crafts", "Crafts" }, { "ledger", "Ledger" } }
+local KEYS = { { "shopping", "Shopping" }, { "cancelling", "Cancelling" }, { "crafts", "Crafts" }, { "ledger", "Ledger" } }
 local tabs, host, hostBg
 local embedded = false
 local current
@@ -117,7 +115,7 @@ end
 
 function AHTab.Restyle()
   AHTab.Title()
-  for k, t in pairs(tabs or {}) do StyleTab(t, current == k or (k == "game" and not current and AuctionHouseFrame and AuctionHouseFrame:IsShown() and not (host and host:IsShown()))) end
+  for k, t in pairs(tabs or {}) do StyleTab(t, current == k) end
   if not hostBg then return end
   local r, g, b, a = 0.05, 0.05, 0.07, 1
   local L = CP.WinLook
@@ -219,11 +217,14 @@ function AHTab.Current() return current end
 function AHTab.IsReady() return tabs ~= nil and host ~= nil end
 
 function AHTab.Leave()
-  if not (embedded or (host and host:IsShown())) then return end
-  Unembed()
-  if host then host:Hide() end
-  current = nil
-  Mark(nil)
+  if embedded or (host and host:IsShown()) then
+    Unembed()
+    if host then host:Hide() end
+    current = nil
+    Mark(nil)
+  end
+  local AH = _G.AuctionHouseFrame
+  if AH and AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
 end
 
 -- open one of Profiteer's tabs inside the AH
@@ -314,6 +315,7 @@ function AHTab.Start()
   local st = CP.db.settings
   local pick = st.ahStartTab or "game"
   if pick == "last" then pick = st.ahLastTab or "game" end
+  if pick ~= "game" and not tabs[pick] then pick = "game" end
   if pick == "game" then AHTab.Game() else AHTab.Go(pick) end
 end
 
@@ -323,20 +325,26 @@ function AHTab.Select() return AHTab.Go(current or "shopping") end
 -- the game's own page (categories list, results and their scroll arrows) can hang lower than the window's edge:
 -- the tabs go below whichever is lowest, so they never cover the up and down arrows
 local function PlaceTabs()
-  if not tabs or CP.db.settings.keepGameTabs then return end
+  if not tabs then return end
   local AH = _G.AuctionHouseFrame
-  local first = tabs[KEYS[1][1]]
-  if not (AH and first and AH:GetBottom()) then return end
-  local base = AH:GetBottom()
-  local low = base
-  for _, f in ipairs({ AH.BrowseResultsFrame, AH.CategoriesList, AH.SearchBar }) do
-    local b = f and f.GetBottom and f:GetBottom()
-    -- only the game's page when it is on screen: hidden frames keep their old anchors and would push the tabs down
-    if b and b < low and f:IsVisible() then low = b end
+  local nativeTabs = Blizz()
+  local lastNative = nativeTabs[#nativeTabs]
+  local right, nativeRight = AH and AH:GetRight(), lastNative and lastNative:GetRight()
+  if not (right and nativeRight) then return end
+  local gap, inset = 3, 4
+  local width = math.floor((right - nativeRight - 6 - inset - gap * (#KEYS - 1)) / #KEYS)
+  if width < 1 then return end
+  local previous = lastNative
+  for i, entry in ipairs(KEYS) do
+    local tab = tabs[entry[1]]
+    if tab then
+      tab:ClearAllPoints()
+      tab:SetPoint("TOPLEFT", previous, "TOPRIGHT", i == 1 and 6 or gap, 0)
+      tab:SetWidth(width)
+      if tab.Text and tab.Text.SetWidth then tab.Text:SetWidth(width - 16) end
+      previous = tab
+    end
   end
-  local drop = math.max(0, base - low)
-  first:ClearAllPoints()
-  first:SetPoint("TOPLEFT", AH, "BOTTOMLEFT", 14, 1 - drop)
 end
 AHTab.PlaceTabs = PlaceTabs
 
@@ -356,7 +364,6 @@ local function Create()
   host:Hide()
   AHTab.Restyle()
 
-  local keep = CP.db.settings.keepGameTabs and true or false
   local made = {}
   local prev
   for i, k in ipairs(KEYS) do
@@ -375,19 +382,14 @@ local function Create()
         t.Text:SetPoint("CENTER", t, "CENTER", 0, 0)
       end
       t.Text:SetWidth(tabW - 16)
-      t:HookScript("OnShow", function() t:SetWidth(tabW) t.Text:SetWidth(tabW - 16) end)
+      t:HookScript("OnShow", function() CP.After(0.1, PlaceTabs) end)
     end
     if i == 1 then
-      if keep then
-        t:SetPoint("TOPLEFT", last, "TOPRIGHT", 6, 0)
-      else
-        t:SetPoint("TOPLEFT", AuctionHouseFrame, "BOTTOMLEFT", 14, 1)
-      end
+      t:SetPoint("TOPLEFT", last, "TOPRIGHT", 6, 0)
     else
       t:SetPoint("TOPLEFT", prev, "TOPRIGHT", 3, 0)
     end
-    if k[1] == "game" then t.lookNoSkin = true end   -- the game's own page keeps a plain tab
-    t:SetScript("OnClick", function() if k[1] == "game" then AHTab.Game() else AHTab.Go(k[1]) end end)
+    t:SetScript("OnClick", function() AHTab.Go(k[1]) end)
     SetSelected(t, false)
     made[k[1]] = t
     prev = t
@@ -395,11 +397,12 @@ local function Create()
   tabs = made
   CP.After(0.2, PlaceTabs)
   AuctionHouseFrame:HookScript("OnShow", function() CP.After(0.2, PlaceTabs) end)
-
-  if not keep then
-    for _, bt in ipairs(Blizz()) do if bt then bt:Hide() end end
-  else
-    for _, bt in ipairs(Blizz()) do if bt and bt.HookScript then bt:HookScript("OnClick", AHTab.Leave) end end
+  AuctionHouseFrame:HookScript("OnSizeChanged", function() CP.After(0.1, PlaceTabs) end)
+  for _, bt in ipairs(Blizz()) do
+    if bt then
+      bt:Show()
+      if bt.HookScript then bt:HookScript("OnClick", AHTab.Leave) end
+    end
   end
   AuctionHouseFrame:HookScript("OnHide", AHTab.Leave)
   if CP.UI.ahButton then CP.UI.ahButton:Hide() end
@@ -416,6 +419,6 @@ ev:SetScript("OnEvent", CP.Safe("ah-tab", function()
   CP.After(0.2, CP.Safe("ah-tab-create", function()
     Create()
     if CP.UI.ahButton then CP.UI.ahButton:Hide() end
-    if tabs and not CP.db.settings.keepGameTabs and not current then AHTab.Start() end
+    if tabs and not current then AHTab.Start() end
   end))
 end))
