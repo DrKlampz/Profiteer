@@ -705,7 +705,7 @@ ahFrame:SetScript("OnEvent", CP.Safe("ah-integration", function(_, event)
     if CP.db.settings.ahAutoOpen then
       -- with the Profiteer tab in the AH, "open with the AH" selects that tab; the floating window is only a fallback
       CP.After(0.6, function()
-        if CP.AHTab and CP.AHTab.IsReady and CP.AHTab.IsReady() then if not CP.AHTab.Current() then CP.AHTab.Start() end else UI.ShowDocked() end
+        if CP.AHTab and CP.AHTab.IsReady and CP.AHTab.IsReady() then if not CP.AHTab.Current() and not CP.AHTab.started then CP.AHTab.Start() end else UI.ShowDocked() end
       end)
     end
   elseif UI.frame and UI.frame.docked then

@@ -65,6 +65,9 @@ local function InitTab(t)
     if tx then tx:SetAlpha(0) end
   end
   t:SetHeight(26)
+  if t.SetHitRectInsets then t:SetHitRectInsets(0, 0, 0, 0) end   -- the template's own hit area is offset from where the flat tab is drawn
+  t:SetFrameLevel((AuctionHouseFrame and AuctionHouseFrame:GetFrameLevel() or 1) + 600)
+  if t.EnableMouse then t:EnableMouse(true) end
   local k = {}
   k.bg = t:CreateTexture(nil, "BACKGROUND")
   k.bg:SetAllPoints()
@@ -125,6 +128,8 @@ function AHTab.Restyle()
   hostBg:SetColorTexture(r, g, b, a)
 end
 
+local UP = 30   -- the window's own (hidden) title strip: pulled up out of the way so there is no empty band at the top
+
 local function Embed()
   local UI = CP.UI
   UI.Create()
@@ -153,19 +158,21 @@ local function Embed()
       if shrink then
         sc = math.min(1, (hw - 4) / fw)
         -- a window made taller than the auction house (resized, or a big saved size) is scaled down to fit it, never left hanging out
-        if AHTab.origH then sc = math.min(sc, math.max(0.4, (AHTab.origH - 26 - 28 - 4) / fh)) end
+        if AHTab.origH then sc = math.min(sc, math.max(0.4, (AHTab.origH - 26 - 28 - 14) / (fh - UP))) end
       else sc = math.min(1, (hw - 4) / fw, (hh - 4) / fh) end
     end
     -- no dead space: the auction house window itself is made just tall enough for the tab
     if AH then
       if shrink and fh and fh > 0 then
         if not AHTab.origH then AHTab.origH = AH:GetHeight() end
-        local need = math.ceil(fh * sc + 4 + 26 + 28)
+        local need = math.ceil((fh - UP) * sc + 14 + 26 + 28)
         if AHTab.origH and need < AHTab.origH then pcall(AH.SetHeight, AH, need) end
       elseif AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
     end
     f.fitScale = sc
     f:SetScale(sc)
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", host, "TOPLEFT", 0, UP / sc)
     if AHTab.PlaceTabs then CP.After(0.1, AHTab.PlaceTabs) end
     if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end
     if CP.AH and CP.AH.ApplyDividers then CP.AH.ApplyDividers() end
@@ -221,6 +228,7 @@ end
 
 -- open one of Profiteer's tabs inside the AH
 function AHTab.Go(key)
+  if CP.db.settings.traceTabs then CP:Print("TAB " .. tostring(key) .. " " .. ((debugstack and debugstack(2, 4, 0)) or ""):gsub("\n", " | "):gsub("Interface\\AddOns\\", "")) end   -- (tracing: /run, set traceTabs)
   if not (tabs and host and AuctionHouseFrame and AuctionHouseFrame:IsShown()) then return false end
   key = key or current or "shopping"
   for _, t in ipairs(Blizz()) do SetSelected(t, false) end
@@ -257,7 +265,8 @@ end
 function AHTab.Game()
   if not (tabs and AuctionHouseFrame and AuctionHouseFrame:IsShown()) then return end
   AHTab.Leave()
-  AHTab.Size()
+  -- the game's own page needs the window's full height (its list and scroll arrows reach the bottom edge)
+  if AHTab.origH then pcall(AuctionHouseFrame.SetHeight, AuctionHouseFrame, AHTab.origH) end
   local AH = AuctionHouseFrame
   local modes = _G.AuctionHouseFrameDisplayMode
   local done = false
@@ -293,21 +302,20 @@ function AHTab.Size()
   if not AHTab.origH then AHTab.origH = AH:GetHeight() end
   local hw = (AH:GetWidth() or 0) - 8
   local sc = math.min(1, (hw - 4) / fw)
-  if AHTab.origH then sc = math.min(sc, math.max(0.4, (AHTab.origH - 26 - 28 - 4) / fh)) end
-  local need = math.ceil(fh * sc + 4 + 26 + 28)
+  if AHTab.origH then sc = math.min(sc, math.max(0.4, (AHTab.origH - 26 - 28 - 14) / (fh - UP))) end
+  local need = math.ceil((fh - UP) * sc + 14 + 26 + 28)
   if AHTab.origH and need < AHTab.origH then pcall(AH.SetHeight, AH, need) end
 end
 
 -- the tab the auction house opens on (Options: "Open the auction house on")
 function AHTab.Start()
+  AHTab.started = true
   local st = CP.db.settings
   local pick = st.ahStartTab or "game"
   if pick == "last" then pick = st.ahLastTab or "game" end
   if pick == "game" then AHTab.Game() else AHTab.Go(pick) end
 end
 
--- the key of the Profiteer tab being shown, or nil when the game's own page is up
-function AHTab.Current() return current ~= "game" and host and host:IsShown() and current or nil end
 
 function AHTab.Select() return AHTab.Go(current or "shopping") end
 
@@ -401,6 +409,8 @@ local ev = CreateFrame("Frame")
 CP.Register(ev, "AUCTION_HOUSE_SHOW")
 ev:SetScript("OnEvent", CP.Safe("ah-tab", function()
   if not CP.db then return end
+  AHTab.started = false
+  current = nil   -- every visit starts fresh, on the tab chosen in the options (not wherever the last visit ended)
   AHTab.Size()
   CP.After(0.2, CP.Safe("ah-tab-create", function()
     Create()
