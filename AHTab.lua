@@ -153,7 +153,7 @@ local function Embed()
     local sc = 1
     local shrink = CP.db.settings.ahShrink ~= false
     local AH = _G.AuctionHouseFrame
-    if AH and not AHTab.origH then AHTab.origH = AH:GetHeight() end
+    if AH and not AHTab.origH then AHTab.origH = math.max(AH:GetHeight() or 0, 538) end
     if hw and hh and fw and fh and hw > 50 and hh > 50 and fw > 0 and fh > 0 then
       if shrink then
         sc = math.min(1, (hw - 4) / fw)
@@ -164,7 +164,7 @@ local function Embed()
     -- no dead space: the auction house window itself is made just tall enough for the tab
     if AH then
       if shrink and fh and fh > 0 then
-        if not AHTab.origH then AHTab.origH = AH:GetHeight() end
+        if not AHTab.origH then AHTab.origH = math.max(AH:GetHeight() or 0, 538) end
         local need = math.ceil((fh - UP) * sc + 14 + 26 + 28)
         if AHTab.origH and need < AHTab.origH then pcall(AH.SetHeight, AH, need) end
       elseif AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
@@ -266,7 +266,8 @@ function AHTab.Game()
   if not (tabs and AuctionHouseFrame and AuctionHouseFrame:IsShown()) then return end
   AHTab.Leave()
   -- the game's own page needs the window's full height (its list and scroll arrows reach the bottom edge)
-  if AHTab.origH then pcall(AuctionHouseFrame.SetHeight, AuctionHouseFrame, AHTab.origH) end
+  -- (never below the game's own 538: a smaller remembered height would cut the list and categories off)
+  pcall(AuctionHouseFrame.SetHeight, AuctionHouseFrame, math.max(AHTab.origH or 0, 538))
   local AH = AuctionHouseFrame
   local modes = _G.AuctionHouseFrameDisplayMode
   local done = false
@@ -299,7 +300,7 @@ function AHTab.Size()
   if not f then return end
   local fw, fh = f:GetWidth(), f:GetHeight()
   if not (fw and fh and fw > 0 and fh > 0) then return end
-  if not AHTab.origH then AHTab.origH = AH:GetHeight() end
+  if not AHTab.origH then AHTab.origH = math.max(AH:GetHeight() or 0, 538) end
   local hw = (AH:GetWidth() or 0) - 8
   local sc = math.min(1, (hw - 4) / fw)
   if AHTab.origH then sc = math.min(sc, math.max(0.4, (AHTab.origH - 26 - 28 - 14) / (fh - UP))) end
