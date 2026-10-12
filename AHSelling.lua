@@ -503,6 +503,14 @@ function Sl.ToGameSell(info)
         end
       end)
       pcall(function()
+        -- single items are posted by buyout: without Buyout Mode the price typed in would only be a starting bid
+        local bm = f.BuyoutModeCheckButton
+        if bm and bm.GetChecked and not info.isC and not bm:GetChecked() and not info.bmSet then
+          info.bmSet = true
+          if bm.Click then bm:Click() else bm:SetChecked(true) end
+        end
+      end)
+      pcall(function()
         if f.PriceInput and f.PriceInput.SetAmount then f.PriceInput:SetAmount(info.price) end
         if f.QuantityInput and f.QuantityInput.SetQuantity then f.QuantityInput:SetQuantity(info.qty) end
         if f.DurationDropDown and f.DurationDropDown.SetSelectedValue then f.DurationDropDown:SetSelectedValue(info.dur) end
