@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.6
+- Auction House: every Profiteer tab now fills the window, with the same height as the game's own tabs.
+- Shopping: each item shows its lowest known price; lists scale to the window.
+- Crafts: search box moved to the bottom right.
+- Look: GreedUI no longer overrides an add-on's saved enabled state.
+
 ## 0.8.5
 - Auction House: keep Blizzard's native Buy, Sell and Auctions tabs, remove Profiteer's redundant Auction House and Selling tabs, and fit the remaining Profiteer tabs beside the native tabs.
 - Native auction handoff: open Blizzard's Sell tab and leave item selection and auction creation in the game UI. Profiteer's Selling tab is no longer available.

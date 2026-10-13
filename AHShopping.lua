@@ -5,7 +5,7 @@ local H = CP.AH
 local S = {}
 CP.AHShopping = S
 
-local ROWS = 15
+local MAXROWS = 40
 local list = {}            -- { { id=, want= } }
 local sel = 1
 local pane
@@ -250,18 +250,22 @@ function S.Draw()
   end
   -- left list
   W.list.n = #list
-  local maxOff = math.max(0, #list - ROWS)
+  local maxOff = math.max(0, #list - W.list.vis)
   if W.list.offset > maxOff then W.list.offset = maxOff end
   for i, r in ipairs(W.list.rows) do
     local idx = i + W.list.offset
     local it = list[idx]
     r.idx = idx
-    if it then
+    if it and i <= W.list.vis then
       r.icon:SetTexture(H.Icon(it.id))
       r.name:SetText(Name(it.id))
       r.name:SetTextColor(QualityColor(it.id))
       local have, want = Have(it.id), it.want or 1
       local need = math.max(0, want - have)
+      local scanned = CP.db.prices[it.id]
+      local low = scanned and scanned.min
+      if idx == sel and state.results and state.results[1] and state.results[1].price then low = state.results[1].price end
+      r.low:SetText(low and low > 0 and H.Money(low) or "|cff555555-|r")
       r.need:SetText(need == 0 and "|cff40ff40done|r" or ("|cffffd100" .. need .. "|r |cff888888to buy|r"))
       r.bar:SetWidth(math.max(0.01, math.min(1, have / math.max(1, want))) * (r:GetWidth() > 0 and r:GetWidth() or 240))
       r.bar:SetShown(have > 0)
@@ -296,7 +300,7 @@ function S.Draw()
   end
 
   W.res.n = #res
-  local maxR = math.max(0, #res - (ROWS - 2))
+  local maxR = math.max(0, #res - W.res.vis)
   if W.res.offset > maxR then W.res.offset = maxR end
   local want = (state.kind == "commodity") and WantQty() or 0
   local cumQ, cumC = 0, 0
@@ -304,7 +308,7 @@ function S.Draw()
   for i, r in ipairs(W.res.rows) do
     local idx = i + W.res.offset
     local x = res[idx]
-    if x then
+    if x and i <= W.res.vis then
       local before = cumQ
       cumQ = cumQ + (x.qty or 0)
       cumC = cumC + (x.qty or 0) * x.price
@@ -363,8 +367,7 @@ function S.Build(parent, w, h)
   pane:Hide()
   S.pane = pane
 
-  local leftW = 262
-  local listH = ROWS * 20 + 8
+  local leftW = 350
   local barH = 50
 
   -- header strip
@@ -392,18 +395,20 @@ function S.Build(parent, w, h)
   W.accentLine:SetHeight(2)
 
   -- left panel: the list
-  W.lp = Panel(pane, leftW, ROWS * 20 + 12)
+  W.lp = Panel(pane, leftW, 15 * 20 + 12)
   W.lp:SetPoint("TOPLEFT", 0, -32)
   local lf = CreateFrame("Frame", nil, W.lp)
   lf:SetPoint("TOPLEFT", 4, -4)
-  lf:SetSize(leftW - 8, ROWS * 20)
-  W.list = H.RowList(lf, ROWS, 20, function(r, i)
+  lf:SetSize(leftW - 8, 15 * 20)
+  W.lf = lf
+  W.list = H.RowList(lf, MAXROWS, 20, function(r, i)
     r.stripe = r:CreateTexture(nil, "BACKGROUND") r.stripe:SetAllPoints() r.stripe:SetColorTexture(1, 1, 1, 0.035)
     r.bar = r:CreateTexture(nil, "BACKGROUND", nil, 1) r.bar:SetPoint("TOPLEFT") r.bar:SetPoint("BOTTOMLEFT") r.bar:SetColorTexture(0.2, 0.7, 0.25, 0.22)
     r.icon = r:CreateTexture(nil, "ARTWORK") r.icon:SetSize(18, 18) r.icon:SetPoint("LEFT", 3, 0)
     r.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    r.name = H.Text(r, "GameFontHighlightSmall") r.name:SetPoint("LEFT", r.icon, "RIGHT", 6, 0) r.name:SetWidth(140) r.name:SetJustifyH("LEFT")
-    r.need = H.Text(r) r.need:SetPoint("RIGHT", -6, 0) r.need:SetJustifyH("RIGHT")
+    r.name = H.Text(r, "GameFontHighlightSmall") r.name:SetPoint("LEFT", r.icon, "RIGHT", 6, 0) r.name:SetWidth(122) r.name:SetJustifyH("LEFT")
+    r.need = H.Text(r) r.need:SetPoint("RIGHT", -6, 0) r.need:SetWidth(62) r.need:SetJustifyH("RIGHT")
+    r.low = H.Text(r) r.low:SetPoint("RIGHT", -72, 0) r.low:SetWidth(90) r.low:SetJustifyH("RIGHT")
     r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     r:SetScript("OnClick", function(self, btn)
       if not (self.idx and list[self.idx]) then return end
@@ -474,7 +479,7 @@ function S.Build(parent, w, h)
 
   -- right panel: item hero + results
   local rx = leftW + 12
-  W.rp = Panel(pane, w - rx, listH + 30)
+  W.rp = Panel(pane, w - rx, 300)
   W.rp:SetPoint("TOPLEFT", rx, -32)
   W.heroIcon = W.rp:CreateTexture(nil, "ARTWORK") W.heroIcon:SetSize(40, 40) W.heroIcon:SetPoint("TOPLEFT", 12, -10)
   W.heroIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
@@ -497,8 +502,9 @@ function S.Build(parent, w, h)
   local ln = W.rp:CreateTexture(nil, "ARTWORK") ln:SetPoint("TOPLEFT", 6, -96) ln:SetPoint("TOPRIGHT", -6, -96) ln:SetHeight(1) ln:SetColorTexture(1, 1, 1, 0.15)
   local rf = CreateFrame("Frame", nil, W.rp)
   rf:SetPoint("TOPLEFT", 6, -98)
-  rf:SetSize(w - rx - 12, (ROWS - 5) * 20)
-  W.res = H.RowList(rf, ROWS - 5, 20, function(r)
+  rf:SetSize(w - rx - 12, 10 * 20)
+  W.rf = rf
+  W.res = H.RowList(rf, MAXROWS, 20, function(r)
     r.stripe = r:CreateTexture(nil, "BACKGROUND") r.stripe:SetAllPoints() r.stripe:SetColorTexture(1, 1, 1, 0.035)
     r.cover = r:CreateTexture(nil, "BACKGROUND", nil, 1) r.cover:SetAllPoints() r.cover:SetColorTexture(1, 0.82, 0, 0.12)
     r.price = H.Text(r) r.price:SetPoint("LEFT", 8, 0) r.price:SetWidth(120) r.price:SetJustifyH("LEFT")
@@ -542,7 +548,23 @@ function S.Build(parent, w, h)
     end
     S.Draw()
   end)
+  S.Resize(w, h)
   return pane
+end
+
+-- as many rows as the pane is tall, so the lists fill the window
+function S.Resize(w, h)
+  if not (pane and W.list) then return end
+  pane:SetSize(w, h)
+  local lpH = h - 32 - 62
+  W.list.vis = math.max(5, math.min(MAXROWS, math.floor((lpH - 12) / 20)))
+  W.lp:SetHeight(W.list.vis * 20 + 12)
+  W.lf:SetSize(W.lf:GetWidth(), W.list.vis * 20)
+  local rpH = h - 32 - 50 - 20
+  W.rp:SetHeight(rpH)
+  W.res.vis = math.max(3, math.min(MAXROWS, math.floor((rpH - 104) / 20)))
+  W.rf:SetSize(W.rf:GetWidth(), W.res.vis * 20)
+  S.Draw()
 end
 
 ------------------------------------------------------------------------

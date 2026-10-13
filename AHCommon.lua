@@ -131,7 +131,7 @@ function H.Rehover(rows)
 end
 
 function H.RowList(parent, rows, rowH, make)
-  local L = { rows = {}, offset = 0, n = 0 }
+  local L = { rows = {}, offset = 0, n = 0, vis = rows }
   for i = 1, rows do
     local r = CreateFrame("Button", nil, parent)
     r:SetHeight(rowH)
@@ -153,7 +153,7 @@ function H.RowList(parent, rows, rowH, make)
   end
   parent:EnableMouseWheel(true)
   parent:SetScript("OnMouseWheel", function(_, delta)
-    local max = math.max(0, L.n - rows)
+    local max = math.max(0, L.n - L.vis)
     L.offset = math.max(0, math.min(max, L.offset - delta * 3))
     if L.refresh then L.refresh() end
     H.Rehover(L.rows)

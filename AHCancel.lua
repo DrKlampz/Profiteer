@@ -4,8 +4,8 @@ local H = CP.AH
 local C = {}
 CP.AHCancel = C
 
-local ROWS = 15
-local pane, rowsList
+local MAXROWS = 40
+local pane, rowsList, lf
 local W = {}
 local auctions = {}
 
@@ -73,13 +73,13 @@ end
 function C.Draw()
   if not pane then return end
   rowsList.n = #auctions
-  local maxOff = math.max(0, #auctions - ROWS)
+  local maxOff = math.max(0, #auctions - rowsList.vis)
   if rowsList.offset > maxOff then rowsList.offset = maxOff end
   local under = 0
   for _, a in ipairs(auctions) do if a.status == "undercut" then under = under + 1 end end
   for i, r in ipairs(rowsList.rows) do
     local a = auctions[i + rowsList.offset]
-    if a then
+    if a and i <= rowsList.vis then
       r.a = a
       r.icon:SetTexture(H.Icon(a.id or 0))
       r.name:SetText((a.link or (a.id and CP.ItemName(a.id)) or "?") .. (a.count > 1 and ("  |cff9d9d9dx" .. a.count .. " auctions|r") or ""))
@@ -124,23 +124,24 @@ function C.Build(parent, w, h)
   pane:Hide()
   C.pane = pane
 
-  local cols = { { "Item", 22, 260 }, { "Qty", 290, 40 }, { "Your price each", 340, 110 }, { "Lowest (scan)", 460, 100 }, { "Status", 570, 70 }, { "Left", 645, 40 } }
+  local dx = math.max(0, w - 24 - 690)
+  local cols = { { "Item", 22, 260 }, { "Qty", 290 + dx, 40 }, { "Your price each", 340 + dx, 110 }, { "Lowest (scan)", 460 + dx, 100 }, { "Status", 570 + dx, 70 }, { "Left", 645 + dx, 40 } }
   for _, c in ipairs(cols) do
     local fs = H.Text(pane, "GameFontNormalSmall")
     fs:SetPoint("TOPLEFT", c[2], -2)
     fs:SetText(c[1])
   end
-  local lf = CreateFrame("Frame", nil, pane)
+  lf = CreateFrame("Frame", nil, pane)
   lf:SetPoint("TOPLEFT", 0, -20)
-  lf:SetSize(w - 24, ROWS * 20)
-  rowsList = H.RowList(lf, ROWS, 20, function(r)
+  lf:SetSize(w - 24, 15 * 20)
+  rowsList = H.RowList(lf, MAXROWS, 20, function(r)
     r.icon = r:CreateTexture(nil, "ARTWORK") r.icon:SetSize(16, 16) r.icon:SetPoint("LEFT", 2, 0)
-    r.name = H.Text(r) r.name:SetPoint("LEFT", 22, 0) r.name:SetWidth(260) r.name:SetJustifyH("LEFT")
-    r.qty = H.Text(r) r.qty:SetPoint("LEFT", 290, 0) r.qty:SetWidth(40) r.qty:SetJustifyH("LEFT")
-    r.mine = H.Text(r) r.mine:SetPoint("LEFT", 340, 0) r.mine:SetWidth(110) r.mine:SetJustifyH("LEFT")
-    r.low = H.Text(r) r.low:SetPoint("LEFT", 460, 0) r.low:SetWidth(100) r.low:SetJustifyH("LEFT")
-    r.stat = H.Text(r) r.stat:SetPoint("LEFT", 570, 0) r.stat:SetWidth(70) r.stat:SetJustifyH("LEFT")
-    r.left = H.Text(r) r.left:SetPoint("LEFT", 645, 0) r.left:SetWidth(40) r.left:SetJustifyH("LEFT")
+    r.name = H.Text(r) r.name:SetPoint("LEFT", 22, 0) r.name:SetWidth(260 + dx) r.name:SetJustifyH("LEFT")
+    r.qty = H.Text(r) r.qty:SetPoint("LEFT", 290 + dx, 0) r.qty:SetWidth(40) r.qty:SetJustifyH("LEFT")
+    r.mine = H.Text(r) r.mine:SetPoint("LEFT", 340 + dx, 0) r.mine:SetWidth(110) r.mine:SetJustifyH("LEFT")
+    r.low = H.Text(r) r.low:SetPoint("LEFT", 460 + dx, 0) r.low:SetWidth(100) r.low:SetJustifyH("LEFT")
+    r.stat = H.Text(r) r.stat:SetPoint("LEFT", 570 + dx, 0) r.stat:SetWidth(70) r.stat:SetJustifyH("LEFT")
+    r.left = H.Text(r) r.left:SetPoint("LEFT", 645 + dx, 0) r.left:SetWidth(40) r.left:SetJustifyH("LEFT")
     r:SetScript("OnClick", function(self) if self.a then CancelOne(self.a) end end)
     r:SetScript("OnEnter", function(self)
       self.hl:Show()
@@ -165,7 +166,17 @@ function C.Build(parent, w, h)
   refresh:SetPoint("RIGHT", W.next, "LEFT", -6, 0)
   refresh:SetScript("OnClick", C.Refresh)
   pane:SetScript("OnShow", C.Refresh)
+  C.Resize(w, h)
   return pane
+end
+
+-- as many rows as the pane is tall, so the list fills the window
+function C.Resize(w, h)
+  if not (pane and rowsList) then return end
+  pane:SetSize(w, h)
+  rowsList.vis = math.max(5, math.min(MAXROWS, math.floor((h - 70) / 20)))
+  lf:SetSize(w - 24, rowsList.vis * 20)
+  C.Draw()
 end
 
 local ev = CreateFrame("Frame")

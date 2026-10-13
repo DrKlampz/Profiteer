@@ -2,7 +2,9 @@ local ADDON, CP = ...
 local UI = {}
 CP.UI = UI
 
-local ROWS, ROW_H, GAP = 16, 20, 4
+local MAXROWS, ROW_H, GAP = 40, 20, 4
+local ROWS = 16   -- rows showing right now: grows with the window (UI.SetHeight)
+local BASE_H = 470
 local COLS = {
   { key = "name",     label = "Item",        w = 142, align = "LEFT",  sortable = true },
   { key = "crafters", label = "Crafters",    w = 70,  align = "LEFT",  sortable = true },
@@ -195,9 +197,9 @@ function UI.Update()
     UI.updatingSlider = false
   end
 
-  for i = 1, ROWS do
+  for i = 1, MAXROWS do
     local row = rows[i]
-    local g = res[i + UI.offset]
+    local g = i <= ROWS and res[i + UI.offset] or nil
     row.data = g
     if g and g.unpriced then
       row.cols.name:SetText((g.tracked and "|cffffd100*|r " or "") .. "|cff9d9d9d" .. g.name .. "|r")
@@ -334,7 +336,7 @@ function UI.Create()
   UI.frame = f
   if CP.WinLook then CP.WinLook.Attach("main", f) end
   f.docked = false
-  f:SetSize(TOTAL_W + 62, 470)
+  f:SetSize(TOTAL_W + 62, BASE_H)
   f:SetPoint("CENTER")
   f:SetFrameStrata("HIGH")
   f:SetToplevel(true)   -- clicking raises the window with all its contents above other addon windows
@@ -402,8 +404,8 @@ function UI.Create()
 
   -- Search box (Crafts tab): part of a craft, material, profession or character name
   local search = CreateFrame("EditBox", "ProfiteerSearch", f, "InputBoxTemplate")
-  search:SetSize(190, 20)
-  search:SetPoint("TOPLEFT", f, "TOPLEFT", 480, -16)
+  search:SetSize(200, 20)
+  search:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -30, 20)
   search:SetAutoFocus(false)
   search:SetMaxLetters(40)
   local hint = search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
@@ -461,7 +463,7 @@ function UI.Create()
 
   UI.headers = headers
   -- Rows
-  for i = 1, ROWS do rows[i] = CreateRow(i) end
+  for i = 1, MAXROWS do rows[i] = CreateRow(i) end
 
   -- Scrollbar (plain slider, no template needed)
   local slider = CreateFrame("Slider", nil, f)
@@ -531,22 +533,39 @@ function UI.Create()
 
   local status = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   status:SetPoint("BOTTOMLEFT", 24, 22)
-  status:SetWidth(TOTAL_W)
+  status:SetWidth(TOTAL_W - 210)
   status:SetJustifyH("LEFT")
   UI.status = status
 
   -- everything that belongs to the Crafts tab, so the Ledger tab can hide it
   UI.craftWidgets = { slider, scan, refresh, cb, cb2, shopTop, shopTracked, search }
   for _, h in ipairs(headers) do UI.craftWidgets[#UI.craftWidgets + 1] = h end
-  CP.Ledger.BuildPanel(f, TOTAL_W + 12, 470 - 48 - 52)
+  CP.Ledger.BuildPanel(f, TOTAL_W + 12, BASE_H - 48 - 52)
   UI.panes = {}
   for key, mod in pairs({ shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
     if mod and mod.Build then
-      local ok, p = pcall(mod.Build, f, TOTAL_W + 12, 470 - 52 - 12)
+      local ok, p = pcall(mod.Build, f, TOTAL_W + 12, BASE_H - 52 - 12)
       if ok and p then p:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -52) UI.panes[key] = p else CP.RecordError("build " .. key, p) end
     end
   end
   UI.SetTab(UI.tab or "crafts")
+end
+
+-- Make the window taller or shorter and let every tab use the room (called by the auction house tab).
+function UI.SetHeight(fh)
+  local f = UI.frame
+  if not f then return end
+  fh = math.max(360, math.floor(fh or BASE_H))
+  if UI.curH == fh then return end
+  UI.curH = fh
+  f:SetHeight(fh)
+  ROWS = math.max(6, math.min(MAXROWS, math.floor((fh - 70 - 80) / ROW_H)))
+  if UI.slider then UI.slider:SetHeight(ROWS * ROW_H) end
+  if CP.Ledger.panel and CP.Ledger.resize then CP.Ledger.resize(fh - 48 - 52) end
+  for key, mod in pairs({ shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
+    if mod and mod.Resize and UI.panes and UI.panes[key] then pcall(mod.Resize, TOTAL_W + 12, fh - 52 - 12) end
+  end
+  if UI.tab == "crafts" then UI.Update() end
 end
 
 -- Switch between Crafts, Shopping, Cancelling and the Ledger.

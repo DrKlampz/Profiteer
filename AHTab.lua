@@ -155,8 +155,6 @@ local function Embed()
     if hw and hh and fw and fh and hw > 50 and hh > 50 and fw > 0 and fh > 0 then
       if shrink then
         sc = math.min(1, (hw - 4) / fw)
-        -- a window made taller than the auction house (resized, or a big saved size) is scaled down to fit it, never left hanging out
-        if AHTab.origH then sc = math.min(sc, math.max(0.4, (AHTab.origH - 26 - 28 - 14) / (fh - UP))) end
       else sc = math.min(1, (hw - 4) / fw, (hh - 4) / fh) end
     end
     -- no dead space: the auction house window itself is made just tall enough for the tab
@@ -164,9 +162,12 @@ local function Embed()
       if shrink and fh and fh > 0 then
         if not AHTab.origH then AHTab.origH = math.max(AH:GetHeight() or 0, 538) end
         local need = math.ceil((fh - UP) * sc + 14 + 26 + 28)
-        if AHTab.origH and need < AHTab.origH then pcall(AH.SetHeight, AH, need) end
+        -- same height as the game's own page, so the window never bounces between tabs
+        if AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
       elseif AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
     end
+    -- every tab gets the whole height of the host, so there is no dead space below the content
+    if shrink and hh and hh > 50 and CP.UI.SetHeight then CP.UI.SetHeight(math.floor(hh / sc + UP)) end
     f.fitScale = sc
     f:SetScale(sc)
     f:ClearAllPoints()
@@ -196,6 +197,7 @@ local function Unembed()
   f:SetParent(UIParent)
   f.fitScale = nil
   f:SetScale(1)
+  if CP.UI.SetHeight then CP.UI.SetHeight(470) end
   f:SetMovable(true)
   f:SetToplevel(true)
   f:SetFrameStrata("HIGH")
@@ -305,8 +307,7 @@ function AHTab.Size()
   local hw = (AH:GetWidth() or 0) - 8
   local sc = math.min(1, (hw - 4) / fw)
   if AHTab.origH then sc = math.min(sc, math.max(0.4, (AHTab.origH - 26 - 28 - 14) / (fh - UP))) end
-  local need = math.ceil((fh - UP) * sc + 14 + 26 + 28)
-  if AHTab.origH and need < AHTab.origH then pcall(AH.SetHeight, AH, need) end
+  if AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
 end
 
 -- the tab the auction house opens on (Options: "Open the auction house on")

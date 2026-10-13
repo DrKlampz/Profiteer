@@ -1020,6 +1020,10 @@ function L.BuildPanel(parent, width, height)
   scroll:SetScrollChild(content)
   L.scroll, L.content, L.lines = scroll, content, {}
 
+  L.resize = function(h)
+    p:SetHeight(h)
+    scroll:SetHeight(math.max(40, h - 90))
+  end
   p:SetScript("OnShow", function() L.dirty = true L.Refresh() end)
   local acc = 0
   p:SetScript("OnUpdate", function(_, el)
