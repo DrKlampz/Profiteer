@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.9
+- Crafts: new Profession column you can sort by.
+- Costs use the cheapest route (AH vs vendor, every alternate material), and materials on your alts count as owned.
+- Shopping: the all-together total no longer double counts a bolt/bar and its raw materials.
+
 ## 0.8.8
 - Shop top 10: picks the ten crafts that earn the most with your gold, splits your gold across them, and shows planned spend and each craft's cost.
 - Shopping: your gold is shown at the bottom left; the Buy quantity follows the selected row.

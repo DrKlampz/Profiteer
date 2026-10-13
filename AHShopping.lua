@@ -13,7 +13,15 @@ local state = { results = {}, kind = nil, pending = false }
 local W = {}
 
 local function Name(id) return CP.ItemName and CP.ItemName(id) or ("item " .. tostring(id)) end
-local function Have(id) return GetItemCount and GetItemCount(id) or 0 end
+local function Have(id)
+  local n = GetItemCount and GetItemCount(id, true) or 0
+  if CP.db and CP.db.inventory then
+    for key in pairs(CP.db.inventory) do
+      if key ~= CP.charKey then n = n + CP:Have(key, id) end
+    end
+  end
+  return n
+end
 local function Need(e) return math.max(0, (e.want or 1) - Have(e.id)) end
 
 local function SetStatus(t) if W.status then W.status:SetText(t or "") end end
@@ -75,7 +83,7 @@ function S.SetList(entries, title)
   list = {}
   sel = 0
   for _, e in ipairs(entries) do
-    list[#list + 1] = { id = e.id, want = e.want, hdr = e.hdr, lvl = e.lvl, cost = e.cost }
+    list[#list + 1] = { id = e.id, want = e.want, hdr = e.hdr, lvl = e.lvl, cost = e.cost, sub = e.sub }
     if sel == 0 and not e.hdr then sel = #list end
   end
   if sel == 0 then sel = 1 end
@@ -281,10 +289,21 @@ function S.Draw()
   do
     local sum, known = 0, 0
     local n = 0
+    local function Est(it) return it.estCost and it.estFor == math.max(0, (it.want or 1) - Have(it.id)) and it.estCost or nil end
     for _, it in ipairs(list) do if not it.hdr then n = n + 1 end end
+    local top = 0
     for _, it in ipairs(list) do
-      if not it.hdr and it.estCost and it.estFor == math.max(0, (it.want or 1) - Have(it.id)) then sum = sum + it.estCost known = known + 1 end
+      if not it.hdr and not it.sub and not it.lvl then
+        top = top + 1
+        local own = Est(it)
+        -- a craftable material is bought either as itself or as its raw materials: count the cheaper way, never both
+        local kids, ok = 0, true
+        for _, k in ipairs(list) do if k.sub == it.id then local e = Est(k) if e then kids = kids + e else ok = false end end end
+        if own and ok and kids > 0 then own = math.min(own, kids) elseif not own and ok and kids > 0 then own = kids end
+        if own then sum = sum + own known = known + 1 end
+      end
     end
+    n = top
     local txt = n > 0 and (n .. (n == 1 and " item" or " items")) or ""
     local plan, hdrs = 0, 0
     for _, it in ipairs(list) do if it.hdr and it.cost then plan = plan + it.cost hdrs = hdrs + 1 end end

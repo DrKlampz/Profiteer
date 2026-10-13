@@ -58,7 +58,7 @@ function CP:IndexMakers()
         if used[r.id] and not captured[r.id] and r.reagents and #r.reagents > 0 then
           local inputs = {}
           for _, rg in ipairs(r.reagents) do
-            inputs[#inputs + 1] = { id = (rg.ids and rg.ids[1]) or rg.id, count = rg.count }
+            inputs[#inputs + 1] = { id = (rg.ids and rg.ids[1]) or rg.id,             count = rg.count, ids = rg.ids }
           end
           captured[r.id] = { yield = (r.yield and r.yield > 0) and r.yield or 1, inputs = inputs }
         end

@@ -7,9 +7,9 @@ function CP:DirectCost(id)
   -- A single lowball listing can't supply a real craft run. If the cheapest listing is
   -- less than half the next-cheapest price, cost the reagent at the reference price.
   if ah and p.ref and ah < p.ref * 0.5 then ah = p.ref end
-  -- A vendor sells it in unlimited supply, so its price is the price (no need to look at the AH).
+  -- A vendor sells it in unlimited supply; still take the AH when it is cheaper.
   local v = self.db.vendor[id]
-  if v then return v, "vendor" end
+  if v and (not ah or v <= ah) then return v, "vendor" end
   if ah then return ah, "AH" end
   return nil
 end
@@ -24,7 +24,11 @@ function CP:MakeCost(id, depth, seen)
   seen[id] = true
   local total = 0
   for _, i in ipairs(plan.inputs) do
-    local c = self:ReagentCost(i.id, depth + 1, seen)
+    local c
+    for _, alt in ipairs(i.ids or { i.id }) do
+      local ac = self:ReagentCost(alt, depth + 1, seen)
+      if ac and (not c or ac < c) then c = ac end
+    end
     if not c then seen[id] = nil return nil end
     total = total + c * i.count
   end
@@ -71,6 +75,13 @@ function CP:Have(charKey, id)
   return (inv.bags and inv.bags[id] or 0) + (inv.bank and inv.bank[id] or 0)
 end
 
+-- How many of an item all your characters hold (bags + bank), from the last inventory scan of each
+function CP:HaveAll(id)
+  local n = 0
+  for charKey in pairs(self.db.inventory or {}) do n = n + self:Have(charKey, id) end
+  return n
+end
+
 function CP:HaveSlot(charKey, rg)
   local n = 0
   for _, id in ipairs(rg.ids or { rg.id }) do n = n + self:Have(charKey, id) end
@@ -112,7 +123,7 @@ function CP:BuyDepth(g, budget, maxCrafts)
   local minProfit = self.db.settings.minProfit or 0
   local slots = {}
   local function addSlot(id, count)
-    local slot = { id = id, count = count, units = 0, worst = 0, frac = 0 }
+    local slot = { id = id, count = count, units = 0, worst = 0, frac = 0, owned = self:HaveAll(id) }
     local c, src = self:DirectCost(id)
     if not c then return false end
     if src == "AH" then
@@ -140,6 +151,7 @@ function CP:BuyDepth(g, budget, maxCrafts)
   local res = { crafts = 0, profit = 0, cost = 0, mats = slots, reason = "cap" }
   local function take(slot)
     -- take one unit, returns its price or nil when the AH has no more
+    if slot.owned > 0 then slot.owned = slot.owned - 1 return 0 end
     if slot.flat then slot.units = slot.units + 1 slot.worst = slot.flat return slot.flat end
     while slot.left <= 0 do
       slot.i = slot.i + 1
@@ -155,7 +167,7 @@ function CP:BuyDepth(g, budget, maxCrafts)
   end
   for _ = 1, maxCrafts or 2000 do
     local before = {}
-    for i, sl in ipairs(slots) do before[i] = { sl.units, sl.worst, sl.i, sl.left, sl.frac } end
+    for i, sl in ipairs(slots) do before[i] = { sl.units, sl.worst, sl.i, sl.left, sl.frac, sl.owned } end
     local marginal, short = 0, nil
     for _, sl in ipairs(slots) do
       sl.frac = sl.frac + sl.count
@@ -169,17 +181,17 @@ function CP:BuyDepth(g, budget, maxCrafts)
       if short then break end
     end
     if short then
-      for i, sl in ipairs(slots) do sl.units, sl.worst, sl.i, sl.left, sl.frac = before[i][1], before[i][2], before[i][3], before[i][4], before[i][5] end
+      for i, sl in ipairs(slots) do sl.units, sl.worst, sl.i, sl.left, sl.frac, sl.owned = before[i][1], before[i][2], before[i][3], before[i][4], before[i][5], before[i][6] end
       res.reason, res.limiter = "supply", short.id
       break
     end
     if g.revenue - marginal < minProfit or g.revenue - marginal <= 0 then
-      for i, sl in ipairs(slots) do sl.units, sl.worst, sl.i, sl.left, sl.frac = before[i][1], before[i][2], before[i][3], before[i][4], before[i][5] end
+      for i, sl in ipairs(slots) do sl.units, sl.worst, sl.i, sl.left, sl.frac, sl.owned = before[i][1], before[i][2], before[i][3], before[i][4], before[i][5], before[i][6] end
       res.reason = "price"
       break
     end
     if self.db.settings.limitByGold ~= false and GetMoney and res.cost + marginal > (budget or GetMoney()) then
-      for i, sl in ipairs(slots) do sl.units, sl.worst, sl.i, sl.left, sl.frac = before[i][1], before[i][2], before[i][3], before[i][4], before[i][5] end
+      for i, sl in ipairs(slots) do sl.units, sl.worst, sl.i, sl.left, sl.frac, sl.owned = before[i][1], before[i][2], before[i][3], before[i][4], before[i][5], before[i][6] end
       res.reason = "gold"
       break
     end
@@ -199,6 +211,7 @@ local SORTERS = {
   listed = function(g) return g.listed end,
   make   = function(g) return g.best end,
   perday = function(g) return g.perDay or -1 end,
+  prof   = function(g) return tostring(g.prof or ""):lower() end,
   crafters = function(g)
     local k = g.chars and g.chars[1]
     return k and tostring(CP.ShortName(k)):lower() or ""

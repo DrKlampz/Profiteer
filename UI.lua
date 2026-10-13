@@ -7,6 +7,7 @@ local ROWS = 16   -- rows showing right now: grows with the window (UI.SetHeight
 local BASE_H = 470
 local COLS = {
   { key = "name",     label = "Item",        w = 142, align = "LEFT",  sortable = true },
+  { key = "prof",     label = "Profession",  w = 78,  align = "LEFT",  sortable = true },
   { key = "crafters", label = "Crafters",    w = 70,  align = "LEFT",  sortable = true },
   { key = "cost",     label = "Cost",        w = 85,  align = "RIGHT", sortable = true },
   { key = "revenue",  label = "Sells (net)", w = 85,  align = "RIGHT", sortable = true },
@@ -203,6 +204,7 @@ function UI.Update()
     row.data = g
     if g and g.unpriced then
       row.cols.name:SetText((g.tracked and "|cffffd100*|r " or "") .. "|cff9d9d9d" .. g.name .. "|r")
+      row.cols.prof:SetText("|cff9d9d9d" .. tostring(g.prof or "") .. "|r")
       row.cols.crafters:SetText(CraftersText(g))
       row.cols.cost:SetText(g.cost and CP.Money(g.cost) or "|cff888888?|r")
       row.cols.revenue:SetText("|cff888888-|r")
@@ -216,6 +218,7 @@ function UI.Update()
     elseif g then
       local profitColor = g.profit > 0 and "|cff40ff40" or "|cffff4040"
       row.cols.name:SetText((g.tracked and "|cffffd100*|r " or "") .. g.name)
+      row.cols.prof:SetText(tostring(g.prof or ""))
       row.cols.crafters:SetText(CraftersText(g))
       row.cols.cost:SetText(CP.Money(g.cost))
       row.cols.revenue:SetText(CP.Money(g.revenue))
