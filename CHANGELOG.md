@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.7
+- Shop top 10: each craft gets its own heading with its count (e.g. Spidersilk Boots x2), its materials underneath, and craftable materials broken into their raw materials, indented.
+- Shop top 10: one shared gold budget across the list, so what you can afford adds up; crafts you can't afford are left out.
+
 ## 0.8.6
 - Auction House: every Profiteer tab now fills the window, with the same height as the game's own tabs.
 - Shopping: each item shows its lowest known price; lists scale to the window.

@@ -72,8 +72,12 @@ end
 ------------------------------------------------------------------------
 function S.SetList(entries, title)
   list = {}
-  for _, e in ipairs(entries) do list[#list + 1] = { id = e.id, want = e.want } end
-  sel = 1
+  sel = 0
+  for _, e in ipairs(entries) do
+    list[#list + 1] = { id = e.id, want = e.want, hdr = e.hdr, lvl = e.lvl }
+    if sel == 0 and not e.hdr then sel = #list end
+  end
+  if sel == 0 then sel = 1 end
   S.title = title
   if W.list then W.list.offset = 0 end
   Draw()
@@ -108,12 +112,12 @@ local function MatsOf(g)
   local crafts = (d and d.crafts and d.crafts > 0) and d.crafts or 1
   local have = {}
   for _, e in ipairs(out) do have[e.id] = e end
-  local function Put(id, want)
+  local function Put(id, want, parent)
     if not id or want <= 0 then return end
     if have[id] then
       if have[id].want < want then have[id].want = want end
     else
-      local e = { id = id, want = want }
+      local e = { id = id, want = want, sub = parent }
       out[#out + 1] = e
       have[id] = e
     end
@@ -126,7 +130,7 @@ local function MatsOf(g)
       local need = (rg.count or 1) * crafts
       Put(id, need)
       for _, raw in ipairs(CP:RawMaterials(id)) do
-        if not CP.db.vendor[raw.id] then Put(raw.id, math.ceil(raw.count * (rg.count or 1) * crafts)) end
+        if not CP.db.vendor[raw.id] then Put(raw.id, math.ceil(raw.count * (rg.count or 1) * crafts), id) end
       end
     end
   end
@@ -146,15 +150,41 @@ function S.ForOutput(g)
 end
 
 function S.ForList(results, label)
-  local sum, order = {}, {}
+  -- each end product gets its own heading with its own materials underneath
+  local entries, items = {}, 0
+  -- one shared budget: what's in your pocket has to cover every craft listed, best sellers first
+  local budget, skipped = GetMoney and GetMoney() or nil, 0
   for _, g in ipairs(results) do
-    for _, m in ipairs((MatsOf(g))) do
-      if not sum[m.id] then sum[m.id] = 0 order[#order + 1] = m.id end
-      sum[m.id] = sum[m.id] + m.want
+    local d = CP:BuyDepth(g, budget)
+    local crafts = d and d.crafts or 0
+    if budget and crafts < 1 then skipped = skipped + 1 end
+    if crafts < 1 and not budget then crafts = 1 end
+    if budget and d and crafts > 0 then budget = budget - d.cost end
+    local rows = {}
+    CP:IndexMakers()
+    for _, rg in ipairs(crafts > 0 and g.reagents or {}) do
+      local _, src, id = CP:SlotCost(rg)
+      id = id or rg.id
+      if src ~= "vendor" and id then
+        local need = (rg.count or 1) * crafts
+        rows[#rows + 1] = { id = id, want = need }
+        if CP:MakePlan(id) then
+          for _, raw in ipairs(CP:RawMaterials(id)) do
+            if not CP.db.vendor[raw.id] then
+              rows[#rows + 1] = { id = raw.id, want = math.ceil(raw.count * need - 1e-9), lvl = 1 }
+            end
+          end
+        end
+      end
+    end
+    if #rows > 0 then
+      local k = d and d.crafts and d.crafts > 0 and ("  x" .. d.crafts) or ""
+      entries[#entries + 1] = { hdr = (g.name or "?") .. k }
+      for _, r in ipairs(rows) do entries[#entries + 1] = r items = items + 1 end
     end
   end
-  local entries = {}
-  for _, id in ipairs(order) do entries[#entries + 1] = { id = id, want = sum[id] } end
+  if skipped > 0 then CP:Print(skipped .. " craft(s) left out: not enough gold left for even one.") end
+  if items == 0 then entries = {} end
   if #entries == 0 then CP:Print("Nothing to buy for " .. label .. ".") return false end
   S.SetList(entries, "Materials for " .. label)
   return true
@@ -241,11 +271,13 @@ function S.Draw()
   W.title:SetText(S.title or "Shopping list")
   do
     local sum, known = 0, 0
+    local n = 0
+    for _, it in ipairs(list) do if not it.hdr then n = n + 1 end end
     for _, it in ipairs(list) do
-      if it.estCost and it.estFor == math.max(0, (it.want or 1) - Have(it.id)) then sum = sum + it.estCost known = known + 1 end
+      if not it.hdr and it.estCost and it.estFor == math.max(0, (it.want or 1) - Have(it.id)) then sum = sum + it.estCost known = known + 1 end
     end
-    local txt = #list > 0 and (#list .. (#list == 1 and " item" or " items")) or ""
-    if #list > 1 and known == #list then txt = txt .. "   |cffffd100all together: " .. H.Money(sum) .. "|r" end
+    local txt = n > 0 and (n .. (n == 1 and " item" or " items")) or ""
+    if n > 1 and known == n then txt = txt .. "   |cffffd100all together: " .. H.Money(sum) .. "|r" end
     W.count:SetText(txt)
   end
   -- left list
@@ -256,7 +288,21 @@ function S.Draw()
     local idx = i + W.list.offset
     local it = list[idx]
     r.idx = idx
-    if it and i <= W.list.vis then
+    if it and i <= W.list.vis and it.hdr then
+      r.icon:SetTexture(nil)
+      r.icon:ClearAllPoints() r.icon:SetPoint("LEFT", 3, 0)
+      r.name:SetWidth(300)
+      r.name:SetText(it.hdr)
+      r.name:SetTextColor(1, 0.82, 0)
+      r.low:SetText("") r.need:SetText("")
+      r.bar:Hide()
+      r.stripe:SetShown(true)
+      r.sel:Hide()
+      r:Show()
+    elseif it and i <= W.list.vis then
+      local ind = (it.lvl or 0) * 14
+      r.icon:ClearAllPoints() r.icon:SetPoint("LEFT", 3 + ind, 0)
+      r.name:SetWidth(122 - ind)
       r.icon:SetTexture(H.Icon(it.id))
       r.name:SetText(Name(it.id))
       r.name:SetTextColor(QualityColor(it.id))
@@ -386,7 +432,11 @@ function S.Build(parent, w, h)
   W.saveBtn:SetPoint("TOPRIGHT", -6, -2)
   W.saveBtn:SetScript("OnClick", function(self)
     if #list == 0 then SetStatus("Nothing on the list to save.") return end
-    CP.AHLists.AskSave(self, function() return list end, S.title and tostring(S.title):gsub("^Materials for ", "") or "My list",
+    CP.AHLists.AskSave(self, function()
+      local t = {}
+      for _, x in ipairs(list) do if not x.hdr then t[#t + 1] = x end end
+      return t
+    end, S.title and tostring(S.title):gsub("^Materials for ", "") or "My list",
       function(name) S.title = name SetStatus("Saved the list as " .. name .. ".") Draw() end)
   end)
   W.accentLine = pane:CreateTexture(nil, "ARTWORK")
@@ -411,11 +461,15 @@ function S.Build(parent, w, h)
     r.low = H.Text(r) r.low:SetPoint("RIGHT", -72, 0) r.low:SetWidth(90) r.low:SetJustifyH("RIGHT")
     r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     r:SetScript("OnClick", function(self, btn)
-      if not (self.idx and list[self.idx]) then return end
+      if not (self.idx and list[self.idx]) or list[self.idx].hdr then return end
       if btn == "RightButton" then
         table.remove(list, self.idx)
         if sel > #list then sel = #list end
         if sel < 1 then sel = 1 end
+        local s = sel
+        while list[s] and list[s].hdr do s = s + 1 end
+        if not list[s] then s = sel while list[s] and list[s].hdr do s = s - 1 end end
+        if list[s] then sel = s end
         S.Draw() S.Search() return
       end
       sel = self.idx S.Draw() S.Search()
