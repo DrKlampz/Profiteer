@@ -218,7 +218,7 @@ local function Defaults()
         bgStyle = "solid", bgCustom = "", bgNoTint = false,
         edgeStyle = "line", edgeSize = 1,
         font = "default", fontScale = 1, outline = false,
-        scale = 1, lock = false,
+        scale = 1, lock = false, flair = "none", pulse = false,
         buttons = false, btnBgStyle = "solid", btnColor = { 0.16, 0.16, 0.20 }, btnHover = { 0.30, 0.30, 0.38 },
         btnAlpha = 1, btnEdgeStyle = "line", btnEdgeColor = { 0.88, 0.69, 0.29 }, btnEdgeSize = 1,
         btnTextColor = { 1, 0.82, 0.2 }, btnGloss = false, btnNoTint = false,
@@ -562,6 +562,93 @@ local function ApplyButtons(frame, s, on, spec)
     skinAll, skinSkip = false, nil
 end
 
+-- optional extra trim ("flair"): inner line, corner diamonds, a top sheen, a glowing header rule and a slow pulse
+local function Grad(tex, dir, r1, g1, b1, a1, r2, g2, b2, a2)
+    if tex.SetGradient and _G.CreateColor then
+        local ok = pcall(tex.SetGradient, tex, dir, _G.CreateColor(r1, g1, b1, a1), _G.CreateColor(r2, g2, b2, a2))
+        if ok then return end
+    end
+    if tex.SetGradientAlpha then pcall(tex.SetGradientAlpha, tex, dir, r1, g1, b1, a1, r2, g2, b2, a2) end
+end
+
+local function Flair(bg, s, inset, e, hh)
+    local f = bg.lookFlair
+    local mode = s and s.flair or "none"
+    if not s or mode == "none" then
+        if f then f.root:Hide() f.root:SetScript("OnUpdate", nil) end
+        return
+    end
+    if not f then
+        f = {}
+        f.root = CreateFrame("Frame", nil, bg, BackdropTemplateMixin and "BackdropTemplate" or nil)
+        f.root:EnableMouse(false)
+        f.root:SetBackdrop({ edgeFile = WHITE, edgeSize = 1 })
+        f.dots = {}
+        for i = 1, 8 do
+            local d = f.root:CreateTexture(nil, "OVERLAY")
+            d:SetTexture(WHITE)
+            if d.SetRotation then d:SetRotation(math.pi / 4) end
+            f.dots[i] = d
+        end
+        f.sheen = f.root:CreateTexture(nil, "BACKGROUND")
+        f.sheen:SetTexture(WHITE)
+        f.ruleL = f.root:CreateTexture(nil, "ARTWORK") f.ruleL:SetTexture(WHITE)
+        f.ruleR = f.root:CreateTexture(nil, "ARTWORK") f.ruleR:SetTexture(WHITE)
+        bg.lookFlair = f
+    end
+    local r, g, b = e[1], e[2], e[3]
+    local root = f.root
+    local gap = inset + 4
+    root:ClearAllPoints()
+    root:SetPoint("TOPLEFT", bg, "TOPLEFT", gap, -gap)
+    root:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", -gap, gap)
+    root:SetFrameLevel(bg:GetFrameLevel() + 1)
+    root:SetBackdropBorderColor(r, g, b, 0.45)
+    local royal = mode == "royal"
+    local pts = { { "TOPLEFT", "TOPLEFT" }, { "TOPRIGHT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMLEFT" }, { "BOTTOMRIGHT", "BOTTOMRIGHT" },
+        { "TOP", "TOP" }, { "BOTTOM", "BOTTOM" }, { "LEFT", "LEFT" }, { "RIGHT", "RIGHT" } }
+    for i, d in ipairs(f.dots) do
+        if i <= 4 or royal then
+            d:ClearAllPoints()
+            d:SetPoint("CENTER", root, pts[i][1], 0, 0)
+            d:SetSize(i <= 4 and 9 or 6, i <= 4 and 9 or 6)
+            d:SetVertexColor(r, g, b, i <= 4 and 0.95 or 0.7)
+            d:Show()
+        else
+            d:Hide()
+        end
+    end
+    if royal then
+        f.sheen:ClearAllPoints()
+        f.sheen:SetPoint("TOPLEFT", root, "TOPLEFT", 1, -1)
+        f.sheen:SetPoint("TOPRIGHT", root, "TOPRIGHT", -1, -1)
+        f.sheen:SetHeight(70)
+        Grad(f.sheen, "VERTICAL", 1, 1, 1, 0, math.min(1, r + 0.3), math.min(1, g + 0.3), math.min(1, b + 0.3), 0.14)
+        f.sheen:Show()
+        local y = -((s.header and tonumber(hh)) or 26) - 4
+        f.ruleL:ClearAllPoints() f.ruleR:ClearAllPoints()
+        f.ruleL:SetPoint("TOPLEFT", root, "TOPLEFT", 14, y) f.ruleL:SetPoint("TOPRIGHT", root, "TOP", 0, y)
+        f.ruleR:SetPoint("TOPLEFT", root, "TOP", 0, y) f.ruleR:SetPoint("TOPRIGHT", root, "TOPRIGHT", -14, y)
+        f.ruleL:SetHeight(1) f.ruleR:SetHeight(1)
+        Grad(f.ruleL, "HORIZONTAL", r, g, b, 0, r, g, b, 0.85)
+        Grad(f.ruleR, "HORIZONTAL", r, g, b, 0.85, r, g, b, 0)
+        f.ruleL:Show() f.ruleR:Show()
+    else
+        f.sheen:Hide() f.ruleL:Hide() f.ruleR:Hide()
+    end
+    if s.pulse then
+        local t = 0
+        root:SetScript("OnUpdate", function(self, el)
+            t = t + el
+            self:SetAlpha(0.65 + 0.35 * math.sin(t * 1.6))
+        end)
+    else
+        root:SetScript("OnUpdate", nil)
+        root:SetAlpha(1)
+    end
+    root:Show()
+end
+
 local function ApplyOne(spec)
     local frame = attached[spec.id]
     if not frame then return end
@@ -644,6 +731,7 @@ local function ApplyOne(spec)
         elseif hd then
             hd.fill:Hide() hd.line:Hide()
         end
+        Safe(Flair, bg, s, inset, e, s.headerSize)
         if spec.title then
             local fs = spec.title(frame)
             if fs and fs.SetTextColor then
@@ -663,7 +751,7 @@ local function ApplyOne(spec)
         frame.lookLock = s.lock and true or false
         if spec.apply then Safe(spec.apply, frame, Own(spec.id), true) end
     else
-        if bg then bg:Hide() end
+        if bg then bg:Hide() Safe(Flair, bg, nil) end
         if bg and bg.greedInlay and _G.GreedUI and _G.GreedUI.InlayOff then _G.GreedUI.InlayOff(bg) end
         Safe(Strip, frame, spec, false)
         if frame.lookScale then frame:SetScale(frame.lookScale) frame.lookScale = nil end
@@ -1017,6 +1105,11 @@ local SECTIONS = {
         { key = "edgeSize", kind = "slider", label = "Line thickness", min = 1, max = 8, step = 1 },
         { key = "header", kind = "check", label = "Header bar behind the title" },
         { key = "headerSize", kind = "slider", label = "Header bar height", min = 16, max = 44, step = 1 },
+    } },
+    { id = "flair", title = "Extra pizzazz (optional)", rows = {
+        { key = "flair", kind = "cycle", label = "Trim", values = { "none", "gilded", "royal" },
+          names = { none = "Plain (default)", gilded = "Gilded - inner line and corner diamonds", royal = "Royal - gilded plus sheen and glowing header rule" } },
+        { key = "pulse", kind = "check", label = "Slow glowing pulse on the trim" },
     } },
     { id = "buttons", title = "Buttons", rows = {
         { key = "buttons", kind = "check", label = "Restyle the buttons in this window" },

@@ -15,6 +15,8 @@ local BUILTIN = {
   { "Enchanting materials", { 10940, 11083, 11137, 11176, 16204, 10938, 10939, 10998, 11082, 11134, 11135, 11174, 11175, 10978, 11084, 11138, 11139, 11177, 11178, 14343, 14344, 20725 } },
   { "Elemental reagents", { 7078, 7076, 7080, 7082, 12808, 7068, 7067, 7069, 7070 } },
   { "Fish", { 6291, 6303, 6289, 6361, 6308, 6359, 13754, 13758, 13760 } },
+  { "Sulfuric Acid mats", { 249391, 3371 } },
+  { "Cerulean Dye mats", { 249399, 3371 } },
 }
 
 local function Known(id)
@@ -115,6 +117,36 @@ function Lists.Open(anchor, onPick)
   menu:Show()
 end
 
+-- one list per profession: every material any known recipe of it uses (and the raw materials behind bars/bolts)
+local function ProfessionLists()
+  local byProf, order = {}, {}
+  for _, profs in pairs(CP.db.recipes or {}) do
+    for prof, recs in pairs(profs) do
+      local p = byProf[prof]
+      if not p then p = { seen = {}, ids = {} } byProf[prof] = p order[#order + 1] = prof end
+      local function add(id)
+        if id and not p.seen[id] then p.seen[id] = true p.ids[#p.ids + 1] = id end
+      end
+      for _, r in ipairs(recs) do
+        for _, rg in ipairs(r.reagents or {}) do
+          for _, id in ipairs(rg.ids or { rg.id }) do
+            add(id)
+            if CP.RawMaterials and CP.MakePlan and CP:MakePlan(id) then
+              for _, raw in ipairs(CP:RawMaterials(id)) do add(raw.id) end
+            end
+          end
+        end
+      end
+    end
+  end
+  table.sort(order)
+  local out = {}
+  for _, prof in ipairs(order) do
+    if #byProf[prof].ids > 0 then out[#out + 1] = { prof .. " materials", byProf[prof].ids } end
+  end
+  return out
+end
+
 function Lists.Fill()
   local q = (menu.filter:GetText() or ""):lower()
   local items = {}
@@ -124,6 +156,7 @@ function Lists.Fill()
   table.sort(names, function(a, b) return a:lower() < b:lower() end)
   for _, n in ipairs(names) do add(n, "mine", Mine()[n]) end
   for _, b in ipairs(BUILTIN) do add(b[1], "built", Entries(b[2])) end
+  for _, b in ipairs(ProfessionLists()) do add(b[1], "built", Entries(b[2])) end
   for i = 1, math.max(#items, #menu.rows) do
     local it, r = items[i], Row(i)
     if it then
