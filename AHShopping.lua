@@ -34,6 +34,7 @@ function S.Search()
   state.results, state.kind = {}, nil
   Draw()
   if not e then return end
+  if W.qty and not e.hdr then W.qty:SetText(tostring(Need(e) > 0 and Need(e) or (e.want or 1))) end
   if not (C_AuctionHouse and H.IsOpen()) then SetStatus("Open the auction house to search.") return end
   if not H.Ready() then state.pending = true SetStatus("Waiting for the auction house...") return end
   state.pending = false
@@ -74,7 +75,7 @@ function S.SetList(entries, title)
   list = {}
   sel = 0
   for _, e in ipairs(entries) do
-    list[#list + 1] = { id = e.id, want = e.want, hdr = e.hdr, lvl = e.lvl }
+    list[#list + 1] = { id = e.id, want = e.want, hdr = e.hdr, lvl = e.lvl, cost = e.cost }
     if sel == 0 and not e.hdr then sel = #list end
   end
   if sel == 0 then sel = 1 end
@@ -154,8 +155,15 @@ function S.ForList(results, label)
   local entries, items = {}, 0
   -- one shared budget: what's in your pocket has to cover every craft listed, best sellers first
   local budget, skipped = GetMoney and GetMoney() or nil, 0
-  for _, g in ipairs(results) do
-    local d = CP:BuyDepth(g, budget)
+  for gi, g in ipairs(results) do
+    -- each craft gets an even share of what's left, so one cheap item can't swallow the whole budget
+    local d
+    if budget then
+      d = CP:BuyDepth(g, budget / math.max(1, #results - (gi - 1)))
+      if not (d and d.crafts > 0) then d = CP:BuyDepth(g, budget, 1) end
+    else
+      d = CP:BuyDepth(g)
+    end
     local crafts = d and d.crafts or 0
     if budget and crafts < 1 then skipped = skipped + 1 end
     if crafts < 1 and not budget then crafts = 1 end
@@ -179,7 +187,7 @@ function S.ForList(results, label)
     end
     if #rows > 0 then
       local k = d and d.crafts and d.crafts > 0 and ("  x" .. d.crafts) or ""
-      entries[#entries + 1] = { hdr = (g.name or "?") .. k }
+      entries[#entries + 1] = { hdr = (g.name or "?") .. k, cost = d and d.cost or nil }
       for _, r in ipairs(rows) do entries[#entries + 1] = r items = items + 1 end
     end
   end
@@ -269,6 +277,7 @@ function S.Draw()
   W.rp:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.55)
   W.ab:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.55)
   W.title:SetText(S.title or "Shopping list")
+  if W.gold then W.gold:SetText("Your gold: |cffffd100" .. H.Money(GetMoney and GetMoney() or 0) .. "|r") end
   do
     local sum, known = 0, 0
     local n = 0
@@ -277,7 +286,11 @@ function S.Draw()
       if not it.hdr and it.estCost and it.estFor == math.max(0, (it.want or 1) - Have(it.id)) then sum = sum + it.estCost known = known + 1 end
     end
     local txt = n > 0 and (n .. (n == 1 and " item" or " items")) or ""
-    if n > 1 and known == n then txt = txt .. "   |cffffd100all together: " .. H.Money(sum) .. "|r" end
+    local plan, hdrs = 0, 0
+    for _, it in ipairs(list) do if it.hdr and it.cost then plan = plan + it.cost hdrs = hdrs + 1 end end
+    if hdrs > 0 then
+      txt = txt .. "   |cffffd100planned spend: " .. H.Money(plan) .. "|r"
+    elseif n > 1 and known == n then txt = txt .. "   |cffffd100all together: " .. H.Money(sum) .. "|r" end
     W.count:SetText(txt)
   end
   -- left list
@@ -294,7 +307,7 @@ function S.Draw()
       r.name:SetWidth(300)
       r.name:SetText(it.hdr)
       r.name:SetTextColor(1, 0.82, 0)
-      r.low:SetText("") r.need:SetText("")
+      r.low:SetText(it.cost and ("|cffffd100" .. H.Money(it.cost) .. "|r") or "") r.need:SetText("")
       r.bar:Hide()
       r.stripe:SetShown(true)
       r.sel:Hide()
@@ -517,6 +530,8 @@ function S.Build(parent, w, h)
   addBtn:SetScript("OnClick", DoAdd)
   add:SetScript("OnEnterPressed", function(self) self:ClearFocus() DoAdd() end)
   clear:SetScript("OnClick", function() list = {} sel = 1 S.title = nil Cancel() state.results = {} S.Draw() end)
+  W.gold = H.Text(pane, "GameFontHighlightSmall")
+  W.gold:SetPoint("BOTTOMLEFT", 4, 2)
   local hint = H.Text(pane, "GameFontDisableSmall")
   hint:SetPoint("TOPLEFT", add, "BOTTOMLEFT", -2, -5)
   hint:SetText("Add by ID, link or part of a name. Right-click a row to remove it.")
@@ -627,9 +642,10 @@ end
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "COMMODITY_SEARCH_RESULTS_UPDATED", "ITEM_SEARCH_RESULTS_UPDATED", "COMMODITY_PRICE_UPDATED",
   "COMMODITY_PRICE_UNAVAILABLE", "COMMODITY_PURCHASE_SUCCEEDED", "COMMODITY_PURCHASE_FAILED",
-  "AUCTION_HOUSE_THROTTLED_SYSTEM_READY", "BAG_UPDATE_DELAYED", "GET_ITEM_INFO_RECEIVED" }) do ev:RegisterEvent(e) end
+  "AUCTION_HOUSE_THROTTLED_SYSTEM_READY", "BAG_UPDATE_DELAYED", "GET_ITEM_INFO_RECEIVED", "PLAYER_MONEY" }) do ev:RegisterEvent(e) end
 ev:SetScript("OnEvent", CP.Safe("shopping-event", function(_, event, a, b)
   if not pane or not pane:IsShown() then return end
+  if event == "PLAYER_MONEY" then if W.gold then W.gold:SetText("Your gold: |cffffd100" .. H.Money(GetMoney()) .. "|r") end return end
   local e = list[sel]
   if event == "COMMODITY_SEARCH_RESULTS_UPDATED" then
     if not e or a ~= e.id then return end

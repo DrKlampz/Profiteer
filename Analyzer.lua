@@ -107,7 +107,7 @@ end
 -- Walks each material up the AH price ladder one craft at a time; the craft stops when the next one's
 -- materials cost more than it sells for (less your minimum profit). Materials a vendor sells never run out.
 -- Returns { crafts, profit, cost, mats = { {id, units, worst} }, reason = "price"|"supply"|"gold"|"cap", limiter } or nil.
-function CP:BuyDepth(g, budget)
+function CP:BuyDepth(g, budget, maxCrafts)
   if not g or g.unpriced or not g.revenue then return nil end
   local minProfit = self.db.settings.minProfit or 0
   local slots = {}
@@ -153,7 +153,7 @@ function CP:BuyDepth(g, budget)
     if p > slot.worst then slot.worst = p end
     return p
   end
-  for _ = 1, 2000 do
+  for _ = 1, maxCrafts or 2000 do
     local before = {}
     for i, sl in ipairs(slots) do before[i] = { sl.units, sl.worst, sl.i, sl.left, sl.frac } end
     local marginal, short = 0, nil

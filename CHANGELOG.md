@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.8
+- Shop top 10: picks the ten crafts that earn the most with your gold, splits your gold across them, and shows planned spend and each craft's cost.
+- Shopping: your gold is shown at the bottom left; the Buy quantity follows the selected row.
+
 ## 0.8.7
 - Shop top 10: each craft gets its own heading with its count (e.g. Spidersilk Boots x2), its materials underneath, and craftable materials broken into their raw materials, indented.
 - Shop top 10: one shared gold budget across the list, so what you can afford adds up; crafts you can't afford are left out.
