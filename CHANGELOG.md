@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Crafts: also lists profitable recipes no character has learned yet (captured from each profession window you open). Turn off under Profit and prices. They are left out of shopping plans.
+
 ## 0.8.9
 - Crafts: new Profession column you can sort by.
 - Costs use the cheapest route (AH vs vendor, every alternate material), and materials on your alts count as owned.

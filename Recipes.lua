@@ -11,7 +11,7 @@ local ADDON, CP = ...
 local capturing, pending = false, false
 local ignoreUntil = 0
 
-local function Store(prof, list, skipped)
+local function Store(prof, list, skipped, unlearned)
   if #list == 0 then return end
   local mine = CP.db.recipes[CP.charKey]
   if not mine then mine = {}; CP.db.recipes[CP.charKey] = mine end
@@ -19,6 +19,7 @@ local function Store(prof, list, skipped)
   mine[prof] = list
   if not prev or #prev ~= #list then
     local extra = skipped > 0 and (" (" .. skipped .. " skipped: no sellable output or item data not loaded)") or ""
+    if (unlearned or 0) > 0 then extra = extra .. (" (+%d you haven't learned)"):format(unlearned) end
     CP:Print(("Captured %d %s recipes for %s%s"):format(#list, prof, CP.ShortName(CP.charKey), extra))
     CP:Refresh()
   end
@@ -55,10 +56,12 @@ local function CaptureModern()
 
   local Basic = Enum and Enum.CraftingReagentType and Enum.CraftingReagentType.Basic
   local list, skipped = {}, 0
+  local others = {}   -- recipes the window lists that this character has not learned (kept apart, see CP.db.unlearned)
 
   for _, rid in ipairs(ids) do
     local info = T.GetRecipeInfo(rid)
-    if info and info.learned then
+    if info then
+      local learned = info.learned and true or false
       local sch = T.GetRecipeSchematic(rid, false)
       local outID = sch and sch.outputItemID
       if outID then
@@ -82,7 +85,8 @@ local function CaptureModern()
           local itemName = CP.RealItemName(outID)
           if itemName then CP.db.names[outID] = itemName end
           local name = itemName or info.name or ("item " .. outID)
-          list[#list + 1] = { id = outID, name = name, rname = info.name, yield = (lo + hi) / 2, reagents = reagents }
+          local entry = { id = outID, name = name, rname = info.name, yield = (lo + hi) / 2, reagents = reagents }
+          if learned then list[#list + 1] = entry else others[#others + 1] = entry end
         else
           skipped = skipped + 1
         end
@@ -92,7 +96,12 @@ local function CaptureModern()
     end
   end
 
-  Store(prof, list, skipped)
+  -- unlearned recipes: every profession window lists them, so a craft you could learn is just as visible
+  CP.db.unlearned = CP.db.unlearned or {}
+  local mineU = CP.db.unlearned[CP.charKey]
+  if not mineU then mineU = {}; CP.db.unlearned[CP.charKey] = mineU end
+  mineU[prof] = #others > 0 and others or nil
+  Store(prof, list, skipped, #others)
 end
 
 ------------------------------------------------------------------------

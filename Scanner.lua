@@ -42,7 +42,8 @@ end
 -- Items whose listings we track in detail: anything used by a captured recipe
 local function TrackedSet()
   local set = {}
-  for _, profs in pairs(CP.db.recipes) do
+  for _, src in ipairs({ CP.db.recipes, CP.db.unlearned or {} }) do
+  for _, profs in pairs(src) do
     for _, recs in pairs(profs) do
       for _, r in ipairs(recs) do
         set[r.id] = true
@@ -51,6 +52,7 @@ local function TrackedSet()
         end
       end
     end
+  end
   end
   return set
 end

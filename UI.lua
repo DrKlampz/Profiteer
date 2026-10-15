@@ -99,6 +99,12 @@ local function ShowTooltip(self)
     GameTooltip:AddLine(" ")
   end
   GameTooltip:AddLine("Can craft", 1, 0.82, 0)
+  if g.notLearned then
+    GameTooltip:AddLine("No character has learned this recipe yet.", 0.6, 0.7, 0.9, true)
+    local who = {}
+    for _, k in ipairs(g.learnable or {}) do who[#who + 1] = CP.ShortName(k) end
+    if #who > 0 then GameTooltip:AddLine("Could learn it: " .. table.concat(who, ", "), 0.6, 0.7, 0.9, true) end
+  end
   for _, charKey in ipairs(g.chars) do
     local inv = CP.db.inventory[charKey]
     local seen = inv and inv.time and ("  |cff888888(bags seen " .. CP.Age(inv.time) .. ")|r") or "  |cff888888(bags not seen yet)|r"
@@ -165,6 +171,11 @@ local function DepthText(g)
 end
 
 local function CraftersText(g)
+  if g.notLearned then
+    local who = {}
+    for _, k in ipairs(g.learnable or {}) do who[#who + 1] = CP.ShortName(k) end
+    return "|cff8899aanot learned" .. (#who > 0 and (": " .. who[1] .. (#who > 1 and " +" .. (#who - 1) or "")) or "") .. "|r"
+  end
   local names = {}
   for _, k in ipairs(g.chars) do names[#names + 1] = CP.ShortName(k) end
   if #names <= 2 then return table.concat(names, ", ") end

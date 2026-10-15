@@ -258,6 +258,25 @@ function CP:BuildResults()
     end
   end
 
+  -- recipes the profession windows listed but nobody has learned (needs showUnlearned)
+  if s.showUnlearned ~= false then
+    for charKey, profs in pairs(db.unlearned or {}) do
+      for prof, recs in pairs(profs) do
+        for _, r in ipairs(recs) do
+          local key = prof .. ":" .. r.id
+          local g = groups[key]
+          if not g then
+            g = { key = key, prof = prof, id = r.id, name = r.name, rname = r.rname, yield = r.yield,
+                  reagents = r.reagents, chars = {}, make = {}, diffs = {}, notLearned = true, learnable = {} }
+            groups[key] = g
+            order[#order + 1] = g
+          end
+          if g.notLearned then g.learnable[#g.learnable + 1] = charKey end
+        end
+      end
+    end
+  end
+
   local results, skipped = {}, 0
   self.skippedList = {}
   self.unpriced = {}

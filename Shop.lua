@@ -186,14 +186,14 @@ function Shop.Command(arg)
   local results = CP:BuildResults()
   local list = {}
   if arg == "tracked" then
-    for _, g in ipairs(results) do if g.tracked then list[#list + 1] = g end end
+    for _, g in ipairs(results) do if g.tracked and not g.notLearned then list[#list + 1] = g end end
     if #list == 0 then CP:Print("No tracked crafts with prices yet. Right-click a row (or /pf track <craft>)."); return end
     Shop.ForList(list, "your tracked crafts")
   else
     -- the 10 crafts that would earn the most with the gold in your pocket (not just the first ten rows of the list)
     local ranked = {}
     for _, g in ipairs(results) do
-      local d = CP:BuyDepth(g, nil, 50)
+      local d = not g.notLearned and CP:BuyDepth(g, nil, 50)
       if d and d.crafts and d.crafts > 0 and d.profit > 0 then ranked[#ranked + 1] = { g = g, p = d.profit } end
     end
     table.sort(ranked, function(a, b) return a.p > b.p end)

@@ -27,6 +27,7 @@ local DEFAULTS = {
     minProfit = 0,         -- copper
     minListed = 3,         -- hide outputs with fewer units listed than this (one listing isn't a market)
     craftableOnly = false,
+    showUnlearned = true,   -- also list profitable recipes no character has learned yet
     hideLosses = false,     -- true hides crafts whose profit is below minProfit
     sortKey = "ratio",
     sortDesc = true,
@@ -453,7 +454,7 @@ SlashCmdList["PROFITEER"] = function(msg)
   elseif cmd == "forget" then
     local target, removed = arg, 0
     if target == "" then CP:Print("usage: /pf forget <character name>") else
-      for _, tbl in ipairs({ CP.db.recipes, CP.db.inventory, CP.db.chars }) do
+      for _, tbl in ipairs({ CP.db.recipes, CP.db.unlearned or {}, CP.db.inventory, CP.db.chars }) do
         for k in pairs(tbl) do
           if CP.ShortName(k):lower() == target then tbl[k] = nil; removed = removed + 1 end
         end
