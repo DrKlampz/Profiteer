@@ -24,6 +24,76 @@ function ns.NewRoster(cfg)
     local function db() return cfg.db() or {} end
     local function auto() local d = db() return d.rosterAuto ~= false end
 
+    -- Some servers give characters a first and last name: UnitName hands the last name back in the slot
+    -- where retail puts the realm. Remember each character's full name when it logs in.
+    local rawShort = cfg.short
+    local function short(key)
+        local d = db()
+        local n = d.rosterNames and d.rosterNames[key]
+        return n or rawShort(key)
+    end
+
+    local function FullName()
+        local first, second = UnitName("player")
+        if type(first) ~= "string" or IsSecret(first) then return nil end
+        if type(second) == "string" and second ~= "" and not IsSecret(second) and not first:find(" ", 1, true) then
+            local realm = _G.GetRealmName and _G.GetRealmName()
+            local nrealm = _G.GetNormalizedRealmName and _G.GetNormalizedRealmName()
+            if second ~= realm and second ~= nrealm then return first .. " " .. second end
+        end
+        return first
+    end
+
+    local function Squash(s) return (tostring(s or ""):gsub("[%s%-']", ""):lower()) end
+
+    -- fill in other characters' full names from the Postage list, when that add-on is loaded
+    function R.Remember()
+        local dbt = cfg.db()
+        if not dbt then return end
+        dbt.rosterNames = dbt.rosterNames or {}
+        local cur = cfg.current and cfg.current()
+        local me = FullName()
+        if cur and me then dbt.rosterNames[cur] = me end
+        dbt.rosterClass = dbt.rosterClass or {}
+        local _, myClass = UnitClass("player")
+        if cur and type(myClass) == "string" and not IsSecret(myClass) then dbt.rosterClass[cur] = myClass end
+        -- other characters' classes from the add-ons that already recorded them
+        local PF = _G.ProfiteerDB
+        for _, key in ipairs(R.Keys()) do
+            if not dbt.rosterClass[key] then
+                local c = PF and type(PF.chars) == "table" and PF.chars[key]
+                if type(c) == "table" and type(c.class) == "string" then dbt.rosterClass[key] = c.class end
+            end
+        end
+        local P = _G.PostageDB
+        if P and type(P.alts) == "table" then
+            for _, key in ipairs(R.Keys()) do
+                if not dbt.rosterClass[key] then
+                    local first, realm = key:match("^(.-)%-([^%-]*)$")
+                    for _, c in pairs(P.alts) do
+                        if first and type(c) == "table" and type(c.class) == "string" and type(c.name) == "string"
+                           and (c.name == first or c.name:sub(1, #first + 1) == first .. " ")
+                           and Squash(c.realm) == Squash(realm) then dbt.rosterClass[key] = c.class break end
+                    end
+                end
+            end
+            for _, key in ipairs(R.Keys()) do
+                if not dbt.rosterNames[key] then
+                    local first, realm = key:match("^(.-)%-([^%-]*)$")
+                    if first then
+                        for _, c in pairs(P.alts) do
+                            if type(c) == "table" and type(c.name) == "string" and c.name:find(" ", 1, true)
+                               and c.name:sub(1, #first + 1) == first .. " " and Squash(c.realm) == Squash(realm) then
+                                dbt.rosterNames[key] = c.name
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     -- every character key this add-on knows
     local function Keys()
         local d, seen, out = db(), {}, {}
@@ -40,7 +110,7 @@ function ns.NewRoster(cfg)
         end
         local cur = cfg.current and cfg.current()
         if cur then add(cur) end
-        table.sort(out, function(a, b) return cfg.short(a):lower() < cfg.short(b):lower() end)
+        table.sort(out, function(a, b) return short(a):lower() < short(b):lower() end)
         return out
     end
     R.Keys = Keys
@@ -95,15 +165,15 @@ function ns.NewRoster(cfg)
         R.missing, R.verified = {}, false
         local names = ListNames()
         local cur = cfg.current and cfg.current()
-        if not names or not cur or not Listed(names, cfg.short(cur)) then return 0 end
+        if not names or not cur or not Listed(names, short(cur)) then return 0 end
         R.verified = true
         local gone = {}
         for _, k in ipairs(Keys()) do
-            if k ~= cur and not Listed(names, cfg.short(k)) then R.missing[k] = true gone[#gone + 1] = k end
+            if k ~= cur and not Listed(names, short(k)) then R.missing[k] = true gone[#gone + 1] = k end
         end
         if auto() and #gone > 0 then
             local list = {}
-            for _, k in ipairs(gone) do list[#list + 1] = cfg.short(k) R.Forget(k) end
+            for _, k in ipairs(gone) do list[#list + 1] = short(k) R.Forget(k) end
             if not quiet and cfg.print then
                 cfg.print("removed " .. table.concat(list, ", ") .. " (no longer on your character list).")
             end
@@ -188,7 +258,7 @@ function ns.NewRoster(cfg)
             if r.armed then
                 r.armed = nil
                 local n = R.Forget(key)
-                if cfg.print then cfg.print("removed " .. cfg.short(key) .. " (" .. n .. " record" .. (n == 1 and "" or "s") .. ").") end
+                if cfg.print then cfg.print("removed " .. short(key) .. " (" .. n .. " record" .. (n == 1 and "" or "s") .. ").") end
                 R.Refresh()
             else
                 r.armed = true
@@ -212,8 +282,9 @@ function ns.NewRoster(cfg)
             y = y - 24
             local info, class = "", nil
             if cfg.info then local ok, a, b = pcall(cfg.info, k, d) if ok then info, class = a or "", b end end
+            class = (d.rosterClass and d.rosterClass[k]) or class
             local c = class and _G.RAID_CLASS_COLORS and _G.RAID_CLASS_COLORS[class]
-            r.name:SetText(cfg.short(k))
+            r.name:SetText(short(k))
             if c then r.name:SetTextColor(c.r, c.g, c.b) else r.name:SetTextColor(1, 0.82, 0) end
             if k == cur then info = "|cff55ff55this character|r" .. (info ~= "" and ("  " .. info) or "")
             elseif R.missing[k] then info = "|cffff5555not on your character list|r" end
@@ -245,6 +316,7 @@ function ns.NewRoster(cfg)
     end
 
     function R.Open()
+        pcall(R.Remember)
         frame = frame or Build()
         frame:Show()
         R.Detect(true)
@@ -260,7 +332,8 @@ function ns.NewRoster(cfg)
     pcall(ev.RegisterEvent, ev, "CHARACTER_LIST_UPDATE")
     ev:SetScript("OnEvent", function(_, event)
         if event == "PLAYER_LOGIN" then
-            if _G.C_Timer then _G.C_Timer.After(8, function() pcall(R.Detect, false) end) end
+            pcall(R.Remember)
+            if _G.C_Timer then _G.C_Timer.After(8, function() pcall(R.Remember) pcall(R.Detect, false) end) end
         else
             pcall(R.Detect, false)
         end
