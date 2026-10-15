@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Characters window (shift-click the minimap button): delete a character's saved data, and characters removed from your character list are spotted and cleaned up automatically.
+
 ## 0.8.10
 - Crafts: also lists profitable recipes no character has learned yet (captured from each profession window you open). Turn off under Profit and prices. They are left out of shopping plans.
 

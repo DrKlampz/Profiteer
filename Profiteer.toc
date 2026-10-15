@@ -10,6 +10,7 @@
 ## X-Curse-Project-ID: 1724073
 
 Core.lua
+Roster.lua
 Look.lua
 LookSetup.lua
 History.lua
