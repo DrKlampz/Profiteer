@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.10
 - Crafts: also lists profitable recipes no character has learned yet (captured from each profession window you open). Turn off under Profit and prices. They are left out of shopping plans.
 
 ## 0.8.9
