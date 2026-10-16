@@ -38,6 +38,30 @@ function AHTab.RestoreGamePages()
     end
   end
   AHTab.putAway = {}
+  AHTab.RelayoutGame()
+end
+
+-- the game's lists (Auctions, Bids, Browse ...) size their column headers to the width the window had when they last laid
+-- out; when we widen/narrow the window the headers keep the old width and run off the edge. Make them measure again.
+function AHTab.RelayoutGame()
+  local function walk(f, depth)
+    if not f or depth > 4 then return end
+    local tb = f.tableBuilder
+    if tb and f.ScrollBox and f.ScrollBox.GetWidth then
+      local w = f.ScrollBox:GetWidth()
+      if w and w > 0 and tb.SetTableWidth then pcall(tb.SetTableWidth, tb, w) end
+      if tb.Arrange then pcall(tb.Arrange, tb) end
+      if f.RefreshScrollFrame then pcall(f.RefreshScrollFrame, f) end
+    end
+    if f.GetChildren then for _, c in ipairs({ f:GetChildren() }) do walk(c, depth + 1) end end
+  end
+  local function go()
+    local AH = _G.AuctionHouseFrame
+    if not (AH and AH:IsShown()) then return end
+    for _, k in ipairs(GAME_PAGES) do walk(AH[k], 0) end
+  end
+  go()
+  if CP.After then CP.After(0.1, go) CP.After(0.5, go) end
 end
 
 -- our tabs are drawn flat and hang from the bottom edge of the window, in the window's colors
@@ -328,6 +352,7 @@ function AHTab.Game()
     if f and f.Show then pcall(f.Show, f) end
   end
   Mark("game")
+  AHTab.RelayoutGame()
   AHTab.Title()
   if AHTab.PlaceTabs then CP.After(0.15, AHTab.PlaceTabs) end
   if CP.db and CP.db.settings then CP.db.settings.ahLastTab = "game" end
