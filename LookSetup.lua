@@ -30,11 +30,11 @@ local function Options()
             L.Kon("Shrink the auction house window to fit Profiteer's tabs (no empty space)", st, "ahShrink", function() if CP.AHTab and CP.AHTab.Fit then CP.AHTab.Fit() end end),
             L.Choice("Size of Profiteer's tabs in the auction house", st, "ahScale", { { 1, "Normal" }, { 1.15, "Larger" }, { 1.25, "Large" }, { 1.4, "Extra large" }, { 1.5, "Huge" } }, function() if CP.AHTab and CP.AHTab.Refit then CP.AHTab.Refit() end end),
             { kind = "slider", label = "Text size in Profiteer's windows", min = 0.8, max = 1.6, step = 0.05, fmt = "%.2f",
-                get = function() local w = L.Get and L.Get("ah") return (w and tonumber(w.fontScale)) or 1 end,
+                get = function() local e = L.Effective and L.Effective("ah") return (e and tonumber(e.fontScale)) or 1 end,
                 set = function(v)
                     for _, id in ipairs({ "main", "ah", "report" }) do
                         local w = L.Get and L.Get(id)
-                        if w then w.fontScale = v end
+                        if w then w.fontScale = v w.fontOwn = true end
                     end
                     if L.Apply then L.Apply() end
                 end },
