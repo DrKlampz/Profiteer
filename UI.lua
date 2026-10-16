@@ -533,6 +533,23 @@ function UI.Create()
   end)
   UI.hideLosses = cb2
 
+  local cb3 = CreateFrame("CheckButton", "ProfiteerShowLearned", f, "UICheckButtonTemplate")
+  cb3:SetPoint("LEFT", cb2, "RIGHT", 128, 0)
+  local cb3Text = _G["ProfiteerShowLearnedText"] or cb3.Text
+  if cb3Text then pcall(function() cb3Text:SetText("Learned recipes") end) end
+  cb3:SetScript("OnClick", function(self)
+    CP.db.settings.showLearned = self:GetChecked() and true or false
+    UI.Rebuild()
+  end)
+  cb3:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Learned recipes", 1, 0.82, 0)
+    GameTooltip:AddLine("Ticked: crafts one of your characters already knows are listed.\nUnticked: only recipes nobody has learned yet, so you can see what is worth buying or training.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  cb3:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  UI.showLearned = cb3
+
   local shopTop = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   shopTop:SetSize(110, 24)
   shopTop:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 44)
@@ -614,6 +631,7 @@ function UI.Toggle()
   else
     UI.onlyCraftable:SetChecked(CP.db.settings.craftableOnly)
     UI.hideLosses:SetChecked(CP.db.settings.hideLosses)
+    UI.showLearned:SetChecked(CP.db.settings.showLearned ~= false)
     UI.frame:Show()
   end
 end
@@ -665,6 +683,7 @@ function UI.ShowDocked()
   if not Dock() then Undock() end
   UI.onlyCraftable:SetChecked(CP.db.settings.craftableOnly)
   UI.hideLosses:SetChecked(CP.db.settings.hideLosses)
+  UI.showLearned:SetChecked(CP.db.settings.showLearned ~= false)
   UI.frame:Show()
 end
 

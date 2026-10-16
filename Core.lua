@@ -27,6 +27,7 @@ local DEFAULTS = {
     minProfit = 0,         -- copper
     minListed = 3,         -- hide outputs with fewer units listed than this (one listing isn't a market)
     craftableOnly = false,
+    showLearned = true,     -- false hides crafts a character has already learned
     showUnlearned = true,   -- also list profitable recipes no character has learned yet
     hideLosses = false,     -- true hides crafts whose profit is below minProfit
     sortKey = "ratio",

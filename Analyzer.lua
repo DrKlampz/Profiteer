@@ -281,6 +281,7 @@ function CP:BuildResults()
   self.skippedList = {}
   self.unpriced = {}
   for _, g in ipairs(order) do
+   if g.notLearned or s.showLearned ~= false then   -- "Learned recipes" box off: only crafts nobody has learned
     local p = db.prices[g.id]
     local sell = self:SellPrice(g.id)
     local cost, missing, missingName = 0, false, nil
@@ -350,6 +351,7 @@ function CP:BuildResults()
         and (s.minSales <= 0 or not g.perDay or g.perDay >= s.minSales)
       if keep or g.tracked then results[#results + 1] = g end
     end
+   end
   end
 
   table.sort(self.skippedList)
