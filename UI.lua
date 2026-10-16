@@ -569,7 +569,7 @@ function UI.Create()
   UI.status = status
 
   -- everything that belongs to the Crafts tab, so the Ledger tab can hide it
-  UI.craftWidgets = { slider, scan, refresh, cb, cb2, shopTop, shopTracked, search }
+  UI.craftWidgets = { slider, scan, refresh, cb, cb2, cb3, shopTop, shopTracked, search }
   for _, h in ipairs(headers) do UI.craftWidgets[#UI.craftWidgets + 1] = h end
   CP.Ledger.BuildPanel(f, TOTAL_W + 12, BASE_H - 48 - 52)
   UI.panes = {}

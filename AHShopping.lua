@@ -424,6 +424,11 @@ function S.Draw()
       if it then it.estCost, it.estFor = cost, n end
     end
     W.buy:SetText((state.confirm and state.total) and ("Confirm  " .. H.Money(state.total)) or ("Buy " .. n))
+    do   -- the button grows to hold its text ("Confirm 15g 82s 15c" is wider than a plain Buy)
+      local fs = W.buy.GetFontString and W.buy:GetFontString()
+      local tw = fs and fs:GetStringWidth() or 0
+      W.buy:SetWidth(math.max(150, math.ceil(tw) + 40))
+    end
     W.buy:SetEnabled(n > 0 and #res > 0 and H.IsOpen())
     W.qty:Show() W.qtyLabel:Show()
   elseif state.kind == "item" then

@@ -126,6 +126,14 @@ function AHTab.Restyle()
   hostBg:SetColorTexture(r, g, b, a)
 end
 
+-- "Profiteer tabs size": the auction house window is made wider and taller (up to 1.5x) while one of Profiteer's tabs shows,
+-- and Profiteer's content is scaled up to fill it. The game's own pages get the stock size back.
+local function SizeK()
+  local k = tonumber(CP.db and CP.db.settings and CP.db.settings.ahScale) or 1.25
+  return math.max(1, math.min(1.5, k))
+end
+local function WantH() return AHTab.origH and (AHTab.origH * (embedded and SizeK() or 1)) end
+
 local UP = 30   -- the window's own (hidden) title strip: pulled up out of the way so there is no empty band at the top
 
 local function Embed()
@@ -152,7 +160,16 @@ local function Embed()
     local shrink = CP.db.settings.ahShrink ~= false
     local AH = _G.AuctionHouseFrame
     if AH and not AHTab.origH then AHTab.origH = math.max(AH:GetHeight() or 0, 538) end
-    if hw and hh and fw and fh and hw > 50 and hh > 50 and fw > 0 and fh > 0 then
+    if AH and not AHTab.origW then AHTab.origW = AH:GetWidth() end
+    local K = SizeK()
+    if K > 1 and fw and fw > 0 and AH and AHTab.origW then
+      -- widen the window itself (not just scale): wide enough for the whole table at K times its size
+      local wantW = math.max(AHTab.origW, math.ceil(fw * K) + 12)
+      pcall(AH.SetWidth, AH, wantW)
+      hw = wantW - 8
+      sc = K
+      hh = (AHTab.origH or hh) * K - 26 - 28
+    elseif hw and hh and fw and fh and hw > 50 and hh > 50 and fw > 0 and fh > 0 then
       if shrink then
         sc = math.min(1, (hw - 4) / fw)
       else sc = math.min(1, (hw - 4) / fw, (hh - 4) / fh) end
@@ -163,8 +180,8 @@ local function Embed()
         if not AHTab.origH then AHTab.origH = math.max(AH:GetHeight() or 0, 538) end
         local need = math.ceil((fh - UP) * sc + 14 + 26 + 28)
         -- same height as the game's own page, so the window never bounces between tabs
-        if AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
-      elseif AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
+        if AHTab.origH then pcall(AH.SetHeight, AH, WantH()) end
+      elseif AHTab.origH then pcall(AH.SetHeight, AH, WantH()) end
     end
     -- every tab gets the whole height of the host, so there is no dead space below the content
     if shrink and hh and hh > 50 and CP.UI.SetHeight then CP.UI.SetHeight(math.floor(hh / sc + UP)) end
@@ -227,7 +244,10 @@ function AHTab.Leave()
   end
   local AH = _G.AuctionHouseFrame
   if AH and AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
+  if AH and AHTab.origW then pcall(AH.SetWidth, AH, AHTab.origW) end
 end
+
+function AHTab.Refit() if embedded and AHTab.Fit then AHTab.Fit() end end
 
 -- open one of Profiteer's tabs inside the AH
 function AHTab.Go(key)
@@ -295,7 +315,7 @@ function AHTab.Size()
   local AH = _G.AuctionHouseFrame
   if not (AH and CP.UI and CP.UI.Create) then return end
   if CP.db.settings.ahShrink == false then
-    if AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
+    if AHTab.origH then pcall(AH.SetHeight, AH, WantH()) end
     return
   end
   CP.UI.Create()
@@ -307,7 +327,7 @@ function AHTab.Size()
   local hw = (AH:GetWidth() or 0) - 8
   local sc = math.min(1, (hw - 4) / fw)
   if AHTab.origH then sc = math.min(sc, math.max(0.4, (AHTab.origH - 26 - 28 - 14) / (fh - UP))) end
-  if AHTab.origH then pcall(AH.SetHeight, AH, AHTab.origH) end
+  if AHTab.origH then pcall(AH.SetHeight, AH, WantH()) end
 end
 
 -- the tab the auction house opens on (Options: "Open the auction house on")
