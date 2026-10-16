@@ -600,7 +600,27 @@ function S.Build(parent, w, h)
     r.cumq = H.Text(r) r.cumq:SetPoint("LEFT", 196, 0) r.cumq:SetWidth(70) r.cumq:SetJustifyH("LEFT")
     r.cumc = H.Text(r) r.cumc:SetPoint("LEFT", 276, 0) r.cumc:SetWidth(130) r.cumc:SetJustifyH("LEFT")
     r.name = H.Text(r) r.name:SetPoint("RIGHT", -8, 0)
-    r:SetScript("OnClick", function(self) if state.kind == "item" then state.pick = self.idx S.Draw() end end)
+    r:SetScript("OnClick", function(self)
+      if state.kind == "item" then state.pick = self.idx S.Draw()
+      elseif state.kind == "commodity" and self.idx and state.results then
+        -- click a price: set How many to everything up to and including that price
+        local q = 0
+        for i = 1, self.idx do q = q + (state.results[i] and state.results[i].qty or 0) end
+        if q > 0 and H.IsOpen() then
+          -- one click: set the amount and ask the game for the price, so only the Confirm click is left
+          W.qty:SetText(tostring(q))
+          BuyClick()
+        end
+      end
+    end)
+    r:HookScript("OnEnter", function(self)
+      if state.kind ~= "commodity" or not self.idx then return end
+      GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+      GameTooltip:AddLine("Click to buy everything up to this price", 1, 0.82, 0)
+      GameTooltip:AddLine("Then press Confirm to pay.", 0.7, 0.7, 0.7)
+      GameTooltip:Show()
+    end)
+    r:HookScript("OnLeave", function() GameTooltip:Hide() end)
   end)
   W.res.refresh = S.Draw
 
