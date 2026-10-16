@@ -29,6 +29,15 @@ local function Options()
                 { "cancelling", "Cancelling" }, { "crafts", "Crafts" }, { "ledger", "Ledger" }, { "last", "Whichever tab I used last" } }),
             L.Kon("Shrink the auction house window to fit Profiteer's tabs (no empty space)", st, "ahShrink", function() if CP.AHTab and CP.AHTab.Fit then CP.AHTab.Fit() end end),
             L.Choice("Size of Profiteer's tabs in the auction house", st, "ahScale", { { 1, "Normal" }, { 1.15, "Larger" }, { 1.25, "Large" }, { 1.4, "Extra large" }, { 1.5, "Huge" } }, function() if CP.AHTab and CP.AHTab.Refit then CP.AHTab.Refit() end end),
+            { kind = "slider", label = "Text size in Profiteer's windows", min = 0.8, max = 1.6, step = 0.05, fmt = "%.2f",
+                get = function() local w = L.Get and L.Get("ah") return (w and tonumber(w.fontScale)) or 1 end,
+                set = function(v)
+                    for _, id in ipairs({ "main", "ah", "report" }) do
+                        local w = L.Get and L.Get(id)
+                        if w then w.fontScale = v end
+                    end
+                    if L.Apply then L.Apply() end
+                end },
             L.Koff("Open the Profiteer panel with the auction house", st, "ahAutoOpen"),
             L.Kon("Show Profiteer lines in item tooltips", st, "tooltips"),
             L.Koff("Draw dividing bars between rows (Shopping, Selling, Cancelling and Crafts lists)", st, "rowDividers", function() if CP.AH then CP.AH.ApplyDividers() end end),

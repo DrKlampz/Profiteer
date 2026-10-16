@@ -18,10 +18,26 @@ local GAME_PAGES = { "BrowseResultsFrame", "CategoriesList", "SearchBar", "ItemB
 local function PutAwayGamePages()
   local AH = _G.AuctionHouseFrame
   if not AH then return end
+  AHTab.putAway = AHTab.putAway or {}
+  AHTab.putAwayMode = AH.displayMode
   for _, k in ipairs(GAME_PAGES) do
     local f = AH[k]
-    if f and f.Hide and f.IsShown and f:IsShown() then pcall(f.Hide, f) end
+    if f and f.Hide and f.IsShown and f:IsShown() then AHTab.putAway[k] = true pcall(f.Hide, f) end
   end
+end
+
+-- clicking the game tab whose page we put away (the game thinks it is still on it, so it does nothing) would leave a blank
+-- window: show those pages again. If the game did switch pages itself, it already showed the right ones.
+function AHTab.RestoreGamePages()
+  local AH = _G.AuctionHouseFrame
+  if not (AH and AHTab.putAway) then return end
+  if AH.displayMode == AHTab.putAwayMode then
+    for k in pairs(AHTab.putAway) do
+      local f = AH[k]
+      if f and f.Show then pcall(f.Show, f) end
+    end
+  end
+  AHTab.putAway = {}
 end
 
 -- our tabs are drawn flat and hang from the bottom edge of the window, in the window's colors
@@ -165,10 +181,21 @@ local function Embed()
     if K > 1 and fw and fw > 0 and AH and AHTab.origW then
       -- widen the window itself (not just scale): wide enough for the whole table at K times its size
       local wantW = math.max(AHTab.origW, math.ceil(fw * K) + 12)
+      local wantH = (AHTab.origH or 538) * K
       pcall(AH.SetWidth, AH, wantW)
-      hw = wantW - 8
-      sc = K
-      hh = (AHTab.origH or hh) * K - 26 - 28
+      pcall(AH.SetHeight, AH, wantH)
+      -- use the room the window really has once the game has laid it out (it settles a moment after the resize),
+      -- so the content fills it exactly with no dead space
+      local rw, rh = host:GetWidth() or 0, host:GetHeight() or 0
+      local settled = rw >= wantW - 40 and rh >= wantH * 0.6
+      if settled then AHTab.refitTries = 0
+      else
+        AHTab.refitTries = (AHTab.refitTries or 0) + 1
+        if AHTab.refitTries <= 6 then CP.After(0.05, AHTab.Refit) end
+      end
+      hw = settled and rw or (wantW - 8)
+      hh = settled and rh or (wantH - 26 - 28)
+      sc = math.min(1.6, math.max(1, (hw - 4) / fw))
     elseif hw and hh and fw and fh and hw > 50 and hh > 50 and fw > 0 and fh > 0 then
       if shrink then
         sc = math.min(1, (hw - 4) / fw)
@@ -422,7 +449,7 @@ local function Create()
   for _, bt in ipairs(Blizz()) do
     if bt then
       bt:Show()
-      if bt.HookScript then bt:HookScript("OnClick", AHTab.Leave) end
+      if bt.HookScript then bt:HookScript("OnClick", function() AHTab.Leave() CP.After(0.05, AHTab.RestoreGamePages) end) end
     end
   end
   AuctionHouseFrame:HookScript("OnHide", AHTab.Leave)
