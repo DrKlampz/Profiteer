@@ -281,7 +281,7 @@ function CP:BuildResults()
   self.skippedList = {}
   self.unpriced = {}
   for _, g in ipairs(order) do
-   if g.notLearned or s.showLearned ~= false then   -- "Learned recipes" box off: only crafts nobody has learned
+   if not (s.learnedOnly ~= false and g.notLearned) then   -- "Learned recipes only" ticked: hide crafts nobody has learned
     local p = db.prices[g.id]
     local sell = self:SellPrice(g.id)
     local cost, missing, missingName = 0, false, nil
