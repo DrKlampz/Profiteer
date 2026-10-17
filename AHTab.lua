@@ -172,6 +172,11 @@ local function SizeK()
   local k = tonumber(CP.db and CP.db.settings and CP.db.settings.ahScale) or 1.25
   return math.max(1, math.min(1.5, k))
 end
+-- how big the buttons, text boxes and lists are inside Profiteer's tabs, relative to the window they fill
+local function ContentK()
+  local k = tonumber(CP.db and CP.db.settings and CP.db.settings.ahContent) or 0.75
+  return math.max(0.5, math.min(1.2, k))
+end
 local function WantH() return AHTab.origH and (AHTab.origH * (embedded and SizeK() or 1)) end
 
 local UP = 30   -- the window's own (hidden) title strip: pulled up out of the way so there is no empty band at the top
@@ -202,9 +207,11 @@ local function Embed()
     if AH and not AHTab.origH then AHTab.origH = math.max(AH:GetHeight() or 0, 538) end
     if AH and not AHTab.origW then AHTab.origW = AH:GetWidth() end
     local K = SizeK()
-    if K > 1 and fw and fw > 0 and AH and AHTab.origW then
+    local cs = ContentK()
+    local fw0 = CP.UI.baseW or fw   -- the table's own width (the window's frame itself is widened below)
+    if K > 1 and fw0 and fw0 > 0 and AH and AHTab.origW then
       -- widen the window itself (not just scale): wide enough for the whole table at K times its size
-      local wantW = math.max(AHTab.origW, math.ceil(fw * K) + 12)
+      local wantW = math.max(AHTab.origW, math.ceil(fw0 * K) + 12)
       local wantH = (AHTab.origH or 538) * K
       pcall(AH.SetWidth, AH, wantW)
       pcall(AH.SetHeight, AH, wantH)
@@ -219,12 +226,15 @@ local function Embed()
       end
       hw = settled and rw or (wantW - 8)
       hh = settled and rh or (wantH - 26 - 28)
-      sc = math.min(1.6, math.max(1, (hw - 4) / fw))
+      sc = math.min(1.6, math.max(1, (hw - 4) / fw0)) * cs
     elseif hw and hh and fw and fh and hw > 50 and hh > 50 and fw > 0 and fh > 0 then
       if shrink then
-        sc = math.min(1, (hw - 4) / fw)
-      else sc = math.min(1, (hw - 4) / fw, (hh - 4) / fh) end
+        sc = math.min(1, (hw - 4) / fw0) * cs
+      else sc = math.min(1, (hw - 4) / fw0, (hh - 4) / fh) * cs end
     end
+    sc = math.max(0.4, sc)
+    -- the content is smaller than the window: give the extra room to the table instead of leaving it empty
+    if hw and hw > 50 and CP.UI.SetWidth then CP.UI.SetWidth(math.floor((hw - 4) / sc)) end
     -- no dead space: the auction house window itself is made just tall enough for the tab
     if AH then
       if shrink and fh and fh > 0 then

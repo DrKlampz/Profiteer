@@ -572,6 +572,7 @@ function S.Build(parent, w, h)
 
   -- right panel: item hero + results
   local rx = leftW + 12
+  W.rx = rx
   W.rp = Panel(pane, w - rx, 300)
   W.rp:SetPoint("TOPLEFT", rx, -32)
   W.heroIcon = W.rp:CreateTexture(nil, "ARTWORK") W.heroIcon:SetSize(40, 40) W.heroIcon:SetPoint("TOPLEFT", 12, -10)
@@ -669,6 +670,11 @@ end
 function S.Resize(w, h)
   if not (pane and W.list) then return end
   pane:SetSize(w, h)
+  if W.rx and W.rp then
+    W.rp:SetWidth(w - W.rx)
+    if W.heroName then W.heroName:SetWidth(w - W.rx - 80) end
+  end
+  if W.title then W.title:SetWidth(math.max(100, w - 300)) end
   local lpH = h - 32 - 62
   W.list.vis = math.max(5, math.min(MAXROWS, math.floor((lpH - 12) / 20)))
   W.lp:SetHeight(W.list.vis * 20 + 12)

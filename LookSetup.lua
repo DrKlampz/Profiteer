@@ -29,6 +29,9 @@ local function Options()
                 { "cancelling", "Cancelling" }, { "crafts", "Crafts" }, { "ledger", "Ledger" }, { "last", "Whichever tab I used last" } }),
             L.Kon("Shrink the auction house window to fit Profiteer's tabs (no empty space)", st, "ahShrink", function() if CP.AHTab and CP.AHTab.Fit then CP.AHTab.Fit() end end),
             L.Choice("Size of Profiteer's tabs in the auction house", st, "ahScale", { { 1, "Normal" }, { 1.15, "Larger" }, { 1.25, "Large" }, { 1.4, "Extra large" }, { 1.5, "Huge" } }, function() if CP.AHTab and CP.AHTab.Refit then CP.AHTab.Refit() end end),
+            { kind = "slider", label = "Size of buttons and lists inside Profiteer's tabs (smaller fits more)", min = 0.5, max = 1.2, step = 0.05, fmt = "%.2f",
+                get = function() return tonumber(CP.db and CP.db.settings and CP.db.settings.ahContent) or 0.75 end,
+                set = function(v) if CP.db and CP.db.settings then CP.db.settings.ahContent = v end if CP.AHTab and CP.AHTab.Refit then CP.AHTab.Refit() end end },
             { kind = "slider", label = "Text size in Profiteer's windows", min = 0.8, max = 1.6, step = 0.05, fmt = "%.2f",
                 get = function() local e = L.Effective and L.Effective("ah") return (e and tonumber(e.fontScale)) or 1 end,
                 set = function(v)

@@ -86,6 +86,15 @@ function C.Draw()
       r.qty:SetText(tostring(a.qty))
       r.mine:SetText(H.Money(a.unit))
       r.low:SetText(a.low and H.Money(a.low) or "|cff888888-|r")
+      if a.status == "undercut" and a.low then
+        local diff = a.unit - a.low
+        r.gap:SetText(("|cffff6040+%s (%d%%)|r"):format(H.Money(diff), math.floor(diff / a.low * 100 + 0.5)))
+        r.relist:SetText(H.Money(math.max(1, a.low - 1)))
+      else
+        r.gap:SetText("|cff888888-|r")
+        r.relist:SetText("|cff888888-|r")
+      end
+      r.total:SetText(H.Money(math.floor(a.unit * a.qty + 0.5)))
       local col = a.status == "undercut" and "|cffff6040" or (a.status == "lowest" and "|cff40ff40" or "|cff888888")
       r.stat:SetText(col .. a.status .. "|r")
       r.left:SetText(a.left)
@@ -97,7 +106,14 @@ function C.Draw()
   W.next:SetEnabled(under > 0 and H.IsOpen())
   local total = 0
   for _, a in ipairs(auctions) do total = total + a.count end
-  W.count:SetText(total .. " active auctions in " .. #auctions .. " groups, " .. under .. " groups undercut (compared with your last scan)")
+  local listed, underVal = 0, 0
+  for _, a in ipairs(auctions) do
+    local v = a.unit * a.qty
+    listed = listed + v
+    if a.status == "undercut" then underVal = underVal + v end
+  end
+  W.count:SetText(total .. " active auctions in " .. #auctions .. " groups, " .. under .. " groups undercut (compared with your last scan).   Listed value: |cffffd100"
+    .. H.Money(math.floor(listed + 0.5)) .. "|r, of which undercut: |cffff6040" .. H.Money(math.floor(underVal + 0.5)) .. "|r")
 end
 
 function C.Refresh()
@@ -118,30 +134,70 @@ local function CancelOne(a)
   SetStatus("Cancelling...")
 end
 
+-- columns from the right edge; whatever is left over goes to the item name
+local COLS = {
+  { key = "qty",    label = "Qty",            w = 50,  j = "RIGHT" },
+  { key = "mine",   label = "Your price each", w = 105, j = "RIGHT" },
+  { key = "low",    label = "Lowest (scan)",  w = 100, j = "RIGHT" },
+  { key = "gap",    label = "You are over by", w = 120, j = "RIGHT" },
+  { key = "relist", label = "Undercut price", w = 100, j = "RIGHT" },
+  { key = "total",  label = "Total value",    w = 110, j = "RIGHT" },
+  { key = "stat",   label = "Status",         w = 70,  j = "RIGHT" },
+  { key = "left",   label = "Left",           w = 45,  j = "RIGHT" },
+}
+local function Layout(w)
+  if not (pane and C.heads and rowsList) then return end
+  local pos = w - 24 - 6
+  for i = #COLS, 1, -1 do
+    local col = COLS[i]
+    pos = pos - col.w
+    col.x = pos
+    pos = pos - 8
+  end
+  local nameW = math.max(120, pos - 22 - 4)
+  C.nameHead:ClearAllPoints() C.nameHead:SetPoint("TOPLEFT", pane, "TOPLEFT", 22, -2) C.nameHead:SetWidth(nameW)
+  for _, col in ipairs(COLS) do
+    local fs = C.heads[col.key]
+    fs:ClearAllPoints() fs:SetPoint("TOPLEFT", pane, "TOPLEFT", col.x, -2) fs:SetWidth(col.w)
+  end
+  for _, r in ipairs(rowsList.rows) do
+    r.name:SetWidth(nameW)
+    for _, col in ipairs(COLS) do
+      local fs = r[col.key]
+      fs:ClearAllPoints() fs:SetPoint("LEFT", r, "LEFT", col.x, 0) fs:SetWidth(col.w)
+    end
+  end
+end
+
 function C.Build(parent, w, h)
   pane = CreateFrame("Frame", nil, parent)
   pane:SetSize(w, h)
   pane:Hide()
   C.pane = pane
 
-  local dx = math.max(0, w - 24 - 690)
-  local cols = { { "Item", 22, 260 }, { "Qty", 290 + dx, 40 }, { "Your price each", 340 + dx, 110 }, { "Lowest (scan)", 460 + dx, 100 }, { "Status", 570 + dx, 70 }, { "Left", 645 + dx, 40 } }
-  for _, c in ipairs(cols) do
+  C.heads = {}
+  for _, col in ipairs(COLS) do
     local fs = H.Text(pane, "GameFontNormalSmall")
-    fs:SetPoint("TOPLEFT", c[2], -2)
-    fs:SetText(c[1])
+    fs:SetText(col.label)
+    fs:SetJustifyH(col.j)
+    C.heads[col.key] = fs
   end
+  C.nameHead = H.Text(pane, "GameFontNormalSmall")
+  C.nameHead:SetText("Item")
+  C.nameHead:SetJustifyH("LEFT")
   lf = CreateFrame("Frame", nil, pane)
   lf:SetPoint("TOPLEFT", 0, -20)
   lf:SetSize(w - 24, 15 * 20)
   rowsList = H.RowList(lf, MAXROWS, 20, function(r)
     r.icon = r:CreateTexture(nil, "ARTWORK") r.icon:SetSize(16, 16) r.icon:SetPoint("LEFT", 2, 0)
-    r.name = H.Text(r) r.name:SetPoint("LEFT", 22, 0) r.name:SetWidth(260 + dx) r.name:SetJustifyH("LEFT")
-    r.qty = H.Text(r) r.qty:SetPoint("LEFT", 290 + dx, 0) r.qty:SetWidth(40) r.qty:SetJustifyH("LEFT")
-    r.mine = H.Text(r) r.mine:SetPoint("LEFT", 340 + dx, 0) r.mine:SetWidth(110) r.mine:SetJustifyH("LEFT")
-    r.low = H.Text(r) r.low:SetPoint("LEFT", 460 + dx, 0) r.low:SetWidth(100) r.low:SetJustifyH("LEFT")
-    r.stat = H.Text(r) r.stat:SetPoint("LEFT", 570 + dx, 0) r.stat:SetWidth(70) r.stat:SetJustifyH("LEFT")
-    r.left = H.Text(r) r.left:SetPoint("LEFT", 645 + dx, 0) r.left:SetWidth(40) r.left:SetJustifyH("LEFT")
+    r.name = H.Text(r) r.name:SetPoint("LEFT", 22, 0) r.name:SetJustifyH("LEFT")
+    if r.name.SetWordWrap then r.name:SetWordWrap(false) end
+    for _, col in ipairs(COLS) do
+      local fs = H.Text(r)
+      fs:SetJustifyH(col.j)
+      if fs.SetWordWrap then fs:SetWordWrap(false) end
+      r[col.key] = fs
+    end
     r:SetScript("OnClick", function(self) if self.a then CancelOne(self.a) end end)
     r:SetScript("OnEnter", function(self)
       self.hl:Show()
@@ -174,6 +230,8 @@ end
 function C.Resize(w, h)
   if not (pane and rowsList) then return end
   pane:SetSize(w, h)
+  Layout(w)
+  if W.count then W.count:SetWidth(math.max(200, w - 220)) W.count:SetJustifyH("LEFT") end
   rowsList.vis = math.max(5, math.min(MAXROWS, math.floor((h - 70) / 20)))
   lf:SetSize(w - 24, rowsList.vis * 20)
   C.Draw()

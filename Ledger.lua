@@ -987,6 +987,7 @@ function L.BuildPanel(parent, width, height)
 
   -- four headline numbers
   L.tiles = {}
+  L.tbg = {}
   local tw = math.floor((width - 4 * 8) / 5)
   local tiles = { { "net", "NET CASH FLOW" }, { "inn", "TOTAL IN" }, { "out", "TOTAL OUT" }, { "overhead", "OVERHEAD" }, { "unrealized", "UNREALIZED" } }
   for i, t in ipairs(tiles) do
@@ -994,6 +995,7 @@ function L.BuildPanel(parent, width, height)
     bg:SetColorTexture(1, 1, 1, 0.06)
     bg:SetSize(tw, 40)
     bg:SetPoint("TOPLEFT", p, "TOPLEFT", (i - 1) * (tw + 8), -28)
+    L.tbg[i] = bg
     local l = p:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     l:SetPoint("TOPLEFT", bg, "TOPLEFT", 8, -5)
     l:SetText(t[2])
@@ -1020,9 +1022,18 @@ function L.BuildPanel(parent, width, height)
   scroll:SetScrollChild(content)
   L.scroll, L.content, L.lines = scroll, content, {}
 
-  L.resize = function(h)
+  L.resize = function(h, w)
     p:SetHeight(h)
     scroll:SetHeight(math.max(40, h - 90))
+    if w and w > 100 then
+      p:SetWidth(w) scroll:SetWidth(w - 4) content:SetWidth(w - 4)
+      local tw2 = math.floor((w - 4 * 8) / 5)
+      for i, bg in ipairs(L.tbg) do
+        bg:SetSize(tw2, 40)
+        bg:ClearAllPoints()
+        bg:SetPoint("TOPLEFT", p, "TOPLEFT", (i - 1) * (tw2 + 8), -28)
+      end
+    end
   end
   p:SetScript("OnShow", function() L.dirty = true L.Refresh() end)
   local acc = 0

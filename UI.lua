@@ -20,6 +20,24 @@ local COLS = {
 }
 local TOTAL_W = 0
 for _, c in ipairs(COLS) do TOTAL_W = TOTAL_W + c.w + GAP end
+UI.baseW = TOTAL_W + 62
+
+-- column widths grow when the window is wider than the table needs (the extra goes to the text columns)
+local curTW = TOTAL_W
+local colX, colW = {}, {}
+local SHARE = { name = 0.4, prof = 0.15, crafters = 0.3, depth = 0.15 }
+local function LayoutCols(extra)
+  extra = math.max(0, extra or 0)
+  local x = 0
+  for _, c in ipairs(COLS) do
+    local w = c.w + math.floor(extra * (SHARE[c.key] or 0))
+    colX[c.key], colW[c.key] = x, w
+    x = x + w + GAP
+  end
+  curTW = x
+end
+LayoutCols(0)
+local function PaneW() return curTW + 12 end
 
 local rows = {}
 UI.offset = 0
@@ -123,22 +141,20 @@ end
 local function CreateRow(i)
   local row = CreateFrame("Button", nil, UI.frame)
   row:SetHeight(ROW_H)
-  row:SetWidth(TOTAL_W)
+  row:SetWidth(curTW)
   row:SetPoint("TOPLEFT", UI.frame, "TOPLEFT", 22, -70 - (i - 1) * ROW_H)
   local hl = row:CreateTexture(nil, "HIGHLIGHT")
   hl:SetAllPoints()
   hl:SetColorTexture(1, 1, 1, 0.12)
   row.cols = {}
-  local x = 0
   for _, c in ipairs(COLS) do
     local fs = row:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    fs:SetPoint("LEFT", row, "LEFT", x, 0)
-    fs:SetWidth(c.w)
+    fs:SetPoint("LEFT", row, "LEFT", colX[c.key], 0)
+    fs:SetWidth(colW[c.key])
     fs:SetHeight(ROW_H)
     fs:SetJustifyH(c.align)
     if fs.SetWordWrap then fs:SetWordWrap(false) end
     row.cols[c.key] = fs
-    x = x + c.w + GAP
   end
   if CP.AH and CP.AH.AddDivider then CP.AH.AddDivider(row, i) end
   row:SetScript("OnEnter", ShowTooltip)
@@ -447,11 +463,11 @@ function UI.Create()
 
   -- Column headers
   local headers = {}
-  local x = 0
   for _, c in ipairs(COLS) do
     local h = CreateFrame("Button", nil, f)
-    h:SetSize(c.w, 18)
-    h:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + x, -48)
+    h.colKey = c.key
+    h:SetSize(colW[c.key], 18)
+    h:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + colX[c.key], -48)
     headers[#headers + 1] = h
     local fs = h:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     fs:SetAllPoints()
@@ -472,7 +488,6 @@ function UI.Create()
       end)
       h:SetScript("OnLeave", function() GameTooltip:Hide() end)
     end
-    x = x + c.w + GAP
   end
 
   UI.headers = headers
@@ -483,7 +498,7 @@ function UI.Create()
   local slider = CreateFrame("Slider", nil, f)
   slider:SetOrientation("VERTICAL")
   slider:SetSize(16, ROWS * ROW_H)
-  slider:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + TOTAL_W + 6, -70)
+  slider:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + curTW + 6, -70)
   slider:SetMinMaxValues(0, 0)
   slider:SetValueStep(1)
   if slider.SetObeyStepOnDrag then slider:SetObeyStepOnDrag(true) end
@@ -564,18 +579,19 @@ function UI.Create()
 
   local status = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   status:SetPoint("BOTTOMLEFT", 24, 22)
-  status:SetWidth(TOTAL_W - 210)
+  status:SetWidth(curTW - 210)
+  UI.statusFS = status
   status:SetJustifyH("LEFT")
   UI.status = status
 
   -- everything that belongs to the Crafts tab, so the Ledger tab can hide it
   UI.craftWidgets = { slider, scan, refresh, cb, cb2, cb3, shopTop, shopTracked, search }
   for _, h in ipairs(headers) do UI.craftWidgets[#UI.craftWidgets + 1] = h end
-  CP.Ledger.BuildPanel(f, TOTAL_W + 12, BASE_H - 48 - 52)
+  CP.Ledger.BuildPanel(f, PaneW(), BASE_H - 48 - 52)
   UI.panes = {}
   for key, mod in pairs({ shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
     if mod and mod.Build then
-      local ok, p = pcall(mod.Build, f, TOTAL_W + 12, BASE_H - 52 - 12)
+      local ok, p = pcall(mod.Build, f, PaneW(), BASE_H - 52 - 12)
       if ok and p then p:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -52) UI.panes[key] = p else CP.RecordError("build " .. key, p) end
     end
   end
@@ -592,11 +608,47 @@ function UI.SetHeight(fh)
   f:SetHeight(fh)
   ROWS = math.max(6, math.min(MAXROWS, math.floor((fh - 70 - 80) / ROW_H)))
   if UI.slider then UI.slider:SetHeight(ROWS * ROW_H) end
-  if CP.Ledger.panel and CP.Ledger.resize then CP.Ledger.resize(fh - 48 - 52) end
+  if CP.Ledger.panel and CP.Ledger.resize then CP.Ledger.resize(fh - 48 - 52, PaneW()) end
   for key, mod in pairs({ shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
-    if mod and mod.Resize and UI.panes and UI.panes[key] then pcall(mod.Resize, TOTAL_W + 12, fh - 52 - 12) end
+    if mod and mod.Resize and UI.panes and UI.panes[key] then pcall(mod.Resize, PaneW(), fh - 52 - 12) end
   end
   if UI.tab == "crafts" then UI.Update() end
+end
+
+-- Make the window wider or narrower than the table's own width: the columns, scrollbar and panes follow
+-- (called by the auction house tab, which shows the content smaller than the window it lives in).
+function UI.SetWidth(w)
+  local f = UI.frame
+  if not f then return end
+  w = math.max(UI.baseW, math.floor(w or UI.baseW))
+  if UI.curW == w then return end
+  UI.curW = w
+  f:SetWidth(w)
+  LayoutCols(w - UI.baseW)
+  for _, r in ipairs(rows) do
+    r:SetWidth(curTW)
+    for _, c in ipairs(COLS) do
+      local fs = r.cols[c.key]
+      fs:ClearAllPoints()
+      fs:SetPoint("LEFT", r, "LEFT", colX[c.key], 0)
+      fs:SetWidth(colW[c.key])
+    end
+  end
+  for _, h in ipairs(UI.headers or {}) do
+    local k = h.colKey
+    if k then
+      h:SetWidth(colW[k])
+      h:ClearAllPoints()
+      h:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + colX[k], -48)
+    end
+  end
+  if UI.slider then UI.slider:ClearAllPoints() UI.slider:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + curTW + 6, -70) end
+  if UI.statusFS then UI.statusFS:SetWidth(math.max(200, curTW - 210)) end
+  local ph = (UI.curH or BASE_H)
+  if CP.Ledger.panel and CP.Ledger.resize then CP.Ledger.resize(ph - 48 - 52, PaneW()) end
+  for key, mod in pairs({ shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
+    if mod and mod.Resize and UI.panes and UI.panes[key] then pcall(mod.Resize, PaneW(), ph - 52 - 12) end
+  end
 end
 
 -- Switch between Crafts, Shopping, Cancelling and the Ledger.
