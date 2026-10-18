@@ -45,6 +45,10 @@ local function Safe(tip, id)
   if issecretvalue and issecretvalue(id) then return end
   local ok, err = pcall(AddInfo, tip, id)
   if not ok then CP.RecordError("tooltip", err) end
+  if CP.Learned then
+    local ok2, err2 = pcall(CP.Learned.Tip, tip, id)
+    if not ok2 then CP.RecordError("recipe tooltip", err2) end
+  end
 end
 
 if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall

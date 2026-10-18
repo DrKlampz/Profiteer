@@ -41,6 +41,7 @@ local DEFAULTS = {
     priceBasis = "safe",   -- "safe" = min(current, 14-day median), or "current"
     minSales = 0,          -- hide crafts estimated to sell fewer than this per day
     tooltips = true,
+    recipeTips = true,     -- recipe item tooltips list which characters know the recipe
     autoScan = true,       -- scan when the AH opens (if data is older than 15 min)
     replicateUnit = "total",-- "total": scanned buyout is the whole stack's price; "unit": per unit
   },
@@ -455,7 +456,7 @@ SlashCmdList["PROFITEER"] = function(msg)
   elseif cmd == "forget" then
     local target, removed = arg, 0
     if target == "" then CP:Print("usage: /pf forget <character name>") else
-      for _, tbl in ipairs({ CP.db.recipes, CP.db.unlearned or {}, CP.db.inventory, CP.db.chars }) do
+      for _, tbl in ipairs({ CP.db.recipes, CP.db.unlearned or {}, CP.db.inventory, CP.db.chars, CP.db.rnames or {} }) do
         for k in pairs(tbl) do
           if CP.ShortName(k):lower() == target then tbl[k] = nil; removed = removed + 1 end
         end

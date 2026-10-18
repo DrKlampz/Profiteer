@@ -43,6 +43,7 @@ local function Options()
                 end },
             L.Koff("Open the Profiteer panel with the auction house", st, "ahAutoOpen"),
             L.Kon("Show Profiteer lines in item tooltips", st, "tooltips"),
+            L.Kon("Recipe items: show which of your characters know the recipe", st, "recipeTips"),
             L.Koff("Draw dividing bars between rows (Shopping, Selling, Cancelling and Crafts lists)", st, "rowDividers", function() if CP.AH then CP.AH.ApplyDividers() end end),
             L.Choice("Divider color", st, "rowDivMode", { { "accent", "Follow the window border color" }, { "custom", "Pick my own color" } }, function() if CP.AH then CP.AH.ApplyDividers() end end),
             L.Color("Divider color (when picking my own)", st, "rowDivColor", { 0.88, 0.69, 0.29 }, function() if CP.AH then CP.AH.ApplyDividers() end end),

@@ -56,12 +56,14 @@ local function CaptureModern()
 
   local Basic = Enum and Enum.CraftingReagentType and Enum.CraftingReagentType.Basic
   local list, skipped = {}, 0
+  local allNames = {}   -- every recipe the window lists, by name: true = learned (see Learned.lua)
   local others = {}   -- recipes the window lists that this character has not learned (kept apart, see CP.db.unlearned)
 
   for _, rid in ipairs(ids) do
     local info = T.GetRecipeInfo(rid)
     if info then
       local learned = info.learned and true or false
+      if info.name then allNames[CP.Learned.Norm(info.name)] = learned end
       local sch = T.GetRecipeSchematic(rid, false)
       local outID = sch and sch.outputItemID
       if outID then
@@ -101,6 +103,7 @@ local function CaptureModern()
   local mineU = CP.db.unlearned[CP.charKey]
   if not mineU then mineU = {}; CP.db.unlearned[CP.charKey] = mineU end
   mineU[prof] = #others > 0 and others or nil
+  if next(allNames) then CP.Learned.Note(prof, allNames) end
   Store(prof, list, skipped, #others)
 end
 
@@ -123,9 +126,11 @@ local function CaptureLegacy()
   end
 
   local list, skipped = {}, 0
+  local allNames = {}
   for i = 1, GetNumTradeSkills() do
     local name, kind = GetTradeSkillInfo(i)
     if name and kind ~= "header" and kind ~= "subheader" then
+      allNames[CP.Learned.Norm(name)] = true
       local outID = CP.ItemID(GetTradeSkillItemLink(i))
       if outID then
         local lo, hi = 1, 1
@@ -159,6 +164,7 @@ local function CaptureLegacy()
     end
   end
 
+  if next(allNames) then CP.Learned.Note(prof, allNames) end
   Store(prof, list, skipped)
 end
 

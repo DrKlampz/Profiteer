@@ -350,7 +350,7 @@ CP.Roster = ns.NewRoster({
   tables = {
     function(d) return d.recipes end, function(d) return d.unlearned end, function(d) return d.inventory end,
     function(d) return d.chars end, function(d) return d.myAuctions end, function(d) return d.mailGold end,
-    function(d) return d.ledgerChars end,
+    function(d) return d.ledgerChars end, function(d) return d.rnames end,
   },
   nested = { function(d) return d.worth end, function(d) return d.ledgerDC end },
   info = function(k, d)

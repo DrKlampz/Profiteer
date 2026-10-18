@@ -15,6 +15,7 @@ Look.lua
 LookSetup.lua
 History.lua
 Recipes.lua
+Learned.lua
 Intermediates.lua
 Inventory.lua
 Scanner.lua
