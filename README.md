@@ -11,6 +11,8 @@ Built for **WoW Forever** (beta client 1.60.x).
 - **Works across your whole account.** One window lists each craft once, with every character who can make it.
 - **Scans automatically.** Opens the Auction House, takes one full scan in the background without hitching the game, and refreshes whenever the data is stale.
 - **Price history and sales estimates.** Every scan adds a snapshot, so you get a market median, a trend, and an estimated sales-per-day figure for the items you craft.
+- **Recipe tracker.** A recipe item's tooltip (Recipe, Pattern, Formula, Plans...) tells you which of your characters already know it, which could still learn it, and which have no such profession. Open each character's profession windows once to fill it in.
+- **Auction House tabs.** Shopping, selling and cancelling pages with price gaps, relist prices and totals.
 - **Item tooltips.** Lowest auction price, listing count, market median and trend, and vendor price on any scanned item.
 - **Lives in the Auction House.** A Profiteer button on the Auction House window opens the ranking over it. There is also a minimap button.
 
