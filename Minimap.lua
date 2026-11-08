@@ -53,6 +53,7 @@ local function ShowTooltip(self)
   GameTooltip:AddLine("Left-click: open / close window", 1, 1, 1)
   GameTooltip:AddLine("Right-click: full AH scan (AH must be open)", 1, 1, 1)
   GameTooltip:AddLine("Alt-click: window looks", 1, 1, 1)
+  GameTooltip:AddLine("Ctrl-click: sale sound on / off.  Ctrl+right-click: choose the sound", 1, 1, 1)
   GameTooltip:AddLine("Shift-click: your characters (delete old ones)", 1, 1, 1)
   GameTooltip:AddLine("Drag: slide around the ring. Shift+drag: place anywhere.", 0.7, 0.7, 0.7)
   local last = CP.db.lastScan
@@ -89,6 +90,7 @@ local function Create()
   border:SetPoint("TOPLEFT")
 
   btn:SetScript("OnClick", function(_, button)
+    if IsControlKeyDown() and CP.Kaching then if button == "RightButton" then CP.Kaching.Picker() else CP.Kaching.Toggle() end return end
     if IsAltKeyDown() and CP.WinLook then CP.WinLook.Toggle() return end
     if IsShiftKeyDown() and CP.Roster then CP.Roster.Toggle() return end
     if button == "RightButton" then

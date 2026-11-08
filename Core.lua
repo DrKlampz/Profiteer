@@ -43,6 +43,7 @@ local DEFAULTS = {
     tooltips = true,
     recipeTips = true,     -- recipe item tooltips list which characters know the recipe
     autoScan = true,       -- scan when the AH opens (if data is older than 15 min)
+    scanAll = true,         -- keep price history for every item in the auction house, not just recipe items
     replicateUnit = "total",-- "total": scanned buyout is the whole stack's price; "unit": per unit
   },
 }
@@ -193,6 +194,7 @@ end
 -- it is stored for /pf errors so it can be pasted for debugging.
 CP.errors = {}
 function CP.RecordError(label, err)
+  if CP.Issue then CP.Issue("lua", label, err) end
   table.insert(CP.errors, 1, label .. ": " .. tostring(err))
   while #CP.errors > 10 do table.remove(CP.errors) end
   if not CP.errorAnnounced then
@@ -272,7 +274,14 @@ f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1, arg2)
       end
     end
   elseif event == "PLAYER_LOGIN" then
-    CP.charKey = UnitName("player") .. "-" .. GetRealmName()
+    do
+      local first, second = UnitName("player")
+      local name = first
+      if type(second) == "string" and second ~= "" and not first:find(" ", 1, true) and second ~= GetRealmName() and second ~= (GetNormalizedRealmName and GetNormalizedRealmName()) then
+        name = first .. " " .. second
+      end
+      CP.charKey = name .. "-" .. GetRealmName()
+    end
     local _, class = UnitClass("player")
     CP.db.chars[CP.charKey] = { class = class, seen = time() }
     if CP.migrated then
@@ -483,6 +492,13 @@ SlashCmdList["PROFITEER"] = function(msg)
   elseif cmd == "basis" then
     if arg == "safe" or arg == "current" then s.priceBasis = arg; CP:Print("Price basis: " .. arg); CP:Refresh()
     else CP:Print("usage: /pf basis safe|current (now " .. s.priceBasis .. ")") end
+  elseif cmd == "sound" then
+    if CP.Kaching then CP.Kaching.Command(arg) end
+  elseif cmd == "scantest" then
+    if CP.Scanner and CP.Scanner.RawTest then CP.Scanner.RawTest() end
+  elseif cmd == "scanall" then
+    if arg == "on" or arg == "off" then s.scanAll = (arg == "on"); CP:Print("Whole-AH history " .. arg .. ". Applies from the next scan.")
+    else CP:Print("usage: /pf scanall on|off  (now " .. (s.scanAll ~= false and "on" or "off") .. ")") end
   elseif cmd == "autoscan" then
     if arg == "on" or arg == "off" then s.autoScan = (arg == "on"); CP:Print("Auto-scan " .. arg)
     else CP:Print("usage: /pf autoscan on|off") end

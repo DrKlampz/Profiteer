@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.1
+- New: sale sound options (Kaching), scan diagnostics and sender tracing, two-part character name fix, /issues log.
+
 ## 0.9.0
 - Auction House: the Auctions page header no longer runs off the window; tab contents scale with a new slider (smaller by default) so lists fit; the Cancelling tab shows more (gap to the lowest price, relist price, total).
 - Recipe tracker: a recipe item's tooltip (Recipe, Pattern, Formula, Plans...) lists which of your characters already know it, which could still learn it, and which have no such profession. Names are saved whenever a profession window opens (enchants included), and a recipe you learn from an item is marked right away. Open each character's profession windows once to fill it in. Switch off under Look > tooltips.

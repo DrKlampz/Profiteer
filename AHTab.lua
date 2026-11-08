@@ -34,7 +34,22 @@ function AHTab.RestoreGamePages()
   if AH.displayMode == AHTab.putAwayMode then
     for k in pairs(AHTab.putAway) do
       local f = AH[k]
-      if f and f.Show then pcall(f.Show, f) end
+      -- only pages that belong to the game's current mode come back (never the Browse categories over the Sell form)
+      local dm = AH.displayMode
+      local belongs = true
+      if type(dm) == "table" and #dm > 0 and type(dm[1]) == "string" then belongs = false for _, n in ipairs(dm) do if n == k then belongs = true end end end
+      if f and f.Show and belongs then pcall(f.Show, f) end
+    end
+  end
+  -- and anything of the Browse page still showing while the game is on another page goes away
+  do local dm = AH.displayMode
+    if type(dm) == "table" and #dm > 0 and type(dm[1]) == "string" then
+      local inMode = {} for _, n in ipairs(dm) do inMode[n] = true end
+      if not inMode.CategoriesList then
+        for _, k in ipairs({ "CategoriesList", "BrowseResultsFrame", "SearchBar" }) do
+          local f = AH[k] if f and f.Hide and f.IsShown and f:IsShown() then pcall(f.Hide, f) end
+        end
+      end
     end
   end
   AHTab.putAway = {}
@@ -478,6 +493,21 @@ local function Create()
     prev = t
   end
   tabs = made
+  -- right-clicking a bag item in the AH puts it into the game's sell form; if one of our tabs is up, jump to the Sell tab
+  -- instead of leaving the item sitting behind our window
+  if AuctionHouseFrame.SetPostItem and not AHTab.postHooked then
+    AHTab.postHooked = true
+    hooksecurefunc(AuctionHouseFrame, "SetPostItem", function()
+      if not current then return end
+      C_Timer.After(0, function()
+        if not current then return end
+        pcall(AHTab.Leave)
+        local sell = _G.AuctionHouseFrameSellTab
+        if sell and sell.Click then pcall(sell.Click, sell) end
+        if AHTab.RestoreGamePages then pcall(AHTab.RestoreGamePages) end
+      end)
+    end)
+  end
   CP.After(0.2, PlaceTabs)
   AuctionHouseFrame:HookScript("OnShow", function() CP.After(0.2, PlaceTabs) end)
   AuctionHouseFrame:HookScript("OnSizeChanged", function() CP.After(0.1, PlaceTabs) end)

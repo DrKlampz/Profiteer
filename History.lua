@@ -67,6 +67,20 @@ function H.Record(id, entry, sigs, now)
   db.listings[id] = { t = now, sigs = sigs or {} }
 end
 
+-- Lightweight history for items no recipe uses (a scan of the whole auction house): just price
+-- snapshots, a few per item, so the saved file stays a sensible size. No sales estimate.
+local LITE_MAX = 7
+local LITE_GAP = 6 * 3600
+function H.RecordLite(id, entry, now)
+  local db = CP.db
+  local list = db.history[id]
+  if not list then list = {}; db.history[id] = list end
+  local last = list[#list]
+  if last and now - last.t < LITE_GAP then return end
+  list[#list + 1] = { t = now, min = entry.min, ref = entry.ref, qty = entry.qty, n = entry.n }
+  while #list > LITE_MAX or (#list > 1 and now - list[1].t > KEEP) do table.remove(list, 1) end
+end
+
 local function Median(t)
   local n = #t
   if n == 0 then return nil end

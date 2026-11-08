@@ -9,6 +9,7 @@
 ## X-Wago-ID: XKqExdKy
 ## X-Curse-Project-ID: 1724073
 
+IssueLog.lua
 Core.lua
 Roster.lua
 Look.lua
@@ -19,6 +20,7 @@ Learned.lua
 Intermediates.lua
 Inventory.lua
 Scanner.lua
+Kaching.lua
 Ledger.lua
 Analyzer.lua
 AHCommon.lua
