@@ -226,6 +226,15 @@ local function BuyClick()
       state.confirm = false
       SetStatus("Buying...")
       Draw()
+      -- no answer from the server: don't sit on "Buying..." forever
+      local who = e.id
+      CP.After(8, function()
+        if state.buying and state.buying.id == who and not state.confirm then
+          SetStatus("No answer from the auction house. Click Refresh and check your bags.")
+          Cancel()
+          Draw()
+        end
+      end)
     else
       Cancel()
       local ok, err = pcall(C_AuctionHouse.StartCommoditiesPurchase, e.id, n)
@@ -715,7 +724,11 @@ ev:SetScript("OnEvent", CP.Safe("shopping-event", function(_, event, a, b)
     SetStatus(#state.results == 0 and "Nobody is selling this right now." or "Pick a listing, then Buy.")
     S.Draw()
   elseif event == "COMMODITY_PRICE_UPDATED" then
-    if state.buying then
+    if state.buying and b and GetMoney and b > GetMoney() then
+      SetStatus("Not enough gold: this costs " .. H.Money(b) .. " and you have " .. H.Money(GetMoney()) .. ". Lower the amount.")
+      Cancel()
+      S.Draw()
+    elseif state.buying then
       state.total = b
       state.confirm = true
       SetStatus("Price is " .. H.Money(a) .. " each. Click again to confirm.")
