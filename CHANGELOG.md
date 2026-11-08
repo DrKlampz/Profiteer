@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.0
+- Prices and characters are now kept separately for each realm, so a PvP realm and a PvE realm never mix. Auction House prices, price history, listings, characters, recipes, inventory, your listed auctions, the sales ledger and gold worth are all per realm. Settings, the look, item names and vendor prices stay shared. The window title shows PvE or PvP.
+- Existing data moves to the realm you used most; other realms start fresh and fill in the first time you open the auction house there.
+
 ## 0.9.1
 - New: sale sound options (Kaching), scan diagnostics and sender tracing, two-part character name fix, /issues log.
 

@@ -408,7 +408,7 @@ function UI.Create()
 
   local title = f:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
   title:SetPoint("TOPRIGHT", f, "TOPRIGHT", -52, -18)
-  title:SetText("Profiteer")
+  title:SetText("Profiteer" .. (CP.mode and ("  |cffffd060" .. CP.mode .. "|r") or ""))
   f.titleFS = title
 
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")

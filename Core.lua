@@ -229,6 +229,88 @@ function CP.After(delay, fn)
 end
 
 ------------------------------------------------------------------------
+-- Separate data sets per realm (so a PvP realm and a PvE realm never mix prices or characters)
+------------------------------------------------------------------------
+-- Everything about the auction house and your characters is kept per realm, inside ProfiteerDB.sets[realm].
+-- Settings, the look, item names and vendor prices stay shared. CP.db is a thin view onto the right set,
+-- so the rest of the add-on keeps reading CP.db.prices, CP.db.chars and so on unchanged.
+local REALM_KEYS = {
+  recipes = true, unlearned = true, prices = true, inventory = true, chars = true, history = true,
+  ledger = true, ledgerChars = true, ledgerItems = true, ledgerDC = true, worth = true,
+  myAuctions = true, mailGold = true, rnames = true, listings = true, lastScan = true, lastReplicate = true,
+}
+local CHAR_KEYED = { "recipes", "unlearned", "inventory", "chars", "myAuctions", "mailGold", "ledgerChars", "rnames" }
+local DAY_KEYED_BY_CHAR = { "worth", "ledgerDC" }   -- [day][charKey]
+
+local function RealmOf(charKey) return type(charKey) == "string" and charKey:match("^[^%-]*%-(.+)$") or nil end
+
+function CP.RealmMode(realm)
+  realm = realm or CP.realm or ""
+  if realm:find("PvP", 1, true) then return "PvP" end
+  if realm:find("PvE", 1, true) then return "PvE" end
+  return nil
+end
+
+local function BindRealm(raw)
+  local realm = (GetRealmName and GetRealmName()) or "Unknown realm"
+  raw.sets = raw.sets or {}
+  local sets = raw.sets
+  local function Set(r) sets[r] = sets[r] or {} return sets[r] end
+
+  -- one-time move of the older single data set into per-realm sets
+  if not raw.setsDone then
+    local count = {}
+    for k in pairs(type(raw.chars) == "table" and raw.chars or {}) do local r = RealmOf(k) if r then count[r] = (count[r] or 0) + 1 end end
+    if next(count) == nil then for k in pairs(type(raw.recipes) == "table" and raw.recipes or {}) do local r = RealmOf(k) if r then count[r] = (count[r] or 0) + 1 end end end
+    local home, best = realm, -1
+    for r, n in pairs(count) do if n > best then home, best = r, n end end   -- prices and totals had no realm: they go to the realm you used most
+    for _, key in ipairs(CHAR_KEYED) do
+      local old = raw[key]
+      if type(old) == "table" then
+        for ck, v in pairs(old) do local t = Set(RealmOf(ck) or home) t[key] = t[key] or {} t[key][ck] = v end
+        raw[key] = nil
+      end
+    end
+    for _, key in ipairs(DAY_KEYED_BY_CHAR) do
+      local old = raw[key]
+      if type(old) == "table" then
+        for day, row in pairs(old) do
+          if type(row) == "table" then
+            for ck, v in pairs(row) do
+              local t = Set(RealmOf(ck) or home) t[key] = t[key] or {} t[key][day] = t[key][day] or {} t[key][day][ck] = v
+            end
+          end
+        end
+        raw[key] = nil
+      end
+    end
+    for key in pairs(REALM_KEYS) do
+      if raw[key] ~= nil then
+        local t = Set(home)
+        if t[key] == nil then t[key] = raw[key] end
+        raw[key] = nil
+      end
+    end
+    raw.setsDone = true
+    CP.splitNote = home
+  end
+
+  local set = Set(realm)
+  CP.realm, CP.mode = realm, CP.RealmMode(realm)
+  CP.rawdb = raw
+  for k, v in pairs(DEFAULTS) do
+    if REALM_KEYS[k] then
+      if set[k] == nil then if type(v) == "table" then set[k] = {} else set[k] = v end end
+    end
+  end
+  return setmetatable({}, {
+    __index = function(_, k) if REALM_KEYS[k] then return set[k] end return raw[k] end,
+    __newindex = function(_, k, v) if REALM_KEYS[k] then set[k] = v else raw[k] = v end end,
+  })
+end
+
+
+------------------------------------------------------------------------
 -- Init
 ------------------------------------------------------------------------
 local f = CreateFrame("Frame")
@@ -238,8 +320,12 @@ CP.Register(f, "ITEM_DATA_LOAD_RESULT")
 f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1, arg2)
   if event == "ADDON_LOADED" and arg1 == ADDON then
     ProfiteerDB = ProfiteerDB or {}
-    CopyDefaults(ProfiteerDB, DEFAULTS)
-    CP.db = ProfiteerDB
+    do
+      local shared = {}
+      for k, v in pairs(DEFAULTS) do if not REALM_KEYS[k] then shared[k] = v end end
+      CP.db = BindRealm(ProfiteerDB)
+      CopyDefaults(ProfiteerDB, shared)
+    end
     CP.db.sessions = (CP.db.sessions or 0) + 1
     CP.db.created = CP.db.created or time()
     -- schema 2: earlier versions read scanned prices as per-unit when they are
@@ -284,6 +370,9 @@ f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1, arg2)
     end
     local _, class = UnitClass("player")
     CP.db.chars[CP.charKey] = { class = class, seen = time() }
+    if CP.splitNote then
+      CP:Print(("Prices and characters are now kept separately for each realm (%s). Your existing data went to %s; other realms start fresh."):format(CP.mode or CP.realm, CP.splitNote))
+    end
     if CP.migrated then
       CP:Print("Earlier versions misread AH prices, so old price data was cleared. Open the Auction House to rescan.")
     end
