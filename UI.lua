@@ -198,6 +198,8 @@ local function CraftersText(g)
   return names[1] .. ", " .. names[2] .. " +" .. (#names - 2)
 end
 
+function UI.VisibleRows() return ROWS end
+
 local function MaxOffset()
   return math.max(0, #(UI.results or {}) - ROWS)
 end
@@ -528,6 +530,20 @@ function UI.Create()
   refresh:SetText("Refresh")
   refresh:SetScript("OnClick", UI.Rebuild)
 
+  local live = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+  live:SetSize(100, 24)
+  live:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 14)
+  live:SetText("Live prices")
+  live:SetScript("OnClick", function() CP.Live.Start(CP.Live.VisibleIds()) end)
+  live:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Live prices", 1, 0.82, 0)
+    GameTooltip:AddLine("Needs the auction house open. Looks up each item on this page (the crafts shown and their materials) one by one for the exact price right now. Much quicker than a full scan. Click again to stop.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  live:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  CP.Live.button = live
+
   local cb = CreateFrame("CheckButton", "ProfiteerOnlyCraftable", f, "UICheckButtonTemplate")
   cb:SetPoint("LEFT", refresh, "RIGHT", 16, 0)
   local cbText = _G["ProfiteerOnlyCraftableText"] or cb.Text
@@ -585,7 +601,7 @@ function UI.Create()
   UI.status = status
 
   -- everything that belongs to the Crafts tab, so the Ledger tab can hide it
-  UI.craftWidgets = { slider, scan, refresh, cb, cb2, cb3, shopTop, shopTracked, search }
+  UI.craftWidgets = { slider, scan, refresh, live, cb, cb2, cb3, shopTop, shopTracked, search }
   for _, h in ipairs(headers) do UI.craftWidgets[#UI.craftWidgets + 1] = h end
   CP.Ledger.BuildPanel(f, PaneW(), BASE_H - 48 - 52)
   UI.panes = {}
