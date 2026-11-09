@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Fonts: the font pack now ships inside this add-on (Fonts folder), so the separate Look Fonts add-on is no longer needed, and there are about 60 more fonts to pick from under Look > Font.
+
 ## 0.11.0
 - Fix: Shopping tab no longer sticks on "Buying...". It now says "Not enough gold" when the price is more than you carry, and gives up with a message if the auction house never answers.
 - New: **Live prices** button on the Crafts tab. With the auction house open, it searches each item on the current page (the crafts shown plus their materials) one at a time, the same search the Shopping tab uses, and updates their prices to what is listed right now. Much faster than a full scan and more accurate. Click again to stop. Up to 60 items at a time.
