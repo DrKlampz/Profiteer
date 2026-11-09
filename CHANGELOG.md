@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.1
 - Fonts: the font pack now ships inside this add-on (Fonts folder), so the separate Look Fonts add-on is no longer needed, and there are about 60 more fonts to pick from under Look > Font.
 
 ## 0.11.0
