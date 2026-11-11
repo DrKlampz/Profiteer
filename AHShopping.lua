@@ -453,6 +453,153 @@ function S.Draw()
   end
 end
 
+------------------------------------------------------------------------
+-- Crafts: every product of every profession, one drop-down section per profession
+------------------------------------------------------------------------
+local cm = { open = {}, offset = 0, rows = {}, view = {} }
+local CM_ROWS, CM_H = 22, 20
+
+local function CraftsClose() if cm.frame then cm.frame:Hide() end if cm.catcher then cm.catcher:Hide() end end
+
+local function CraftsData()
+  local groups = {}
+  -- every craft there is, whatever the Crafts tab filters are set to (learned only, hide money-losing, craftable now)
+  local all = {}
+  local st = CP.db and CP.db.settings
+  if st and CP.BuildResults then
+    local keep = { learnedOnly = st.learnedOnly, hideLosses = st.hideLosses, craftableOnly = st.craftableOnly, showUnlearned = st.showUnlearned }
+    local oldUn, oldSkip = CP.unpriced, CP.skippedList
+    st.learnedOnly, st.hideLosses, st.craftableOnly, st.showUnlearned = false, false, false, true
+    local ok, results = pcall(CP.BuildResults, CP)
+    for k, v in pairs(keep) do st[k] = v end
+    if ok and results then
+      for _, g in ipairs(results) do all[#all + 1] = g end
+      for _, g in ipairs(CP.unpriced or {}) do all[#all + 1] = g end
+    end
+    CP.unpriced, CP.skippedList = oldUn, oldSkip
+  end
+  local byProf, seen = {}, {}
+  for _, g in ipairs(all) do
+    local prof = g.prof or "Other"
+    local k = prof .. "\0" .. tostring(g.name)
+    if not seen[k] then
+      seen[k] = true
+      byProf[prof] = byProf[prof] or {}
+      table.insert(byProf[prof], g)
+    end
+  end
+  for prof, list2 in pairs(byProf) do
+    table.sort(list2, function(a, b) return tostring(a.name):lower() < tostring(b.name):lower() end)
+    groups[#groups + 1] = { prof = prof, crafts = list2 }
+  end
+  table.sort(groups, function(a, b) return a.prof < b.prof end)
+  return groups
+end
+
+local function CraftsFill()
+  local q = (cm.filter:GetText() or ""):lower()
+  local view = {}
+  for _, grp in ipairs(cm.groups) do
+    local shown = {}
+    for _, g in ipairs(grp.crafts) do
+      if q == "" or tostring(g.name):lower():find(q, 1, true) then shown[#shown + 1] = g end
+    end
+    if #shown > 0 then
+      local open = cm.open[grp.prof] or q ~= ""
+      view[#view + 1] = { hdr = grp.prof, n = #shown, open = open }
+      if open then for _, g in ipairs(shown) do view[#view + 1] = { g = g } end end
+    end
+  end
+  cm.view = view
+  local maxOff = math.max(0, #view - CM_ROWS)
+  if cm.offset > maxOff then cm.offset = maxOff end
+  for i = 1, CM_ROWS do
+    local r, it = cm.rows[i], view[cm.offset + i]
+    if it then
+      if it.hdr then
+        r.fs:SetText(("|cffffd100%s %s|r  |cff888888(%d)|r"):format(it.open and "-" or "+", it.hdr, it.n))
+        r.fs:SetPoint("LEFT", 6, 0)
+      else
+        local g = it.g
+        local name = tostring(g.name)
+        if g.unpriced then name = "|cff9a9a9a" .. name .. "|r" end
+        r.fs:SetText(name)
+        r.fs:SetPoint("LEFT", 20, 0)
+      end
+      r.it = it
+      r:Show()
+    else
+      r.it = nil
+      r:Hide()
+    end
+  end
+end
+
+function S.OpenCrafts(anchor)
+  if not cm.frame then
+    local c = CreateFrame("Button", nil, UIParent)
+    c:SetAllPoints(UIParent)
+    c:SetFrameStrata("FULLSCREEN")
+    c:SetScript("OnClick", CraftsClose)
+    c:Hide()
+    cm.catcher = c
+    local f = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    f:SetFrameStrata("FULLSCREEN_DIALOG")
+    f:SetSize(330, 30 + CM_ROWS * CM_H + 24)
+    f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 })
+    f:SetBackdropColor(0.05, 0.05, 0.07, 0.97)
+    f:SetBackdropBorderColor(0.6, 0.5, 0.2, 1)
+    f:EnableMouseWheel(true)
+    f:SetScript("OnMouseWheel", function(_, d)
+      cm.offset = math.max(0, math.min(math.max(0, #cm.view - CM_ROWS), cm.offset - d * 3))
+      CraftsFill()
+    end)
+    local t = H.Text(f, "GameFontNormal") t:SetPoint("TOPLEFT", 10, -9) t:SetText("Crafts by profession")
+    cm.filter = H.Edit(f, 110)
+    cm.filter:SetPoint("TOPRIGHT", -10, -5)
+    cm.filter:SetScript("OnTextChanged", function(_, user) if user then cm.offset = 0 CraftsFill() end end)
+    local foot = H.Text(f, "GameFontDisableSmall") foot:SetPoint("BOTTOMLEFT", 10, 6)
+    foot:SetText("Click a profession to open it, a craft to shop for its materials.")
+    for i = 1, CM_ROWS do
+      local r = CreateFrame("Button", nil, f)
+      r:SetHeight(CM_H)
+      r:SetPoint("TOPLEFT", 6, -30 - (i - 1) * CM_H)
+      r:SetPoint("TOPRIGHT", -6, -30 - (i - 1) * CM_H)
+      r.hl = r:CreateTexture(nil, "HIGHLIGHT") r.hl:SetAllPoints() r.hl:SetColorTexture(1, 1, 1, 0.10)
+      r.fs = H.Text(r, "GameFontHighlightSmall") r.fs:SetPoint("RIGHT", -6, 0) r.fs:SetJustifyH("LEFT")
+      r:SetScript("OnClick", function(self)
+        local it = self.it
+        if not it then return end
+        if it.hdr then
+          cm.open[it.hdr] = not cm.open[it.hdr]
+          CraftsFill()
+        else
+          CraftsClose()
+          S.ForCraft(it.g)
+        end
+      end)
+      cm.rows[i] = r
+    end
+    f:Hide()
+    cm.frame = f
+  end
+  local pane = anchor and anchor:GetParent()
+  if pane then
+    cm.frame:SetParent(pane)
+    cm.catcher:SetParent(pane)
+    if not pane.pfCraftsHooked then pane.pfCraftsHooked = true pane:HookScript("OnHide", CraftsClose) end
+  end
+  cm.frame:SetFrameStrata("FULLSCREEN_DIALOG")
+  cm.frame:ClearAllPoints()
+  cm.frame:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -2)
+  cm.groups = CraftsData()
+  cm.filter:SetText("")
+  cm.offset = 0
+  CraftsFill()
+  cm.catcher:Show()
+  cm.frame:Show()
+end
+
 function S.Build(parent, w, h)
   pane = CreateFrame("Frame", nil, parent)
   pane:SetSize(w, h)
@@ -465,10 +612,13 @@ function S.Build(parent, w, h)
   -- header strip
   W.title = H.Text(pane, "GameFontNormalLarge")
   W.title:SetPoint("TOPLEFT", 4, -2)
-  W.title:SetWidth(w - 300)
+  W.title:SetWidth(w - 400)
   W.title:SetJustifyH("LEFT")
   W.count = H.Text(pane, "GameFontDisableSmall")
-  W.count:SetPoint("TOPRIGHT", -176, -8)
+  W.count:SetPoint("TOPRIGHT", -262, -8)
+  W.craftsBtn = H.Button(pane, "Crafts  v", 78, 20)
+  W.craftsBtn:SetPoint("TOPRIGHT", -174, -2)
+  W.craftsBtn:SetScript("OnClick", function(self) S.OpenCrafts(self) end)
   W.listsBtn = H.Button(pane, "Lists  v", 78, 20)
   W.listsBtn:SetPoint("TOPRIGHT", -88, -2)
   W.listsBtn:SetScript("OnClick", function(self)
