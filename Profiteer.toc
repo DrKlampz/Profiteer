@@ -25,6 +25,7 @@ Ledger.lua
 Analyzer.lua
 AHCommon.lua
 LivePrice.lua
+AllCrafts.lua
 AHShopping.lua
 AHLists.lua
 AHSelling.lua

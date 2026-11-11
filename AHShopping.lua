@@ -478,6 +478,22 @@ local function CraftsData()
     end
     CP.unpriced, CP.skippedList = oldUn, oldSkip
   end
+  -- the full catalog: every craft of every profession, even ones whose window was never opened
+  local haveId = {}
+  for _, g in ipairs(all) do if g.id then haveId[g.id] = true end end
+  local PROF = { FirstAid = "First Aid" }
+  for prof, recs in pairs(CP.AllCrafts or {}) do
+    for _, rec in ipairs(recs) do
+      local iid = rec[2]
+      if iid and iid > 0 and not haveId[iid] then
+        haveId[iid] = true
+        local nm = CP.ItemName and CP.ItemName(iid)
+        if nm and not tostring(nm):find("^item %d") then
+          all[#all + 1] = { name = nm, id = iid, prof = PROF[prof] or prof, catalog = true, unpriced = true }
+        end
+      end
+    end
+  end
   local byProf, seen = {}, {}
   for _, g in ipairs(all) do
     local prof = g.prof or "Other"
@@ -559,7 +575,7 @@ function S.OpenCrafts(anchor)
     cm.filter:SetPoint("TOPRIGHT", -10, -5)
     cm.filter:SetScript("OnTextChanged", function(_, user) if user then cm.offset = 0 CraftsFill() end end)
     local foot = H.Text(f, "GameFontDisableSmall") foot:SetPoint("BOTTOMLEFT", 10, 6)
-    foot:SetText("Click a profession to open it, a craft to shop for its materials.")
+    foot:SetText("Click a profession to open it, a craft to shop for it. Grey = no data yet.")
     for i = 1, CM_ROWS do
       local r = CreateFrame("Button", nil, f)
       r:SetHeight(CM_H)
@@ -575,7 +591,7 @@ function S.OpenCrafts(anchor)
           CraftsFill()
         else
           CraftsClose()
-          S.ForCraft(it.g)
+          if it.g.catalog then S.ForOutput(it.g) else S.ForCraft(it.g) end
         end
       end)
       cm.rows[i] = r

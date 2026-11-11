@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Shopping > Crafts now lists every craft of every profession from a built-in catalog, not just recipes you have opened.
 - Shopping tab: a new Crafts drop-down lists every craft of every profession, each profession in its own section (click to open), with a search box. Click a craft to put its materials on the shopping list. It shows all crafts whatever the Crafts tab filters are set to; ones with no AH price are grey.
 - Crafts tab: the bottom row is tidier. The status line no longer sits tight against the window edge, and the search box no longer overlaps the Live prices button.
 
