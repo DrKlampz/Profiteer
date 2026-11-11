@@ -437,7 +437,7 @@ function UI.Create()
   -- Search box (Crafts tab): part of a craft, material, profession or character name
   local search = CreateFrame("EditBox", "ProfiteerSearch", f, "InputBoxTemplate")
   search:SetSize(200, 20)
-  search:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -30, 20)
+  search:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -150, 16)   -- left of the Live prices button
   search:SetAutoFocus(false)
   search:SetMaxLetters(40)
   local hint = search:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
@@ -532,7 +532,7 @@ function UI.Create()
 
   local live = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   live:SetSize(100, 24)
-  live:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 14)
+  live:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 12)
   live:SetText("Live prices")
   live:SetScript("OnClick", function() CP.Live.Start(CP.Live.VisibleIds()) end)
   live:SetScript("OnEnter", function(self)
@@ -594,8 +594,8 @@ function UI.Create()
   shopTracked:SetScript("OnClick", function() CP.Shop.Command("tracked") end)
 
   local status = f:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-  status:SetPoint("BOTTOMLEFT", 24, 22)
-  status:SetWidth(curTW - 210)
+  status:SetPoint("BOTTOMLEFT", 26, 17)
+  status:SetWidth(math.max(200, curTW - 380))
   UI.statusFS = status
   status:SetJustifyH("LEFT")
   UI.status = status
@@ -659,7 +659,7 @@ function UI.SetWidth(w)
     end
   end
   if UI.slider then UI.slider:ClearAllPoints() UI.slider:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + curTW + 6, -70) end
-  if UI.statusFS then UI.statusFS:SetWidth(math.max(200, curTW - 210)) end
+  if UI.statusFS then UI.statusFS:SetWidth(math.max(200, curTW - 380)) end
   local ph = (UI.curH or BASE_H)
   if CP.Ledger.panel and CP.Ledger.resize then CP.Ledger.resize(ph - 48 - 52, PaneW()) end
   for key, mod in pairs({ shopping = CP.AHShopping, cancelling = CP.AHCancel }) do

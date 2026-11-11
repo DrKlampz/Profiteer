@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Crafts tab: the bottom row is tidier. The status line no longer sits tight against the window edge, and the search box no longer overlaps the Live prices button.
+
 ## 0.11.1
 - Fonts: the font pack now ships inside this add-on (Fonts folder), so the separate Look Fonts add-on is no longer needed, and there are about 60 more fonts to pick from under Look > Font.
 
