@@ -488,9 +488,12 @@ local function CraftsData()
       if iid and iid > 0 and not haveId[iid] then
         haveId[iid] = true
         local nm = CP.ItemName and CP.ItemName(iid)
-        if nm and not tostring(nm):find("^item %d") then
-          all[#all + 1] = { name = nm, id = iid, prof = PROF[prof] or prof, catalog = true, unpriced = true }
+        if not nm or tostring(nm):find("^item %d") then
+          local sn = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(rec[1])
+          if not sn and GetSpellInfo then sn = GetSpellInfo(rec[1]) end
+          nm = sn or ("item " .. iid)
         end
+        all[#all + 1] = { name = nm, id = iid, prof = PROF[prof] or prof, catalog = true, unpriced = true }
       end
     end
   end
