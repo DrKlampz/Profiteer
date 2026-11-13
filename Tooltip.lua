@@ -6,7 +6,8 @@ local function AddInfo(tip, id)
   if not CP.db or not CP.db.settings.tooltips or not id then return end
   local p = CP.db.prices[id]
   local vendor = CP.db.vendor[id]
-  if not p and not vendor then return end
+  local seen = CP.db.lastSeen and CP.db.lastSeen[id]
+  if not p and not vendor and not seen then return end
 
   tip:AddLine("Profiteer", 0.2, 1, 0.6)
 
@@ -32,6 +33,11 @@ local function AddInfo(tip, id)
       tip:AddDoubleLine("Est. sales/day", string.format("%.1f", st.perDay), 1, 1, 1, 1, 1, 1)
     end
     tip:AddDoubleLine("Scanned", CP.Age(p.time), 0.7, 0.7, 0.7, 0.7, 0.7, 0.7)
+  end
+
+  -- not listed at the last scan: show the last price it was seen at
+  if seen and not (p and p.min) then
+    tip:AddDoubleLine("Last seen on AH", CP.Money(seen[1]) .. "  |cff888888" .. CP.Age(seen[3]) .. "|r", 1, 1, 1, 1, 1, 1)
   end
 
   if vendor then

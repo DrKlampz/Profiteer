@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.1
+- Items that are not listed at the last scan (armor, weapons and other one-offs) now show their last seen price in the tooltip, kept for 60 days. It is stored apart from the scan prices, so profit figures are unaffected.
+
 ## 0.12.0
 - Auction scan: when the server does not answer a full scan, the message now says about how many minutes until the next one is allowed.
 - A craft you learn now moves into your learned crafts right away (also when learned from a trainer or recipe), without reopening the profession window.

@@ -129,6 +129,18 @@ local function Finish()
   end
   CP.db.prices = prices
 
+  -- remember the last price of everything seen, so an item that is not listed right now (armor, weapons, one-offs)
+  -- still shows what it last sold for. Kept apart from CP.db.prices so cost and profit maths never use stale prices.
+  local seen = CP.db.lastSeen
+  if type(seen) ~= "table" then seen = {}; CP.db.lastSeen = seen end
+  for id, a in pairs(st.acc) do
+    local e = prices[id]
+    if e and e.min then seen[id] = { e.min, e.ref or e.min, now } end
+  end
+  for id, v in pairs(seen) do
+    if type(v) ~= "table" or not v[3] or now - v[3] > 60 * 86400 then seen[id] = nil end
+  end
+
   local tracked, recorded = 0, 0
   for id in pairs(st.set) do
     tracked = tracked + 1
