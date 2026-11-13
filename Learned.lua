@@ -55,11 +55,78 @@ local function MarkLearned(recipeID)
   end
 end
 
+-- A craft you just learned moves from "could learn" to your learned crafts, so the Crafts tab and the
+-- shopping lists pick it up without reopening the profession window. Matches by recipe id, else by name.
+local function Known(rid)
+  if not rid then return false end
+  if C_TradeSkillUI and C_TradeSkillUI.GetRecipeInfo then
+    local ok, info = pcall(C_TradeSkillUI.GetRecipeInfo, rid)
+    if ok and type(info) == "table" and info.learned then return true end
+  end
+  if IsPlayerSpell and IsPlayerSpell(rid) then return true end
+  if IsSpellKnown and IsSpellKnown(rid) then return true end
+  return false
+end
+
+local function Promote(recipeID, key)
+  local d, ck = CP.db, CP.charKey
+  if not (d and ck and d.unlearned and d.unlearned[ck]) then return false end
+  local moved = false
+  for prof, list in pairs(d.unlearned[ck]) do
+    local keep = {}
+    for _, e in ipairs(list) do
+      local hit = (recipeID and e.rid == recipeID) or (key and Norm(e.rname) == key)
+      if not hit and not recipeID and e.rid and Known(e.rid) then hit = true end
+      if hit then
+        d.recipes[ck] = d.recipes[ck] or {}
+        local mine = d.recipes[ck][prof]
+        if not mine then mine = {}; d.recipes[ck][prof] = mine end
+        mine[#mine + 1] = e
+        if d.rnames and d.rnames[ck] and d.rnames[ck][prof] and e.rname then d.rnames[ck][prof][Norm(e.rname)] = true end
+        moved = true
+      else
+        keep[#keep + 1] = e
+      end
+    end
+    d.unlearned[ck][prof] = #keep > 0 and keep or nil
+  end
+  if moved then CP:Refresh() end
+  return moved
+end
+L.Promote = Promote
+
+local sweepPending = false
+local function Sweep()
+  if sweepPending then return end
+  sweepPending = true
+  CP.After(1.5, function()
+    sweepPending = false
+    local ok, err = pcall(Promote, nil, nil)
+    if not ok then CP.RecordError("learned sweep", err) end
+  end)
+end
+
 local ev = CreateFrame("Frame")
 CP.Register(ev, "NEW_RECIPE_LEARNED")
+CP.Register(ev, "LEARNED_SPELL_IN_TAB")
+CP.Register(ev, "SKILL_LINES_CHANGED")
+CP.Register(ev, "TRADE_SKILL_CLOSE")
 ev:SetScript("OnEvent", function(_, event, rid)
   if event == "NEW_RECIPE_LEARNED" and rid then
-    CP.After(0.5, function() local ok, err = pcall(MarkLearned, rid) if not ok then CP.RecordError("recipe learned", err) end end)
+    CP.After(0.5, function()
+      local ok, err = pcall(function()
+        MarkLearned(rid)
+        local nm
+        if C_TradeSkillUI and C_TradeSkillUI.GetRecipeInfo then
+          local ok2, info = pcall(C_TradeSkillUI.GetRecipeInfo, rid)
+          nm = ok2 and type(info) == "table" and info.name and Norm(info.name) or nil
+        end
+        Promote(rid, nm)
+      end)
+      if not ok then CP.RecordError("recipe learned", err) end
+    end)
+  else
+    Sweep()
   end
 end)
 

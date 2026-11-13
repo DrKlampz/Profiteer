@@ -87,7 +87,7 @@ local function CaptureModern()
           local itemName = CP.RealItemName(outID)
           if itemName then CP.db.names[outID] = itemName end
           local name = itemName or info.name or ("item " .. outID)
-          local entry = { id = outID, name = name, rname = info.name, yield = (lo + hi) / 2, reagents = reagents }
+          local entry = { rid = rid, id = outID, name = name, rname = info.name, yield = (lo + hi) / 2, reagents = reagents }
           if learned then list[#list + 1] = entry else others[#others + 1] = entry end
         else
           skipped = skipped + 1
