@@ -352,7 +352,10 @@ local function Tick(elapsed)
         end
       end
     end
-    if st.t > WAIT_LIMIT then S:Abort("no reply from the server (full scans are throttled; try again in a few minutes).") end
+    if st.t > WAIT_LIMIT then
+      local left = math.ceil(S.WaitLeft() / 60)
+      S:Abort("no reply from the server (full scans are throttled; " .. (left > 0 and ("try again in about " .. left .. " min") or "try again in a few minutes") .. ").")
+    end
     return
   end
 

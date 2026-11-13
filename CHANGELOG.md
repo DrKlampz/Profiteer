@@ -1,6 +1,7 @@
 # Changelog
 
-## Unreleased
+## 0.12.0
+- Auction scan: when the server does not answer a full scan, the message now says about how many minutes until the next one is allowed.
 - A craft you learn now moves into your learned crafts right away (also when learned from a trainer or recipe), without reopening the profession window.
 - Shopping > Crafts now lists every craft of every profession from a built-in catalog, not just recipes you have opened.
 - Shopping tab: a new Crafts drop-down lists every craft of every profession, each profession in its own section (click to open), with a search box. Click a craft to put its materials on the shopping list. It shows all crafts whatever the Crafts tab filters are set to; ones with no AH price are grey.
