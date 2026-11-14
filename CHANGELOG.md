@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.2
+- Fix: a character with a first and last name (like Dr Flamel) was also listed under just the first word ("Dr"), so the Crafters column showed things like "Dr, Dr Hatchet". The two entries are now merged into the real name.
+
 ## 0.12.1
 - Items that are not listed at the last scan (armor, weapons and other one-offs) now show their last seen price in the tooltip, kept for 60 days. It is stored apart from the scan prices, so profit figures are unaffected.
 

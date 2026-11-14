@@ -251,6 +251,58 @@ function CP.RealmMode(realm)
   return nil
 end
 
+-- Older versions saved a character with a first and last name (like "Dr Flamel") under just the first
+-- word ("Dr"). The full name was remembered in rosterNames, so fold the short entry into the real one.
+local function MergeInto(dst, src)
+  if type(dst) ~= "table" or type(src) ~= "table" then return dst end
+  for k, v in pairs(src) do if dst[k] == nil then dst[k] = v end end
+  return dst
+end
+
+local function FixSplitNames(raw)
+  local names = raw.setsDone and type(raw.rosterNames) == "table" and raw.rosterNames or nil
+  if not names then return end
+  local fixes = {}
+  for old, full in pairs(names) do
+    if type(old) == "string" and type(full) == "string" then
+      local first, realm = old:match("^(.-)%-(.+)$")
+      if first and first ~= full and full:sub(1, #first + 1) == first .. " " then fixes[old] = full .. "-" .. realm end
+    end
+  end
+  if next(fixes) == nil then return end
+  for _, set in pairs(raw.sets or {}) do
+    if type(set) == "table" then
+      for _, key in ipairs(CHAR_KEYED) do
+        local t = set[key]
+        if type(t) == "table" then
+          for old, new in pairs(fixes) do
+            if t[old] ~= nil then
+              if t[new] == nil then t[new] = t[old] else t[new] = MergeInto(t[new], t[old]) end
+              t[old] = nil
+            end
+          end
+        end
+      end
+      for _, key in ipairs(DAY_KEYED_BY_CHAR) do
+        local t = set[key]
+        if type(t) == "table" then
+          for _, row in pairs(t) do
+            if type(row) == "table" then
+              for old, new in pairs(fixes) do
+                if row[old] ~= nil then
+                  if row[new] == nil then row[new] = row[old] end
+                  row[old] = nil
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  for old in pairs(fixes) do names[old] = nil end
+end
+
 local function BindRealm(raw)
   local realm = (GetRealmName and GetRealmName()) or "Unknown realm"
   raw.sets = raw.sets or {}
@@ -323,6 +375,7 @@ f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1, arg2)
     do
       local shared = {}
       for k, v in pairs(DEFAULTS) do if not REALM_KEYS[k] then shared[k] = v end end
+      pcall(FixSplitNames, ProfiteerDB)
       CP.db = BindRealm(ProfiteerDB)
       CopyDefaults(ProfiteerDB, shared)
     end
