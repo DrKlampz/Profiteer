@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.3
+- Fix: a chat line whose text the game hides (it happens in some places, like dungeons) no longer causes a selling-window error.
+
 ## 0.12.2
 - Fix: a character with a first and last name (like Dr Flamel) was also listed under just the first word ("Dr"), so the Crafters column showed things like "Dr, Dr Hatchet". The two entries are now merged into the real name.
 

@@ -1459,7 +1459,7 @@ ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, ...)
     return
   end
   if event == "ADDON_ACTION_FORBIDDEN" or event == "ADDON_ACTION_BLOCKED" then
-    if a1 == ADDON then
+    if not (issecretvalue and issecretvalue(a1)) and a1 == ADDON then
       forbidden = tostring(a2 or "?")
       print("|cffff6060Profiteer: the game blocked " .. tostring(a2 or "an action") .. " (" .. event .. ")|r")
       SetStatus("The game blocked " .. tostring(a2 or "an action") .. ".")
@@ -1467,6 +1467,7 @@ ev:SetScript("OnEvent", CP.Safe("selling-event", function(_, event, ...)
     return
   end
   local legacyPostSuccess = event == "CHAT_MSG_SYSTEM"
+    and not (issecretvalue and issecretvalue(a1))
     and type(ERR_AUCTION_STARTED) == "string" and a1 == ERR_AUCTION_STARTED
   if gameMode and gamePosting and (event == "NEW_AUCTION_UPDATE" or legacyPostSuccess
       or event == "AUCTION_HOUSE_AUCTION_CREATED") then
