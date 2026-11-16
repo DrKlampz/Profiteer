@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.4
+- Fix: a character who dropped a profession is no longer listed as a crafter for it. Profiteer now compares each character's saved recipes with the professions they have, and removes the ones they no longer have (it tells you in chat when it does).
+
 ## 0.12.3
 - Fix: a chat line whose text the game hides (it happens in some places, like dungeons) no longer causes a selling-window error.
 

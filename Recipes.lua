@@ -200,3 +200,66 @@ f:SetScript("OnEvent", function(_, event)
     CP.After(0.6, Capture)
   end
 end)
+
+------------------------------------------------------------------------
+-- Professions you no longer have: a profession you dropped keeps its saved recipes forever, so the
+-- character would still be listed as a crafter for them. Compare with the professions the character has now.
+------------------------------------------------------------------------
+local function CurrentProfessions()
+  local have, any = {}, false
+  if GetProfessions and GetProfessionInfo then
+    local ok, a, b, c, d, e = pcall(GetProfessions)
+    if ok then
+      for _, idx in ipairs({ a, b, c, d, e }) do
+        if idx then
+          local ok2, name = pcall(GetProfessionInfo, idx)
+          if ok2 and type(name) == "string" and name ~= "" then have[name] = true any = true end
+        end
+      end
+    end
+  end
+  if GetNumSkillLines and GetSkillLineInfo then
+    local ok, n = pcall(GetNumSkillLines)
+    if ok and type(n) == "number" then
+      for i = 1, n do
+        local ok2, name, header = pcall(GetSkillLineInfo, i)
+        if ok2 and type(name) == "string" and not header then have[name] = true any = true end
+      end
+    end
+  end
+  return any and have or nil
+end
+
+local function DropOldProfessions()
+  local d, ck = CP.db, CP.charKey
+  if not (d and ck) then return end
+  local have = CurrentProfessions()
+  if not have then return end
+  local dropped = {}
+  for _, tbl in ipairs({ d.recipes, d.unlearned, d.rnames }) do
+    local mine = tbl and tbl[ck]
+    if mine then
+      for prof in pairs(mine) do
+        if not have[prof] then mine[prof] = nil dropped[prof] = true end
+      end
+    end
+  end
+  if next(dropped) then
+    local names = {}
+    for p in pairs(dropped) do names[#names + 1] = p end
+    table.sort(names)
+    CP:Print(("%s no longer has %s, so those recipes were removed."):format(CP.ShortName(ck), table.concat(names, ", ")))
+    CP:Refresh()
+  end
+end
+CP.DropOldProfessions = DropOldProfessions
+
+local g = CreateFrame("Frame")
+CP.Register(g, "PLAYER_LOGIN")
+CP.Register(g, "SKILL_LINES_CHANGED")
+local dropPending = false
+g:SetScript("OnEvent", function()
+  if dropPending then return end
+  dropPending = true
+  CP.After(6, function() dropPending = false pcall(DropOldProfessions) end)
+end)
