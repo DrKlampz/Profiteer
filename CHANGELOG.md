@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.5
+- Shopping lists: the ready-made lists are grouped by what goes together. "Herbs and alchemy" now has the herbs plus vials and the elemental reagents, "Ores, stone and bars" has ores, stone and the bars, and "Cloth, leather and hides" has all the cloth, bolts and leather. Gems, Enchanting materials and Fish stay as they were.
+
 ## 0.12.4
 - Fix: a character who dropped a profession is no longer listed as a crafter for it. Profiteer now compares each character's saved recipes with the professions they have, and removes the ones they no longer have (it tells you in chat when it does).
 
