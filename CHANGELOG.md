@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.6
+- Shopping lists: the Fish list is now "Fish and cooking" and also has the common cooking ingredients (meats and spices), so you can price check them from the same list.
+
 ## 0.12.5
 - Shopping lists: the ready-made lists are grouped by what goes together. "Herbs and alchemy" now has the herbs plus vials and the elemental reagents, "Ores, stone and bars" has ores, stone and the bars, and "Cloth, leather and hides" has all the cloth, bolts and leather. Gems, Enchanting materials and Fish stay as they were.
 
