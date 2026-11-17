@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.7
+- After a full scan is refused because the game limits them, the status line now counts down to the next scan you are allowed to run.
+
 ## 0.12.6
 - Shopping lists: the Fish list is now "Fish and cooking" and also has the common cooking ingredients (meats and spices), so you can price check them from the same list.
 

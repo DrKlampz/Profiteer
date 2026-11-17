@@ -82,6 +82,29 @@ function S:Abort(reason)
   if CP.Issue then CP.Issue("warn", "scan stopped", tostring(reason) .. " (state " .. tostring(st.state) .. ")") end
   CP:Print("Scan stopped: " .. reason)
   Status("Scan stopped: " .. reason)
+  S.StartCountdown()
+end
+
+-- after a throttled scan, keep the status line counting down to the next allowed full scan
+local cd = CreateFrame("Frame")
+cd:Hide()
+local cdAcc = 0
+cd:SetScript("OnUpdate", function(self, dt)
+  cdAcc = cdAcc + dt
+  if cdAcc < 10 then return end
+  cdAcc = 0
+  if st.running then self:Hide() return end
+  local left = S.WaitLeft and S.WaitLeft() or 0
+  if left <= 0 then
+    Status("A full scan is allowed again. Press Scan.")
+    self:Hide()
+    return
+  end
+  local m = math.ceil(left / 60)
+  Status(("Next full scan allowed in about %d min (%s)"):format(m, m >= 60 and ("%dh %02dm"):format(math.floor(m / 60), m % 60) or (m .. " min")))
+end)
+function S.StartCountdown()
+  if S.WaitLeft and S.WaitLeft() > 0 then cdAcc = 10 cd:Show() end
 end
 
 -- Items whose listings we track in detail: anything used by a captured recipe
