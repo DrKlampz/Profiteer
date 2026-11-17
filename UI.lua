@@ -132,7 +132,47 @@ local function ShowTooltip(self)
   GameTooltip:AddLine("Click: search the AH for the materials", 0.6, 0.8, 0.6)
   GameTooltip:AddLine("Shift-click: search for the finished item", 0.6, 0.8, 0.6)
   GameTooltip:AddLine("Right-click: " .. (g.tracked and "stop tracking" or "track (pin to top)"), 0.6, 0.8, 0.6)
+  if g.prof and g.chars and #g.chars > 0 then
+    GameTooltip:AddLine("Ctrl+right-click: remove " .. tostring(g.prof) .. " from a crafter (if they don't have it)", 0.6, 0.8, 0.6)
+  end
   GameTooltip:Show()
+end
+
+------------------------------------------------------------------------
+-- Remove a profession from a crafter (for characters that dropped it), one crafter at a time
+------------------------------------------------------------------------
+local function AskNext(prof, keys, n)
+  local key = keys[n]
+  if not key then return end
+  StaticPopup_Show("PROFITEER_REMOVE_CRAFTER",
+    ("Remove %s from %s?\nOnly do this if that character no longer has the profession."):format(prof, CP.ShortName(key)),
+    nil, { key = key, prof = prof, keys = keys, n = n })
+end
+StaticPopupDialogs["PROFITEER_REMOVE_CRAFTER"] = {
+  text = "%s",
+  button1 = YES or "Yes",
+  button2 = NO or "No",
+  OnAccept = function(_, data)
+    if not data then return end
+    local d = CP.db
+    for _, tbl in ipairs({ d.recipes, d.unlearned, d.rnames }) do
+      local mine = tbl and tbl[data.key]
+      if mine then mine[data.prof] = nil end
+    end
+    CP:Print(("Removed %s from %s."):format(data.prof, CP.ShortName(data.key)))
+    CP:Refresh()
+  end,
+  OnCancel = function(_, data, reason)
+    -- "No" moves on to the next crafter on the row; Escape / closing stops
+    if data and reason == "clicked" then AskNext(data.prof, data.keys, data.n + 1) end
+  end,
+  timeout = 0, whileDead = true, hideOnEscape = true,
+}
+function UI.AskRemoveCrafter(g)
+  if not (g and g.prof and g.chars and #g.chars > 0) then return end
+  local keys = {}
+  for _, k in ipairs(g.chars) do keys[#keys + 1] = k end
+  AskNext(g.prof, keys, 1)
 end
 
 ------------------------------------------------------------------------
@@ -163,7 +203,9 @@ local function CreateRow(i)
   row:SetScript("OnClick", function(self, button)
     local g = self.data
     if not g then return end
-    if button == "RightButton" then
+    if button == "RightButton" and IsControlKeyDown() then
+      UI.AskRemoveCrafter(g)
+    elseif button == "RightButton" then
       CP.Shop.Track(g)
     elseif IsShiftKeyDown() then
       CP.Shop.ForOutput(g)

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.8
+- Crafts: Ctrl+right-click a row to remove its profession from a crafter who no longer has it (it asks for each crafter on the row). The automatic clean-up of dropped professions still only runs for the character you are logged in on.
+
 ## 0.12.7
 - After a full scan is refused because the game limits them, the status line now counts down to the next scan you are allowed to run.
 
