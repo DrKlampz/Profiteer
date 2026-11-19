@@ -6,6 +6,14 @@ local CP = ns
 
 local function IsSecret(v) return _G.issecretvalue and _G.issecretvalue(v) end
 
+-- other add-ons' saved data is only read when that add-on is installed and loaded
+local function Loaded(name)
+    local f = (_G.C_AddOns and _G.C_AddOns.IsAddOnLoaded) or _G.IsAddOnLoaded
+    if not f then return false end
+    local ok, v = pcall(f, name)
+    return ok and v and true or false
+end
+
 -- cfg = {
 --   addon   = "MyAddon",
 --   db      = function() return the saved-variables table end,
@@ -46,7 +54,7 @@ function ns.NewRoster(cfg)
 
     local function Squash(s) return (tostring(s or ""):gsub("[%s%-']", ""):lower()) end
 
-    -- remember this character's full name and class
+    -- remember this character's full name and class, and fill in other characters from saved data that is there
     function R.Remember()
         local dbt = cfg.db()
         if not dbt then return end
@@ -57,6 +65,41 @@ function ns.NewRoster(cfg)
         dbt.rosterClass = dbt.rosterClass or {}
         local _, myClass = UnitClass("player")
         if cur and type(myClass) == "string" and not IsSecret(myClass) then dbt.rosterClass[cur] = myClass end
+        -- other characters' classes from any saved data that already recorded them
+        local PF = Loaded("Profiteer") and _G.ProfiteerDB or nil
+        for _, key in ipairs(R.Keys()) do
+            if not dbt.rosterClass[key] then
+                local c = PF and type(PF.chars) == "table" and PF.chars[key]
+                if type(c) == "table" and type(c.class) == "string" then dbt.rosterClass[key] = c.class end
+            end
+        end
+        local P = Loaded("Postage") and _G.PostageDB or nil
+        if P and type(P.alts) == "table" then
+            for _, key in ipairs(R.Keys()) do
+                if not dbt.rosterClass[key] then
+                    local first, realm = key:match("^(.-)%-([^%-]*)$")
+                    for _, c in pairs(P.alts) do
+                        if first and type(c) == "table" and type(c.class) == "string" and type(c.name) == "string"
+                           and (c.name == first or c.name:sub(1, #first + 1) == first .. " ")
+                           and Squash(c.realm) == Squash(realm) then dbt.rosterClass[key] = c.class break end
+                    end
+                end
+            end
+            for _, key in ipairs(R.Keys()) do
+                if not dbt.rosterNames[key] then
+                    local first, realm = key:match("^(.-)%-([^%-]*)$")
+                    if first then
+                        for _, c in pairs(P.alts) do
+                            if type(c) == "table" and type(c.name) == "string" and c.name:find(" ", 1, true)
+                               and c.name:sub(1, #first + 1) == first .. " " and Squash(c.realm) == Squash(realm) then
+                                dbt.rosterNames[key] = c.name
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
     end
 
     -- every character key this add-on knows

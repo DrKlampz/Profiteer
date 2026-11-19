@@ -1,7 +1,7 @@
 # Changelog
 
 ## 0.12.11
-- Works completely on its own: it no longer reads any other add-on's data. The ledger's mail row is now called 'Mail / COD'.
+- Works completely on its own; other add-ons' saved data is only read when that add-on is loaded. The ledger's mail row is now called 'Mail / COD'.
 - Removed the add-on-to-add-on theming hooks and cross-add-on names from the window look code; the shared look sync between your add-ons works the same.
 - The "Pulse the flair" option now also pulses the edge finish (soft, bevel, double line and glow), not just the corner studs.
 
