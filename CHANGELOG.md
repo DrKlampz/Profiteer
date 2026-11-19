@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- Your custom look is now shared with your other add-ons: change colors, background, border or opacity in one and the rest follow (the newest change wins). It is on by default; untick "Sync my look with my other add-ons" in the Look window to turn it off.
+
 ## 0.12.8
 - Crafts: Ctrl+right-click a row to remove its profession from a crafter who no longer has it (it asks for each crafter on the row). The automatic clean-up of dropped professions still only runs for the character you are logged in on.
 
