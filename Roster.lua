@@ -7,7 +7,7 @@ local CP = ns
 local function IsSecret(v) return _G.issecretvalue and _G.issecretvalue(v) end
 
 -- cfg = {
---   addon   = "Baggie",
+--   addon   = "MyAddon",
 --   db      = function() return the saved-variables table end,
 --   current = function() return this character's key end,
 --   short   = function(key) return the character's name end,
@@ -46,7 +46,7 @@ function ns.NewRoster(cfg)
 
     local function Squash(s) return (tostring(s or ""):gsub("[%s%-']", ""):lower()) end
 
-    -- fill in other characters' full names from the Postage list, when that add-on is loaded
+    -- remember this character's full name and class
     function R.Remember()
         local dbt = cfg.db()
         if not dbt then return end
@@ -57,41 +57,6 @@ function ns.NewRoster(cfg)
         dbt.rosterClass = dbt.rosterClass or {}
         local _, myClass = UnitClass("player")
         if cur and type(myClass) == "string" and not IsSecret(myClass) then dbt.rosterClass[cur] = myClass end
-        -- other characters' classes from the add-ons that already recorded them
-        local PF = _G.ProfiteerDB
-        for _, key in ipairs(R.Keys()) do
-            if not dbt.rosterClass[key] then
-                local c = PF and type(PF.chars) == "table" and PF.chars[key]
-                if type(c) == "table" and type(c.class) == "string" then dbt.rosterClass[key] = c.class end
-            end
-        end
-        local P = _G.PostageDB
-        if P and type(P.alts) == "table" then
-            for _, key in ipairs(R.Keys()) do
-                if not dbt.rosterClass[key] then
-                    local first, realm = key:match("^(.-)%-([^%-]*)$")
-                    for _, c in pairs(P.alts) do
-                        if first and type(c) == "table" and type(c.class) == "string" and type(c.name) == "string"
-                           and (c.name == first or c.name:sub(1, #first + 1) == first .. " ")
-                           and Squash(c.realm) == Squash(realm) then dbt.rosterClass[key] = c.class break end
-                    end
-                end
-            end
-            for _, key in ipairs(R.Keys()) do
-                if not dbt.rosterNames[key] then
-                    local first, realm = key:match("^(.-)%-([^%-]*)$")
-                    if first then
-                        for _, c in pairs(P.alts) do
-                            if type(c) == "table" and type(c.name) == "string" and c.name:find(" ", 1, true)
-                               and c.name:sub(1, #first + 1) == first .. " " and Squash(c.realm) == Squash(realm) then
-                                dbt.rosterNames[key] = c.name
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-        end
     end
 
     -- every character key this add-on knows

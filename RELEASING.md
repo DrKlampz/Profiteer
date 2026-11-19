@@ -5,7 +5,7 @@
    (no README, license or .gitignore: they are already in this folder).
 2. In this folder run `.\release.ps1`. It commits, pushes, and tags the version in `Profiteer.toc`.
 3. On Wago: Addons > Create Addon > GitHub Addon Creation > pick `Profiteer`.
-   (This creates a new Wago page wired to GitHub releases, like Guildie and Postage.)
+   (This creates a new Wago page wired to GitHub releases.)
 
 ## Every release after that
 1. Bump `## Version:` in `Profiteer.toc` and add a section to `CHANGELOG.md`.

@@ -11,7 +11,7 @@ L.INCOME = {
 }
 L.COSTS = {
   { "deposits", "AH deposits" }, { "cut", "AH cut (sale fees)" }, { "ahBuys", "AH purchases" },
-  { "vendorBuys", "Vendor purchases" }, { "repairs", "Repairs" }, { "mailOut", "Postage / COD" },
+  { "vendorBuys", "Vendor purchases" }, { "repairs", "Repairs" }, { "mailOut", "Mail / COD" },
   { "training", "Training" }, { "flights", "Flights" }, { "bank", "Bank slots" }, { "tradeOut", "Trades given" },
   { "otherOut", "Other spending" },
 }
