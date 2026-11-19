@@ -1,10 +1,11 @@
 # Changelog
 
 ## Unreleased
+- Removed the add-on-to-add-on theming hooks and cross-add-on names from the window look code; the shared look sync between your add-ons works the same.
 - The "Pulse the flair" option now also pulses the edge finish (soft, bevel, double line and glow), not just the corner studs.
 
 ## 0.12.10
-- Look sync: the first time your add-ons meet, they now all take on the same look right away (Baggie's, if it is installed) instead of waiting for you to change something. Baggie no longer shares its title bar color, which means something different there.
+- Look sync: the first time your add-ons meet, they now all take on the same look right away instead of waiting for you to change something.
 
 ## 0.12.9
 - Your custom look is now shared with your other add-ons: change colors, background, border or opacity in one and the rest follow (the newest change wins). It is on by default; untick "Sync my look with my other add-ons" in the Look window to turn it off.
@@ -79,7 +80,6 @@
 - Auction House: every Profiteer tab now fills the window, with the same height as the game's own tabs.
 - Shopping: each item shows its lowest known price; lists scale to the window.
 - Crafts: search box moved to the bottom right.
-- Look: GreedUI no longer overrides an add-on's saved enabled state.
 
 ## 0.8.5
 - Auction House: keep Blizzard's native Buy, Sell and Auctions tabs, remove Profiteer's redundant Auction House and Selling tabs, and fit the remaining Profiteer tabs beside the native tabs.
@@ -116,7 +116,7 @@
 - Items a vendor sells are now costed at the vendor price (even when an Auction House listing is cheaper, since vendor stock is unlimited) and are left out of the AH search when you click a craft. Vendor prices are learned whenever you open a vendor that sells the item in unlimited stock; the tooltip shows "Vendor buy price".
 
 ## 0.7.8
-- Windows no longer bleed through each other: clicking a Profiteer window raises it, with its text and rows, above other addon windows (Baggie, etc.).
+- Windows no longer bleed through each other: clicking a Profiteer window raises it, with its text and rows, above other addon windows.
 
 ## 0.7.7
 - Clicking a craft now searches for the finished item as well as its materials.
