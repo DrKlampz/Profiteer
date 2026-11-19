@@ -368,7 +368,7 @@ local function GreedOverlay(w)
     o.bgStyle, o.edgeStyle, o.edgeSize = t.bgStyle or "solid", t.edgeStyle or "line", tonumber(t.borderSize) or 1
     o.bgNoTint = t.bgNoTint ~= false
     o.edgeAlpha = tonumber(t.edgeAlpha) or 1
-    -- GreedUI sets the text size, unless this window has its own (picked in Profiteer's options or the Text section)
+    -- GreedUI sets the text size, unless this window has its own (picked in the add-on's own options or the Text section)
     if t.fontScale and not (w.fontOwn or (tonumber(w.fontScale) or 1) ~= 1) then o.fontScale = tonumber(t.fontScale) or 1 end
     if t.outline ~= nil then o.outline = t.outline and true or false end
     o.buttons, o.btnBgStyle = true, "solid"
