@@ -304,9 +304,23 @@ local function FixSplitNames(raw)
   for old in pairs(fixes) do names[old] = nil end
 end
 
+local function RealmFallback(raw)
+  local r = GetRealmName and GetRealmName()
+  if type(r) ~= "string" or r == "" then r = GetNormalizedRealmName and GetNormalizedRealmName() end
+  if type(r) == "string" and r ~= "" then raw.lastRealm = r return r end
+  if type(raw.lastRealm) == "string" and raw.lastRealm ~= "" then return raw.lastRealm end
+  local best
+  for k, v in pairs(raw.sets or {}) do
+    if type(k) == "string" and k ~= "" and type(v) == "table" and next(v) ~= nil then
+      if not best or (type(v.prices) == "table" and next(v.prices) ~= nil) then best = k end
+    end
+  end
+  return best or "Unknown realm"
+end
+
 local function BindRealm(raw)
-  local realm = (GetRealmName and GetRealmName()) or "Unknown realm"
   raw.sets = raw.sets or {}
+  local realm = RealmFallback(raw)
   local sets = raw.sets
   local function Set(r) sets[r] = sets[r] or {} return sets[r] end
 
@@ -420,7 +434,7 @@ f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1, arg2)
       if type(second) == "string" and second ~= "" and not first:find(" ", 1, true) and second ~= GetRealmName() and second ~= (GetNormalizedRealmName and GetNormalizedRealmName()) then
         name = first .. " " .. second
       end
-      CP.charKey = name .. "-" .. GetRealmName()
+      CP.charKey = name .. "-" .. (CP.realm or RealmFallback(CP.rawdb or {}))
     end
     local _, class = UnitClass("player")
     CP.db.chars[CP.charKey] = { class = class, seen = time() }
