@@ -41,6 +41,7 @@ local DEFAULTS = {
     priceBasis = "safe",   -- "safe" = min(current, 14-day median), or "current"
     minSales = 0,          -- hide crafts estimated to sell fewer than this per day
     tooltips = true,
+    deTips = true,         -- disenchant odds on weapon and armor tooltips
     recipeTips = true,     -- recipe item tooltips list which characters know the recipe
     autoScan = true,       -- scan when the AH opens (if data is older than 15 min)
     scanAll = true,         -- keep price history for every item in the auction house, not just recipe items

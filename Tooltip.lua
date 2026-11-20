@@ -51,6 +51,10 @@ local function Safe(tip, id)
   if issecretvalue and issecretvalue(id) then return end
   local ok, err = pcall(AddInfo, tip, id)
   if not ok then CP.RecordError("tooltip", err) end
+  if CP.Disenchant and CP.db and CP.db.settings and CP.db.settings.tooltips then
+    local ok3, err3 = pcall(CP.Disenchant.Tip, tip, id)
+    if not ok3 then CP.RecordError("disenchant tooltip", err3) end
+  end
   if CP.Learned then
     local ok2, err2 = pcall(CP.Learned.Tip, tip, id)
     if not ok2 then CP.RecordError("recipe tooltip", err2) end

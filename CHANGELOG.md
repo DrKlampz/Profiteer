@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.15
+- Item tooltips show disenchant odds for weapons and armor (what you can get, the chance of each, and what it is worth at auction). The odds are close estimates. Can be switched off in the options.
+- The auction house tabs show the window background you pick instead of covering it.
+
 ## 0.12.14
 - Every piece of artwork (corners, crest, edge pattern, title banner, divider, middle emblem) can now have its own color. New "Your file" emblem slots show your own faction, race and city images from the Media folder.
 
