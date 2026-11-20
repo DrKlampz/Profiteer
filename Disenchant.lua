@@ -82,13 +82,21 @@ function DE.Tip(tip, id)
   if not CP.db or not CP.db.settings or CP.db.settings.deTips == false then return end
   local quality, ilvl, classID, equipLoc = Info(id)
   local desc = "quality " .. tostring(quality) .. ", item level " .. tostring(ilvl) .. ", class " .. tostring(classID) .. ", slot " .. tostring(equipLoc)
-  if not quality or not classID then Note(id, "the game gave no item data (" .. desc .. ")") return end
+  if not quality or not classID then
+    -- the game has not loaded this item yet (right after a reload): ask for it, and the next hover will have it
+    if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, id) end
+    return
+  end
   if classID ~= 2 and classID ~= 4 then return end
   if classID == 4 and (equipLoc == "INVTYPE_BODY" or equipLoc == "INVTYPE_TABARD" or equipLoc == "" or equipLoc == "INVTYPE_BAG" or equipLoc == nil) then
     Note(id, "not a disenchantable slot (" .. desc .. ")") return
   end
   local out = DE.Outcomes(quality, ilvl, classID == 2)
-  if not out then if quality >= 2 and quality <= 4 then Note(id, "no result for (" .. desc .. ")") end return end
+  if not out then
+    -- low-level blues and epics, and items below level 5, give nothing worth listing; anything else is worth a note
+    if quality == 2 and ilvl and ilvl >= 5 then Note(id, "no result for (" .. desc .. ")") end
+    return
+  end
   tip:AddLine(" ")
   tip:AddLine("Disenchant odds", 0.7, 0.5, 1)
   local total, known = 0, false
