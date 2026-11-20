@@ -43,6 +43,16 @@ local function AddInfo(tip, id)
   if vendor then
     tip:AddDoubleLine("Vendor buy price", CP.Money(vendor), 1, 1, 1, 1, 1, 1)
   end
+
+  -- an item a vendor would pay more for than the auction house would (after the AH cut): sell it to the vendor
+  if p and p.min and GetItemInfo and CP.db.settings.vendorWarn ~= false then
+    local sell = select(11, GetItemInfo(id))
+    local cut = tonumber(CP.db.settings.ahCut) or 0.05
+    local net = p.min * (1 - cut)
+    if type(sell) == "number" and sell > 0 and sell > net then
+      tip:AddDoubleLine("|cffff8040Vendor pays more than the AH|r", CP.Money(sell) .. " vs " .. CP.Money(math.floor(net + 0.5)), 1, 1, 1, 1, 1, 1)
+    end
+  end
 end
 
 -- Tooltip code must never throw (it would break every item tooltip), and
