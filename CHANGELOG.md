@@ -3,6 +3,7 @@
 ## 0.12.17
 
 - New background symbols: Celtic cross, anarchy, peace sign, skull and crossbones, radiation, atom, infinity, lightning bolt, anchor, Helm of Awe, valknut, Eye of Providence, triskele and fleur-de-lis
+- The background symbol can now be moved left, right, up and down, and resized
 - Picking a color for a piece of artwork now turns its own-color option on, so the color changes at once
 
 ## 0.12.16
