@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.16
+- Item tooltips warn when a vendor would pay more for an item than the auction house would (after the cut). It can be switched off in the options.
+- Disenchant odds now show on the first hover after a reload too.
+
 ## 0.12.15
 - Item tooltips show disenchant odds for weapons and armor (what you can get, the chance of each, and what it is worth at auction). The odds are close estimates. Can be switched off in the options.
 - The auction house tabs show the window background you pick instead of covering it.
