@@ -54,17 +54,41 @@ local function Price(id)
   return p.min or p.ref
 end
 
+local seen = {}
+local function Note(id, why)
+  if seen[id] then return end
+  seen[id] = true
+  if CP.Issue then pcall(CP.Issue, "warn", "disenchant odds", "item " .. tostring(id) .. " skipped: " .. why) end
+end
+
+-- everything the odds depend on, asked in the ways the game offers (any one of them can come back empty)
+local function Info(id)
+  local fn = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  local name, link, quality, ilvl, _, _, _, _, equipLoc, _, _, classID
+  if fn then name, link, quality, ilvl, _, _, _, _, equipLoc, _, _, classID = fn(id) end
+  if (not classID or not equipLoc) and GetItemInfoInstant then
+    local _, _, _, loc, _, cid = GetItemInfoInstant(id)
+    classID, equipLoc = classID or cid, equipLoc or loc
+  end
+  if not ilvl then
+    local f2 = (C_Item and C_Item.GetDetailedItemLevelInfo) or GetDetailedItemLevelInfo
+    if f2 then ilvl = f2(link or id) end
+  end
+  if not quality and C_Item and C_Item.GetItemQualityByID then quality = C_Item.GetItemQualityByID(id) end
+  return quality, ilvl, classID, equipLoc
+end
+
 function DE.Tip(tip, id)
   if not CP.db or not CP.db.settings or CP.db.settings.deTips == false then return end
-  if not GetItemInfo then return end
-  local _, _, quality, ilvl, _, _, _, _, _, _, _, classID = GetItemInfo(id)
-  if not quality or not classID or (classID ~= 2 and classID ~= 4) then return end
-  if classID == 4 then   -- cloaks, trinkets and the like give armor results; shirts and tabards cannot be disenchanted
-    local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(id)
-    if equipLoc == "INVTYPE_BODY" or equipLoc == "INVTYPE_TABARD" or equipLoc == "" or equipLoc == "INVTYPE_BAG" then return end
+  local quality, ilvl, classID, equipLoc = Info(id)
+  local desc = "quality " .. tostring(quality) .. ", item level " .. tostring(ilvl) .. ", class " .. tostring(classID) .. ", slot " .. tostring(equipLoc)
+  if not quality or not classID then Note(id, "the game gave no item data (" .. desc .. ")") return end
+  if classID ~= 2 and classID ~= 4 then return end
+  if classID == 4 and (equipLoc == "INVTYPE_BODY" or equipLoc == "INVTYPE_TABARD" or equipLoc == "" or equipLoc == "INVTYPE_BAG" or equipLoc == nil) then
+    Note(id, "not a disenchantable slot (" .. desc .. ")") return
   end
   local out = DE.Outcomes(quality, ilvl, classID == 2)
-  if not out then return end
+  if not out then if quality >= 2 and quality <= 4 then Note(id, "no result for (" .. desc .. ")") end return end
   tip:AddLine(" ")
   tip:AddLine("Disenchant odds", 0.7, 0.5, 1)
   local total, known = 0, false
