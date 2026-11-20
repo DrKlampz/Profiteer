@@ -176,7 +176,8 @@ function AHTab.Restyle()
   local L = CP.WinLook
   if L and L.On and L.On("ah") then
     local e = L.Effective("ah")
-    if e and e.bgColor then r, g, b = e.bgColor[1], e.bgColor[2], e.bgColor[3] a = math.max(0.85, tonumber(e.alpha) or 1) end
+    -- the window's own background (texture, gradient, color, opacity) is drawn behind this page: let it show through
+    if e and e.bgColor then r, g, b, a = e.bgColor[1], e.bgColor[2], e.bgColor[3], 0 end
   end
   hostBg:SetColorTexture(r, g, b, a)
 end
