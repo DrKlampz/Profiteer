@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.19
+
+- Redrawn anarchy symbol with a hand-brushed, worn look
+
 ## 0.12.18
 
 - New background symbols: sword, crossed swords, shield, sun and paw print
