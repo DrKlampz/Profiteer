@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.17
+
+- New background symbols: Celtic cross, anarchy, peace sign, skull and crossbones, radiation, atom, infinity, lightning bolt, anchor, Helm of Awe, valknut, Eye of Providence, triskele and fleur-de-lis
+- Picking a color for a piece of artwork now turns its own-color option on, so the color changes at once
+
 ## 0.12.16
 - Item tooltips warn when a vendor would pay more for an item than the auction house would (after the cut). It can be switched off in the options.
 - Disenchant odds now show on the first hover after a reload too.
