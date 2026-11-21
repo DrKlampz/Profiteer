@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.22
+
+- Tooltips for items you can craft now list the materials with each one's price (vendor or auction house, whichever is cheaper), the total, what the item sells for at the auction house (before and after the cut) and to a vendor, and the profit per craft. Can be switched off in the options.
+
 ## 0.12.21
 
 - New Level up window (Alt+right-click the minimap button, or the Level up button on a profession window): shows the cheapest craft that is sure to give you a skill point, using auction prices and what you already hold. Yellow crafts are listed after, marked not certain; green and grey ones are never suggested

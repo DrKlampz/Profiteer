@@ -45,6 +45,7 @@ local function Options()
             L.Kon("Show Profiteer lines in item tooltips", st, "tooltips"),
             L.Kon("Show disenchant odds on weapon and armor tooltips", st, "deTips"),
             L.Kon("Tooltip warning when a vendor pays more than the auction house", st, "vendorWarn"),
+            L.Kon("Tooltip for craftable items: materials, their prices and what it sells for", st, "craftTips"),
             L.Kon("Recipe items: show which of your characters know the recipe", st, "recipeTips"),
             L.Koff("Draw dividing bars between rows (Shopping, Selling, Cancelling and Crafts lists)", st, "rowDividers", function() if CP.AH then CP.AH.ApplyDividers() end end),
             L.Choice("Divider color", st, "rowDivMode", { { "accent", "Follow the window border color" }, { "custom", "Pick my own color" } }, function() if CP.AH then CP.AH.ApplyDividers() end end),
