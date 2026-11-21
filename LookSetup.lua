@@ -85,6 +85,7 @@ CP.WinLook.Setup({
               end
           end },
         { id = "report", name = "Report box", global = "ProfiteerReportFrame", strip = "backdrop" },
+        { id = "level", name = "Level up window", global = "ProfiteerLevelFrame", strip = "backdrop" },
         { id = "ah", name = "Auction house", global = "AuctionHouseFrame", strip = "template", defaultOn = true, skinAll = true,
           -- the game's own Browse page (search, categories, results) is left exactly as the game draws it
           skinSkip = function(obj)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.21
+
+- New Level up window (Alt+right-click the minimap button, or the Level up button on a profession window): shows the cheapest craft that is sure to give you a skill point, using auction prices and what you already hold. Yellow crafts are listed after, marked not certain; green and grey ones are never suggested
+
 ## 0.12.20
 
 - If the auction house's own search hangs on "Searching...", Profiteer now writes down why (read it with /issues profiteer)

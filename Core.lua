@@ -575,6 +575,8 @@ SlashCmdList["PROFITEER"] = function(msg)
 
   if cmd == "" then
     CP.UI.Toggle()
+  elseif cmd == "level" then
+    CP.Leveling.Toggle()
   elseif cmd == "scan" then
     CP.Scanner:Start(arg == "force")
   elseif cmd == "top" then
