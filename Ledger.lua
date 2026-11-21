@@ -912,7 +912,12 @@ function L.Rows(period, ck)
 end
 
 -- "Name-Realm" shown as "Name - Realm" so same-named characters on different realms are told apart
-local function FullName(k) return (tostring(k):gsub("%-", " - ", 1)) end
+local function FullName(k)
+  -- characters on the realm you are on show by name alone; others keep their realm so they stay told apart
+  local name, realm = tostring(k):match("^(.-)%-(.+)$")
+  if name and realm and CP.realm and realm == CP.realm then return name end
+  return (tostring(k):gsub("%-", " - ", 1))
+end
 
 local PERIOD_LABELS = { { "today", "Today" }, { "week", "7 days" }, { "month", "30 days" }, { "all", "All time" } }
 local COLW = { 290, 110, 130, 100, 100 }
@@ -978,7 +983,14 @@ function L.BuildPanel(parent, width, height)
       it:Show()
     end
     for i = #names + 1, #menu.items do menu.items[i]:Hide() end
-    menu:SetSize(260, #names * 20 + 4)
+    local w = 260
+    for i = 1, #names do
+      local it = menu.items[i]
+      local tw = it.t:GetStringWidth() or 0
+      if tw + 24 > w then w = tw + 24 end
+    end
+    for i = 1, #names do menu.items[i]:SetWidth(w - 4) end
+    menu:SetSize(w, #names * 20 + 4)
     menu:Show()
   end
   cb:SetScript("OnClick", function() if menu:IsShown() then menu:Hide() else OpenMenu() end end)
