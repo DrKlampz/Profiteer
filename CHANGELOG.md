@@ -2,6 +2,8 @@
 
 ## 0.12.19
 
+- If the auction house's own search hangs on "Searching...", Profiteer now writes down why (read it with /issues profiteer)
+
 - Redrawn anarchy symbol with a hand-brushed, worn look
 - Ledger tab redesigned: sections are cards laid out in two columns with larger text, headers and striped rows
 - Smoother, cleaner drawings of several background symbols, plus a calligraphic version of every symbol
