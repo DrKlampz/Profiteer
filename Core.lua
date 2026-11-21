@@ -479,6 +479,7 @@ f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1, arg2)
       CP:Print("Earlier versions misread AH prices, so old price data was cleared. Open the Auction House to rescan.")
     end
     CP.After(3, CP.WarmNames)
+    if switched and CP.Refresh then pcall(CP.Refresh, CP) end
   end
 end))
 
