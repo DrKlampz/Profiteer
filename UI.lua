@@ -119,8 +119,11 @@ local function ShowTooltip(self)
   GameTooltip:AddLine("Can craft", 1, 0.82, 0)
   if g.notLearned then
     GameTooltip:AddLine("No character has learned this recipe yet.", 0.6, 0.7, 0.9, true)
-    local who = {}
-    for _, k in ipairs(g.learnable or {}) do who[#who + 1] = CP.ShortName(k) end
+    local who, seenW = {}, {}
+    for _, k in ipairs(g.learnable or {}) do
+      local n = CP.ShortName(k)
+      if not seenW[n] then seenW[n] = true who[#who + 1] = n end
+    end
     if #who > 0 then GameTooltip:AddLine("Could learn it: " .. table.concat(who, ", "), 0.6, 0.7, 0.9, true) end
   end
   for _, charKey in ipairs(g.chars) do
@@ -230,12 +233,18 @@ end
 
 local function CraftersText(g)
   if g.notLearned then
-    local who = {}
-    for _, k in ipairs(g.learnable or {}) do who[#who + 1] = CP.ShortName(k) end
+    local who, seenW = {}, {}
+    for _, k in ipairs(g.learnable or {}) do
+      local n = CP.ShortName(k)
+      if not seenW[n] then seenW[n] = true who[#who + 1] = n end
+    end
     return "|cff8899aanot learned" .. (#who > 0 and (": " .. who[1] .. (#who > 1 and " +" .. (#who - 1) or "")) or "") .. "|r"
   end
-  local names = {}
-  for _, k in ipairs(g.chars) do names[#names + 1] = CP.ShortName(k) end
+  local names, seen = {}, {}
+  for _, k in ipairs(g.chars) do
+    local n = CP.ShortName(k)
+    if not seen[n] then seen[n] = true names[#names + 1] = n end      -- one name once, even if the same character is saved twice
+  end
   if #names <= 2 then return table.concat(names, ", ") end
   return names[1] .. ", " .. names[2] .. " +" .. (#names - 2)
 end

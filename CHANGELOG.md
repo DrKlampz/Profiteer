@@ -6,6 +6,7 @@
 - Ledger tab redesigned: sections are cards laid out in two columns with larger text, headers and striped rows
 - Smoother, cleaner drawings of several background symbols, plus a calligraphic version of every symbol
 - Saved data is found again when the game reports an empty realm name
+- Crafts: a character saved twice is listed once in the Crafters column
 
 ## 0.12.18
 
