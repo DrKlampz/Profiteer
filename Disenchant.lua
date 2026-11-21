@@ -89,11 +89,12 @@ function DE.Tip(tip, id)
   end
   if classID ~= 2 and classID ~= 4 then return end
   if classID == 4 and (equipLoc == "INVTYPE_BODY" or equipLoc == "INVTYPE_TABARD" or equipLoc == "" or equipLoc == "INVTYPE_BAG" or equipLoc == nil) then
-    Note(id, "not a disenchantable slot (" .. desc .. ")") return
+    return   -- shirts, tabards and bags cannot be disenchanted: nothing to show, nothing to report
   end
   local out = DE.Outcomes(quality, ilvl, classID == 2)
   if not out then
     -- low-level blues and epics, and items below level 5, give nothing worth listing; anything else is worth a note
+    -- (a blue of item level 15 or lower gives no shard and no listed result: nothing to show, nothing to report)
     if quality == 2 and ilvl and ilvl >= 5 then Note(id, "no result for (" .. desc .. ")") end
     return
   end

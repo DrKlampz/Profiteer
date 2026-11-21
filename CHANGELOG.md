@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.23
+
+- The issue log no longer fills up with notes about shirts, tabards and bags, which can't be disenchanted
+
 ## 0.12.22
 
 - Tooltips for items you can craft now list the materials with each one's price (vendor or auction house, whichever is cheaper), the total, what the item sells for at the auction house (before and after the cut) and to a vendor, and the profit per craft. Can be switched off in the options.
