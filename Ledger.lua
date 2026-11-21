@@ -1026,7 +1026,7 @@ function L.BuildPanel(parent, width, height)
     p:SetHeight(h)
     scroll:SetHeight(math.max(40, h - 90))
     if w and w > 100 then
-      p:SetWidth(w) scroll:SetWidth(w - 4) content:SetWidth(w - 4)
+      p:SetWidth(w) scroll:SetWidth(w - 4) content:SetWidth(w - 4) L.dirty = true
       local tw2 = math.floor((w - 4 * 8) / 5)
       for i, bg in ipairs(L.tbg) do
         bg:SetSize(tw2, 40)
@@ -1047,23 +1047,141 @@ function L.BuildPanel(parent, width, height)
   return p
 end
 
-local function Line(i)
-  local ln = L.lines[i]
-  if ln then return ln end
-  ln = { fs = {} }
-  local x = 0
-  for c = 1, 5 do
-    local fs = L.content:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    fs:SetPoint("TOPLEFT", L.content, "TOPLEFT", x, -(i - 1) * ROWH)
-    fs:SetWidth(COLW[c])
-    fs:SetHeight(ROWH)
-    fs:SetJustifyH(c == 1 and "LEFT" or "RIGHT")
-    if fs.SetWordWrap then fs:SetWordWrap(false) end
-    ln.fs[c] = fs
-    x = x + COLW[c] + 4
+local pools = { cards = {}, lines = {}, rules = {} }
+local function Pool(kind, make)
+  local t = pools[kind]
+  t.n = (t.n or 0) + 1
+  local o = t[t.n]
+  if not o then o = make() t[t.n] = o end
+  return o
+end
+local function PoolReset() for _, t in pairs(pools) do t.n = 0 end end
+local function PoolHide()
+  for _, t in pairs(pools) do
+    for i = (t.n or 0) + 1, #t do
+      local o = t[i]
+      if o.fs then for _, f in ipairs(o.fs) do f:Hide() end end
+      if o.Hide then o:Hide() end
+      if o.tex then o.tex:Hide() end
+    end
   end
-  L.lines[i] = ln
-  return ln
+end
+
+-- one card per section; the small ones sit in two columns, the wide ones (four numbers per row) take the full width
+local CARD_PAD, CARD_GAP, ROW = 12, 14, 19
+local function Render(rows, width)
+  PoolReset()
+  local secs, cur = {}, nil
+  for _, r in ipairs(rows) do
+    if r.k == "gap" then cur = nil
+    else
+      if r.k == "head" or not cur then cur = { rows = {}, cols = 1 } secs[#secs + 1] = cur end
+      cur.rows[#cur.rows + 1] = r
+      for c = 5, 1, -1 do if r[c] ~= nil and r[c] ~= "" then if c > cur.cols then cur.cols = c end break end end
+    end
+  end
+  local half = math.floor((width - CARD_GAP) / 2)
+  local y = { 0, 0 }
+  for _, sec in ipairs(secs) do
+    local wide = sec.cols >= 4
+    local cw = wide and width or half
+    local col = 1
+    local top
+    if wide then top = math.max(y[1], y[2]) else col = (y[2] < y[1]) and 2 or 1 top = y[col] end
+    local x0 = wide and 0 or (col - 1) * (half + CARD_GAP)
+    -- column widths inside the card
+    local inner = cw - 2 * CARD_PAD
+    local cwid
+    if sec.cols >= 4 then
+      local lab = math.max(220, math.floor(inner * 0.34))
+      local rest = math.floor((inner - lab) / 4)
+      cwid = { lab, rest, rest, rest, rest }
+    elseif sec.cols == 3 then
+      cwid = { math.floor(inner * 0.46), math.floor(inner * 0.24), math.floor(inner * 0.30) }
+    else
+      cwid = { math.floor(inner * 0.66), math.floor(inner * 0.34) }
+    end
+    -- lay out the rows, measuring wrapped notes
+    local cy = top + 8
+    local card = Pool("cards", function()
+      local t = L.content:CreateTexture(nil, "BACKGROUND")
+      t:SetColorTexture(0, 0, 0, 0.28)
+      return { tex = t, Hide = function(self) self.tex:Hide() end }
+    end)
+    local cardTop = top
+    local made = {}
+    for ri, r in ipairs(sec.rows) do
+      local isHead = r.k == "head"
+      local h = isHead and (ROW + 6) or ROW
+      -- a lone long line (a footnote) uses the whole card and wraps
+      local lone = (not isHead) and r[2] == nil and r[3] == nil and r[1] ~= nil and #tostring(r[1]) > 40
+      local ln = Pool("lines", function() return { fs = {}, stripe = L.content:CreateTexture(nil, "BACKGROUND"), rule = L.content:CreateTexture(nil, "BORDER") } end)
+      ln.stripe:Hide() ln.rule:Hide()
+      for c = 1, 5 do
+        local f = ln.fs[c]
+        if not f then
+          f = L.content:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+          ln.fs[c] = f
+        end
+        f:Hide()
+      end
+      local px = x0 + CARD_PAD
+      if lone then
+        local f = ln.fs[1]
+        f:SetFontObject("GameFontHighlightSmall")
+        f:ClearAllPoints() f:SetPoint("TOPLEFT", L.content, "TOPLEFT", px, -(cy + 2))
+        f:SetWidth(inner) f:SetJustifyH("LEFT") if f.SetWordWrap then f:SetWordWrap(true) end
+        f:SetText(tostring(r[1])) f:Show()
+        h = math.max(ROW, math.ceil((f:GetStringHeight() or ROW) + 6))
+      else
+        local x = px
+        for c = 1, sec.cols do
+          local v = r[c]
+          local f = ln.fs[c]
+          local wd = cwid[c]
+          f:SetFontObject(isHead and "GameFontNormalSmall" or "GameFontHighlight")
+          f:ClearAllPoints()
+          f:SetHeight(isHead and ROW or ROW)
+          if f.SetWordWrap then f:SetWordWrap(false) end
+          local sv = v ~= nil and tostring(v) or ""
+          local plain = sv:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+          local note = (not isHead) and c >= 3 and sec.cols == 3 and #plain > 9
+          if note then
+            -- a sentence, not a number: grey, left aligned, takes the room it needs
+            f:SetFontObject("GameFontDisableSmall")
+            f:SetPoint("TOPLEFT", L.content, "TOPLEFT", x, -(cy + (h - ROW) / 2 + 1))
+            f:SetWidth(wd) f:SetJustifyH("LEFT")
+          else
+            f:SetPoint("TOPLEFT", L.content, "TOPLEFT", x, -(cy + (h - ROW) / 2 + (isHead and 3 or 1)))
+            f:SetWidth(wd - 6) f:SetJustifyH(c == 1 and "LEFT" or "RIGHT")
+          end
+          if isHead and v ~= nil then sv = "|cffffd100" .. sv:upper() .. "|r" end
+          f:SetText(sv) f:Show()
+          x = x + wd
+        end
+      end
+      if isHead then
+        ln.rule:ClearAllPoints()
+        ln.rule:SetPoint("TOPLEFT", L.content, "TOPLEFT", px, -(cy + h - 1))
+        ln.rule:SetSize(inner, 1)
+        ln.rule:SetColorTexture(1, 0.82, 0, 0.55) ln.rule:Show()
+      elseif ri % 2 == 0 then
+        ln.stripe:ClearAllPoints()
+        ln.stripe:SetPoint("TOPLEFT", L.content, "TOPLEFT", px - 4, -cy)
+        ln.stripe:SetSize(inner + 8, h)
+        ln.stripe:SetColorTexture(1, 1, 1, 0.045) ln.stripe:Show()
+      end
+      cy = cy + h
+    end
+    local bottom = cy + 10
+    card.tex:ClearAllPoints()
+    card.tex:SetPoint("TOPLEFT", L.content, "TOPLEFT", x0, -cardTop)
+    card.tex:SetSize(cw, bottom - cardTop)
+    card.tex:Show()
+    if wide then y[1], y[2] = bottom + CARD_GAP, bottom + CARD_GAP else y[col] = bottom + CARD_GAP end
+  end
+  PoolHide()
+  return math.max(y[1], y[2])
 end
 
 function L.Refresh()
@@ -1095,36 +1213,8 @@ function L.Refresh()
   L.tiles.out:SetText(M(t.out))
   L.tiles.overhead:SetText(M(t.overhead))
   L.tiles.unrealized:SetText(M(t.unrealized or 0))
-  for i, r in ipairs(rows) do
-    local ln = Line(i)
-    for c = 1, 5 do
-      local v = r[c]
-      if r.k == "head" and v ~= nil then v = "|cffffd100" .. tostring(v) .. "|r" end
-      if r.k == "gap" then v = nil end
-      local fs = ln.fs[c]
-      fs:SetWidth(COLW[c])
-      fs:SetJustifyH(c == 1 and "LEFT" or "RIGHT")
-      fs:SetText(v ~= nil and tostring(v) or "")
-      fs:Show()
-    end
-    -- text wider than its column takes over the empty columns after it (left aligned) instead of being cut off
-    for c = 1, 4 do
-      local fs = ln.fs[c]
-      if fs:GetText() and fs:GetText() ~= "" and (fs:GetStringWidth() or 0) > COLW[c] - 1 then
-        local span, n = COLW[c], c + 1
-        while n <= 5 and (r[n] == nil or r[n] == "") do span = span + 4 + COLW[n] n = n + 1 end
-        if span > COLW[c] then
-          fs:SetWidth(span)
-          fs:SetJustifyH("LEFT")
-          for m = c + 1, n - 1 do ln.fs[m]:SetText("") end
-        end
-      end
-    end
-  end
-  for i = #rows + 1, #L.lines do
-    for c = 1, 5 do L.lines[i].fs[c]:Hide() end
-  end
-  L.content:SetHeight(math.max(10, #rows * ROWH + 8))
+  local ht = Render(rows, math.max(300, (L.content:GetWidth() or 700)))
+  L.content:SetHeight(math.max(10, ht + 8))
 end
 
 -- the most recent entries, newest last: where each number came from

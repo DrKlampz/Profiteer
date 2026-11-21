@@ -3,6 +3,9 @@
 ## 0.12.19
 
 - Redrawn anarchy symbol with a hand-brushed, worn look
+- Ledger tab redesigned: sections are cards laid out in two columns with larger text, headers and striped rows
+- Smoother, cleaner drawings of several background symbols, plus a calligraphic version of every symbol
+- Saved data is found again when the game reports an empty realm name
 
 ## 0.12.18
 
