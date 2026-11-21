@@ -2,6 +2,7 @@
 
 ## 0.12.23
 
+- Fixed Profiteer mixing PvP and PvE: the add-on chose which realm's data to use before the game had said which realm you are on, and could pick the one from your last login. It now checks again as soon as the realm is known and switches to the right one. (Data already saved in the wrong place stays where it is for now.)
 - The issue log no longer fills up with notes about shirts, tabards and bags, which can't be disenchanted
 
 ## 0.12.22

@@ -304,6 +304,19 @@ local function FixSplitNames(raw)
   for old in pairs(fixes) do names[old] = nil end
 end
 
+-- The realm the game reports right now, or nil while it still reports nothing (which it does early after login
+-- on some realms). Unlike RealmFallback this never guesses.
+local function KnownRealm()
+  local r = GetRealmName and GetRealmName()
+  if type(r) ~= "string" or r == "" then r = GetNormalizedRealmName and GetNormalizedRealmName() end
+  if (type(r) ~= "string" or r == "") and UnitFullName then
+    local _, rr = UnitFullName("player")
+    if type(rr) == "string" and rr ~= "" then r = rr end
+  end
+  if type(r) == "string" and r ~= "" then return r end
+  return nil
+end
+
 local function RealmFallback(raw)
   local r = GetRealmName and GetRealmName()
   if type(r) ~= "string" or r == "" then r = GetNormalizedRealmName and GetNormalizedRealmName() end
@@ -362,13 +375,30 @@ local function BindRealm(raw)
     CP.splitNote = home
   end
 
-  local set = Set(realm)
-  CP.realm, CP.mode = realm, CP.RealmMode(realm)
-  CP.rawdb = raw
-  for k, v in pairs(DEFAULTS) do
-    if REALM_KEYS[k] then
-      if set[k] == nil then if type(v) == "table" then set[k] = {} else set[k] = v end end
+  local set
+  local function Use(r)
+    set = Set(r)
+    CP.realm, CP.mode = r, CP.RealmMode(r)
+    for k, v in pairs(DEFAULTS) do
+      if REALM_KEYS[k] then
+        if set[k] == nil then if type(v) == "table" then set[k] = {} else set[k] = v end end
+      end
     end
+  end
+  Use(realm)
+  CP.rawdb = raw
+  -- the data set is picked when the add-on loads, but the game may not know the realm yet then and a guess can be
+  -- the wrong realm (a PvE character landing in the PvP data). Called again once the realm is known.
+  function CP.CheckRealm()
+    local r = KnownRealm()
+    if not r then return false end
+    raw.lastRealm = r
+    if r ~= CP.realm then
+      local from = CP.realm
+      Use(r)
+      return true, from
+    end
+    return false
   end
   return setmetatable({}, {
     __index = function(_, k) if REALM_KEYS[k] then return set[k] end return raw[k] end,
@@ -383,6 +413,7 @@ end
 local f = CreateFrame("Frame")
 CP.Register(f, "ADDON_LOADED")
 CP.Register(f, "PLAYER_LOGIN")
+CP.Register(f, "PLAYER_ENTERING_WORLD")
 CP.Register(f, "ITEM_DATA_LOAD_RESULT")
 f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1, arg2)
   if event == "ADDON_LOADED" and arg1 == ADDON then
@@ -427,7 +458,10 @@ f:SetScript("OnEvent", CP.Safe("init", function(_, event, arg1, arg2)
         end
       end
     end
-  elseif event == "PLAYER_LOGIN" then
+  elseif event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
+    if event == "PLAYER_ENTERING_WORLD" and not (CP.db and CP.charKey) then return end
+    local switched = CP.CheckRealm and CP.CheckRealm()
+    if event == "PLAYER_ENTERING_WORLD" and not switched then return end
     do
       local first, second = UnitName("player")
       local name = first
