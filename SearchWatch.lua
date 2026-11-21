@@ -43,17 +43,24 @@ local function Begin(name)
 end
 
 if C_AuctionHouse then
-  for _, name in ipairs({ "SendSellSearchQuery", "SendSearchQuery" }) do
+  for _, name in ipairs({ "SendSellSearchQuery", "SendSearchQuery", "SendBrowseQuery" }) do
     if type(C_AuctionHouse[name]) == "function" then pcall(hooksecurefunc, C_AuctionHouse, name, function() pcall(Begin, name) end) end
   end
 end
 
 local f = CreateFrame("Frame")
-for _, ev in ipairs({ "ITEM_SEARCH_RESULTS_UPDATED", "COMMODITY_SEARCH_RESULTS_UPDATED", "AUCTION_HOUSE_BROWSE_FAILURE", "AUCTION_HOUSE_THROTTLED_SYSTEM_READY",
+for _, ev in ipairs({ "ITEM_SEARCH_RESULTS_UPDATED", "COMMODITY_SEARCH_RESULTS_UPDATED", "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED", "AUCTION_HOUSE_BROWSE_FAILURE", "AUCTION_HOUSE_THROTTLED_SYSTEM_READY",
   "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED", "AUCTION_HOUSE_THROTTLED_MESSAGE_SENT", "AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED",
   "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED", "AUCTION_HOUSE_CLOSED" }) do pcall(f.RegisterEvent, f, ev) end
 f:SetScript("OnEvent", function(_, ev)
   if not pending then return end
   counts[ev] = (counts[ev] or 0) + 1
-  if ev == "ITEM_SEARCH_RESULTS_UPDATED" or ev == "COMMODITY_SEARCH_RESULTS_UPDATED" or ev == "AUCTION_HOUSE_CLOSED" then pending = nil end
+  if ev == "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED" then
+    local n = C_AuctionHouse and C_AuctionHouse.GetNumBrowseResults and C_AuctionHouse.GetNumBrowseResults()
+    if CP.Issue then CP.Issue("warn", "browse answer", ("%s from %s answered with %s results (queueReady=%s)"):format(pending.name, pending.who, tostring(n), QueueReady())) end
+    pending = nil
+  elseif ev == "AUCTION_HOUSE_BROWSE_FAILURE" then
+    if CP.Issue then CP.Issue("warn", "browse failed", ("%s from %s: the game reported a browse failure (queueReady=%s)"):format(pending.name, pending.who, QueueReady())) end
+    pending = nil
+  elseif ev == "ITEM_SEARCH_RESULTS_UPDATED" or ev == "COMMODITY_SEARCH_RESULTS_UPDATED" or ev == "AUCTION_HOUSE_CLOSED" then pending = nil end
 end)
