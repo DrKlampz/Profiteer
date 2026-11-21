@@ -307,12 +307,9 @@ end
 -- The realm the game reports right now, or nil while it still reports nothing (which it does early after login
 -- on some realms). Unlike RealmFallback this never guesses.
 local function KnownRealm()
+  -- only the real realm name counts: the normalized name has no spaces, and the second value of
+  -- UnitName/UnitFullName is the rest of a two-part character name (Garblauhn Deez), not a realm
   local r = GetRealmName and GetRealmName()
-  if type(r) ~= "string" or r == "" then r = GetNormalizedRealmName and GetNormalizedRealmName() end
-  if (type(r) ~= "string" or r == "") and UnitFullName then
-    local _, rr = UnitFullName("player")
-    if type(rr) == "string" and rr ~= "" then r = rr end
-  end
   if type(r) == "string" and r ~= "" then return r end
   return nil
 end
