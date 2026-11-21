@@ -316,9 +316,14 @@ end
 
 local function RealmFallback(raw)
   local r = GetRealmName and GetRealmName()
-  if type(r) ~= "string" or r == "" then r = GetNormalizedRealmName and GetNormalizedRealmName() end
   if type(r) == "string" and r ~= "" then raw.lastRealm = r return r end
-  if type(raw.lastRealm) == "string" and raw.lastRealm ~= "" then return raw.lastRealm end
+  -- the realm remembered from last time counts only if it is a set that really holds scanned prices (a stray
+  -- one-word set made from part of a character name never does)
+  local lr = raw.lastRealm
+  if type(lr) == "string" and lr ~= "" and type(raw.sets) == "table" then
+    local st = raw.sets[lr]
+    if type(st) == "table" and type(st.prices) == "table" and next(st.prices) ~= nil then return lr end
+  end
   local best
   for k, v in pairs(raw.sets or {}) do
     if type(k) == "string" and k ~= "" and type(v) == "table" and next(v) ~= nil then
