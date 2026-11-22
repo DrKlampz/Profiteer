@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.24
+
+- Fixed Profiteer making a separate data set from part of a character's name (so only one character showed in Crafts). It now only uses the real realm name, and ignores any remembered realm that has no scanned prices
+
 ## 0.12.23
 
 - Fixed Profiteer mixing PvP and PvE: the add-on chose which realm's data to use before the game had said which realm you are on, and could pick the one from your last login. It now checks again as soon as the realm is known and switches to the right one. (Data already saved in the wrong place stays where it is for now.)
