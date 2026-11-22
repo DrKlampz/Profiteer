@@ -9,6 +9,18 @@ function H.Icon(id)
   return 134400
 end
 
+-- the game's own item tooltip (so it carries whatever tooltip settings and add-ons you have), shown beside a row.
+-- Returns true when it worked; the caller then adds its own lines underneath.
+function H.ItemTip(owner, anchor, what)
+  if not what or not GameTooltip then return false end
+  GameTooltip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
+  local ok
+  if type(what) == "number" then ok = pcall(GameTooltip.SetHyperlink, GameTooltip, "item:" .. what)
+  elseif type(what) == "string" then ok = pcall(GameTooltip.SetHyperlink, GameTooltip, what) end
+  if not ok then GameTooltip:Hide() GameTooltip:SetOwner(owner, anchor or "ANCHOR_RIGHT") return false end
+  return true
+end
+
 function H.IsOpen() return AuctionHouseFrame and AuctionHouseFrame:IsShown() and true or false end
 
 function H.Ready()

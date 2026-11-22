@@ -201,7 +201,8 @@ function C.Build(parent, w, h)
     r:SetScript("OnClick", function(self) if self.a then CancelOne(self.a) end end)
     r:SetScript("OnEnter", function(self)
       self.hl:Show()
-      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      local a = self.a
+      if a and (a.link or a.id) and H.ItemTip(self, "ANCHOR_RIGHT", a.link or a.id) then GameTooltip:AddLine(" ") else GameTooltip:SetOwner(self, "ANCHOR_RIGHT") end
       GameTooltip:AddLine((self.a and self.a.count or 1) > 1 and ("Click to cancel one of these " .. self.a.count .. " auctions") or "Click to cancel this auction", 1, 0.82, 0)
       GameTooltip:Show()
     end)

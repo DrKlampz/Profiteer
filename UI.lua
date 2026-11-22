@@ -50,9 +50,15 @@ local function ShowTooltip(self)
   if not g then return end
   local left, screen = self:GetLeft(), UIParent:GetWidth()
   local onRight = type(left) == "number" and type(screen) == "number" and left > screen / 2
-  GameTooltip:SetOwner(self, onRight and "ANCHOR_LEFT" or "ANCHOR_RIGHT")
-  GameTooltip:AddLine(g.name, 1, 1, 1)
-  GameTooltip:AddLine(g.prof, 0.6, 0.8, 1)
+  local real = CP.AH and CP.AH.ItemTip(self, onRight and "ANCHOR_LEFT" or "ANCHOR_RIGHT", g.id)
+  if real then
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine(g.prof, 0.6, 0.8, 1)
+  else
+    GameTooltip:AddLine(g.name, 1, 1, 1)
+    GameTooltip:AddLine(g.prof, 0.6, 0.8, 1)
+  end
+  local dup = real and CP.db.settings.tooltips   -- the item tooltip already lists the AH price lines
   if g.unpriced then GameTooltip:AddLine("Not ranked: " .. (g.why or "no price data"), 1, 0.6, 0.3, true) end
   GameTooltip:AddLine(" ")
   GameTooltip:AddLine("Reagents", 1, 0.82, 0)
@@ -78,14 +84,14 @@ local function ShowTooltip(self)
   end
   GameTooltip:AddLine(" ")
   local p = CP.db.prices[g.id]
-  GameTooltip:AddDoubleLine("AH lowest", CP.Money(p and p.min), 1, 1, 1, 1, 1, 1)
+  if not dup then GameTooltip:AddDoubleLine("AH lowest", CP.Money(p and p.min), 1, 1, 1, 1, 1, 1) end
   GameTooltip:AddDoubleLine("AH reference", CP.Money(p and p.ref), 1, 1, 1, 1, 1, 1)
   GameTooltip:AddDoubleLine("Listings / units", ((p and p.n) or 0) .. " / " .. ((p and p.qty) or 0), 1, 1, 1, 1, 1, 1)
   local st = CP.History.Stats(g.id)
-  if st and st.median then
+  if st and st.median and not dup then
     GameTooltip:AddDoubleLine("Market median (" .. st.samples .. " scans)", CP.Money(st.median), 1, 1, 1, 1, 1, 1)
   end
-  if st and st.perDay then
+  if st and st.perDay and not dup then
     GameTooltip:AddDoubleLine("Est. sales/day", string.format("%.1f", st.perDay), 1, 1, 1, 1, 1, 1)
   end
   GameTooltip:AddDoubleLine("Sell price used", g.sell and CP.Money(g.sell) or "none", 1, 1, 1, 1, 1, 1)

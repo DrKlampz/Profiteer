@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.25
+
+- Hovering a craft, a shopping list item or one of your auctions now shows the game's real item tooltip (your own tooltip settings included), with Profiteer's profit and price details underneath
+
 ## 0.12.24
 
 - Fixed Profiteer making a separate data set from part of a character's name (so only one character showed in Crafts). It now only uses the real realm name, and ignores any remembered realm that has no scanned prices

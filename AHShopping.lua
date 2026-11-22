@@ -691,6 +691,13 @@ function S.Build(parent, w, h)
     end)
   end)
   W.list.refresh = S.Draw
+  for _, r in ipairs(W.list.rows) do
+    r:HookScript("OnEnter", function(self)
+      local e = self.idx and list[self.idx]
+      if e and not e.hdr and e.id and H.ItemTip(self, "ANCHOR_RIGHT", e.id) then GameTooltip:Show() end
+    end)
+    r:HookScript("OnLeave", function() GameTooltip:Hide() end)
+  end
 
   -- add / clear under the list
   local add = H.Edit(pane, 150)
