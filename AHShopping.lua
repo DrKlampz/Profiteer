@@ -805,11 +805,19 @@ function S.Build(parent, w, h)
       end
     end)
     r:HookScript("OnEnter", function(self)
-      if state.kind ~= "commodity" or not self.idx then return end
-      GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-      GameTooltip:AddLine("Click to buy everything up to this price", 1, 0.82, 0)
-      GameTooltip:AddLine("Then press Confirm to pay.", 0.7, 0.7, 0.7)
-      GameTooltip:Show()
+      if not self.idx or not state.kind then return end
+      local res = state.results and state.results[self.idx]
+      local e = list[sel]
+      local what = (res and res.link) or (e and not e.hdr and e.id)
+      local real = what and H.ItemTip(self, "ANCHOR_LEFT", what)
+      if state.kind == "commodity" then
+        if real then GameTooltip:AddLine(" ") else GameTooltip:SetOwner(self, "ANCHOR_LEFT") end
+        GameTooltip:AddLine("Click to buy everything up to this price", 1, 0.82, 0)
+        GameTooltip:AddLine("Then press Confirm to pay.", 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+      elseif real then
+        GameTooltip:Show()
+      end
     end)
     r:HookScript("OnLeave", function() GameTooltip:Hide() end)
   end)
