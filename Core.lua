@@ -314,19 +314,30 @@ local function KnownRealm()
   return nil
 end
 
-local function RealmFallback(raw)
-  local r = GetRealmName and GetRealmName()
-  if type(r) == "string" and r ~= "" then raw.lastRealm = r return r end
-  -- the realm remembered from last time counts only if it is a set that really holds scanned prices (a stray
-  -- one-word set made from part of a character name never does)
-  local lr = raw.lastRealm
-  if type(lr) == "string" and lr ~= "" and type(raw.sets) == "table" then
-    local st = raw.sets[lr]
-    if type(st) == "table" and type(st.prices) == "table" and next(st.prices) ~= nil then return lr end
+-- Realm names the game has really reported (GetRealmName), remembered across sessions. A data set only counts as a
+-- real realm if it is in this list; stray one-word sets made from part of a character name never are.
+local function SeenRealms(raw)
+  if type(raw.realmsSeen) ~= "table" then
+    local seen = {}
+    -- first time: the realms with spaces in their names (CAMWOW US2 Realm 1 PvE) are real, character-name leftovers never have them
+    for k in pairs(type(raw.sets) == "table" and raw.sets or {}) do
+      if type(k) == "string" and k:find(" ", 1, true) and not k:find("^Unknown") then seen[k] = true end
+    end
+    raw.realmsSeen = seen
   end
+  return raw.realmsSeen
+end
+
+local function RealmFallback(raw)
+  local seen = SeenRealms(raw)
+  local r = GetRealmName and GetRealmName()
+  if type(r) == "string" and r ~= "" then raw.lastRealm = r seen[r] = true return r end
+  -- the game doesn't know the realm yet: use the one remembered from last time, but only if it is a real one
+  local lr = raw.lastRealm
+  if type(lr) == "string" and seen[lr] then return lr end
   local best
   for k, v in pairs(raw.sets or {}) do
-    if type(k) == "string" and k ~= "" and type(v) == "table" and next(v) ~= nil then
+    if type(k) == "string" and seen[k] and type(v) == "table" and next(v) ~= nil then
       if not best or (type(v.prices) == "table" and next(v.prices) ~= nil) then best = k end
     end
   end
@@ -395,6 +406,7 @@ local function BindRealm(raw)
     local r = KnownRealm()
     if not r then return false end
     raw.lastRealm = r
+    SeenRealms(raw)[r] = true
     if r ~= CP.realm then
       local from = CP.realm
       Use(r)

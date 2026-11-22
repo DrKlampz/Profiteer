@@ -2,6 +2,8 @@
 
 ## 0.12.25
 
+- Fixed "Waiting for you in the mail" and the unrealized totals being far too high: the game gives a stack's whole price and Profiteer multiplied it by the stack size again (a stack of 200 bars counted 200 times). Older saved snapshots are corrected too
+- Fixed a character-name leftover (like "Hatchett") being picked as the realm when the game doesn't report the realm yet at login. Only realm names the game has really reported are trusted now
 - Hovering a craft, a shopping list item, a price row in the Shopping results or one of your auctions now shows the game's real item tooltip (your own tooltip settings included), with Profiteer's profit and price details underneath
 
 ## 0.12.24

@@ -233,8 +233,12 @@ function L.SnapshotListings()
         local qty = info.quantity or 1
         local ask = info.buyoutAmount or 0
         if ask == 0 then ask = info.bidAmount or 0 end
-        -- stacks are listed per unit (only single items have a whole-item price): the asking price is for one
-        if qty > 1 then ask = ask * qty end
+        -- this client reports a stack's whole price (a 200 bar stack with a 4g price is 4g for all of it), so the
+        -- price is used as it is. Only a real commodity (when the game says so) is priced per unit.
+        if qty > 1 and AH.GetItemCommodityStatus and info.itemKey then
+          local okc, status = pcall(AH.GetItemCommodityStatus, info.itemKey)
+          if okc and status == 2 then ask = ask * qty end
+        end
         items[#items + 1] = { name = NameFromInfo(info) or "?", n = qty, ask = ask, sold = (info.status == 1) and true or nil }
       end
     end
@@ -251,8 +255,23 @@ function L.SnapshotListings()
   end
   if not ok then return end
   CP.db.myAuctions = CP.db.myAuctions or {}
-  CP.db.myAuctions[CP.charKey] = { t = time(), v = 2, items = items }
+  CP.db.myAuctions[CP.charKey] = { t = time(), v = 3, items = items }
   L.dirty = true
+end
+
+-- Snapshots saved before version 3 multiplied each stack's price by the stack size, which made stacks look far
+-- more valuable than they are (a 200 bar stack counted 200 times). Undo it once per snapshot; the next time the
+-- auction house is opened the snapshot is replaced by a correct one anyway.
+function L.FixOldAsks(lst)
+  for _, e in pairs(lst or {}) do
+    if type(e) == "table" and (e.v or 0) < 3 and not e.askFixed then
+      for _, it in ipairs(e.items or {}) do
+        local n = it.n or 1
+        if n > 1 and (it.ask or 0) > 0 then it.ask = math.floor(it.ask / n + 0.5) end
+      end
+      e.askFixed = true
+    end
+  end
 end
 
 -- Earlier versions booked gold mailed between your own characters as ordinary mail in and out. Pair them up
@@ -658,6 +677,7 @@ function L.Rows(period, ck)
   do
     -- gold on its way: sold auctions whose money has not been collected, plus coin sitting in mailboxes
     local lst, soldNet, inbox, boxN = db.myAuctions or {}, 0, 0, 0
+    L.FixOldAsks(lst)
     local allSales, allCut = 0, 0
     for _, d in pairs(db.ledger or {}) do allSales, allCut = allSales + (d.sales or 0), allCut + (d.cut or 0) end
     local rate = (allSales > 0) and math.min(0.15, math.max(0, -allCut / allSales)) or 0.05
@@ -753,6 +773,7 @@ function L.Rows(period, ck)
   -- listed but not sold yet (current, so not limited to the chosen period)
   do
     local lst = db.myAuctions or {}
+    L.FixOldAsks(lst)
     local per, names = {}, {}
     local allSales, allCut = 0, 0
     for _, d in pairs(db.ledger or {}) do allSales, allCut = allSales + (d.sales or 0), allCut + (d.cut or 0) end
@@ -762,8 +783,6 @@ function L.Rows(period, ck)
       if not ck or c == ck then
         local n, ask = 0, 0
         for _, it in ipairs(e.items or {}) do
-          -- snapshots from before 0.8.2 stored a stack's per-unit price when the item name was unknown
-          if e.v ~= 2 and (it.n or 1) > 1 and it.name == "?" and not it.fixed then it.ask = it.ask * it.n it.fixed = true end
           if it.sold then soldAsk = soldAsk + it.ask
           else
             n, ask = n + 1, ask + it.ask
