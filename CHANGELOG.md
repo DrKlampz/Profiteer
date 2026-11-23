@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.26
+
+- Windows share the same look code as the rest of the add-ons, and can be closed in combat. Nothing else changed
+
+
 ## 0.12.25
 
 - Fixed "Waiting for you in the mail" and the unrealized totals being far too high: the game gives a stack's whole price and Profiteer multiplied it by the stack size again (a stack of 200 bars counted 200 times). Older saved snapshots are corrected too
