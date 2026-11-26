@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.12.37
+
+- Cost now and Sells now show a ticker-style arrow and percent: how far today's lowest price is above or below the average. Green up-arrow on what you sell means a better price, red down-arrow a worse one; for materials a green down-arrow means cheaper than average and a red up-arrow dearer. A grey dash means within 1% of the average
+- The two columns are wider to fit them
+
+## 0.12.36
+
+- Shopping lists menu is tidied: your lists and the ready-made ones are shown, and the consumable lists are folded into one heading per profession (click a heading to open or fold it). Searching opens everything that matches
+- "First Aid" and "FirstAid" no longer appear as two separate groups
+
+## 0.12.35
+
+- Hover a column heading in the Crafts list to see what it means (average, now, profit, listed, sold/day and so on) as well as the sort hint
+
+## 0.12.34
+
+- Live prices now run by themselves, once each time you open the auction house, as soon as the Crafts tab is showing and no scan is running (starred crafts first). Turn it off in the settings
+- Price spike warning: when today's lowest price is more than 50% above the average, Sells now gets an orange "!", Profit now turns orange, and the tooltip explains that Profit uses the cautious price
+- Big numbers in Listed and Sold/day are shortened (57227 shows as 57k) so they fit their columns; the tooltip says that the sales estimate counts items, not listings, which makes busy stackable goods read very high
+- The tooltip now says the average is the 14-day median
+
 ## 0.12.33
 
 - Crafts list: new "Profit now" column, what one craft would make if you bought the materials and sold the result at today's lowest listings (green profit, red loss). It sits beside Profit, which still uses the cautious price. Sortable

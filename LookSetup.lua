@@ -25,6 +25,7 @@ local function Options()
         } },
         { id = "ah", title = "Auction house", open = true, rows = {
             L.Kon("Scan automatically when the auction house opens (if data is stale)", st, "autoScan"),
+            L.Kon("Run Live prices by itself once when I open the Crafts tab (starred crafts first)", st, "autoLive"),
             L.Kon("Keep prices fresh while the auction house is open (re-checks the crafts shown, their materials and your shopping lists, oldest first)", st, "rolling", function() if CP.Live and CP.Live.RollStart then CP.Live.RollStart() end end),
             L.Choice("Open the auction house on", st, "ahStartTab", { { "game", "Auction House (the game's own search)" }, { "shopping", "Shopping" },
                 { "cancelling", "Cancelling" }, { "crafts", "Crafts" }, { "ledger", "Ledger" }, { "last", "Whichever tab I used last" } }),

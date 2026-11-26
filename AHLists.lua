@@ -38,6 +38,14 @@ local KIND = { [1] = "Potions", [2] = "Elixirs", [3] = "Flasks", [4] = "Scrolls"
 local KIND_ORDER = { "Potions", "Elixirs", "Flasks", "Scrolls", "Food and drink", "Bandages", "Other" }
 local PROF_ORDER = { "Alchemy", "Cooking", "First Aid", "Engineering", "Blacksmithing", "Enchanting", "Leatherworking", "Tailoring", "Jewelcrafting", "Inscription", "Mining", "Smelting", "Poisons", "Other crafts" }
 local consumableCache, consumableCount
+-- one name per profession: the game and the saved recipes spell some differently ("FirstAid" and "First Aid")
+local function CanonProf(prof)
+  local key = tostring(prof or ""):gsub("%s+", ""):lower()
+  for _, name in ipairs(PROF_ORDER) do
+    if (name:gsub("%s+", ""):lower()) == key then return name end
+  end
+  return prof
+end
 
 local function ItemClass(id)
   local fn = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
@@ -55,6 +63,7 @@ local function Consumables()
   local best = {}   -- item id -> { lowest skill that crafts it, the profession }
   local function note(id, skill, prof)
     if not id or id == 0 then return end
+    prof = CanonProf(prof)
     local b = best[id]
     if not b then best[id] = { skill = skill or 0, prof = prof }
     elseif (skill or 0) < b.skill then b.skill, b.prof = skill or 0, prof end
@@ -182,20 +191,51 @@ function Lists.Open(anchor, onPick)
   menu:Show()
 end
 
+-- The menu is grouped: your own lists, the ready-made ones, then one folded group per profession for the consumables.
+-- Click a group's heading to open or fold it; typing in the search box opens everything that matches.
+local collapsed = {}      -- group title -> true when folded (professions start folded)
+local function Folded(title, q)
+  if q ~= "" then return false end
+  local c = collapsed[title]
+  if c == nil then return title ~= "Your lists" and title ~= "Ready-made" end
+  return c
+end
+
 function Lists.Fill()
   local q = (menu.filter:GetText() or ""):lower()
-  local items = {}
-  local function add(name, kind, entries) if q == "" or name:lower():find(q, 1, true) then items[#items + 1] = { name = name, kind = kind, entries = entries } end end
+  local groups, byTitle = {}, {}
+  local function group(title)
+    local g = byTitle[title]
+    if not g then g = { title = title, items = {} } byTitle[title] = g groups[#groups + 1] = g end
+    return g
+  end
+  local function match(name) return q == "" or name:lower():find(q, 1, true) end
   local names = {}
   for n in pairs(Mine()) do names[#names + 1] = n end
   table.sort(names, function(a, b) return a:lower() < b:lower() end)
-  for _, n in ipairs(names) do add(n, "mine", Mine()[n]) end
-  for _, b in ipairs(BUILTIN) do add(b[1], "built", Entries(b[2])) end
-  for _, b in ipairs(Consumables()) do add(b[1], "built", Entries(b[2])) end
-  for i = 1, math.max(#items, #menu.rows) do
-    local it, r = items[i], Row(i)
-    if it then
-      r.fs:SetText((it.kind == "mine" and "|cffffd100" or "") .. it.name .. (it.kind == "mine" and "|r  |cff888888(" .. #it.entries .. ")|r" or ""))
+  for _, n in ipairs(names) do if match(n) then local g = group("Your lists") g.items[#g.items + 1] = { name = n, label = n, kind = "mine", entries = Mine()[n] } end end
+  for _, b in ipairs(BUILTIN) do if match(b[1]) then local g = group("Ready-made") g.items[#g.items + 1] = { name = b[1], label = b[1], kind = "built", entries = Entries(b[2]) } end end
+  for _, b in ipairs(Consumables()) do
+    if match(b[1]) then
+      local prof, kind = b[1]:match("^(.-): (.+)$")
+      local g = group(prof or "Other")
+      g.items[#g.items + 1] = { name = b[1], label = kind or b[1], kind = "built", entries = Entries(b[2]) }
+    end
+  end
+  local flat = {}
+  for _, g in ipairs(groups) do
+    local fold = Folded(g.title, q)
+    flat[#flat + 1] = { header = true, title = g.title, count = #g.items, fold = fold }
+    if not fold then for _, it in ipairs(g.items) do flat[#flat + 1] = it end end
+  end
+  for i = 1, math.max(#flat, #menu.rows) do
+    local it, r = flat[i], Row(i)
+    if it and it.header then
+      r.fs:SetText(("|cffffd100%s %s|r |cff888888(%d)|r"):format(it.fold and "+" or "-", it.title, it.count))
+      r:SetScript("OnClick", function() collapsed[it.title] = not it.fold Lists.Fill() end)
+      r:Show()
+    elseif it then
+      r.fs:SetText("    " .. (it.kind == "mine" and "|cffffd100" or "") .. it.label .. (it.kind == "mine" and "|r  |cff888888(" .. #it.entries .. ")|r" or ""))
       r:SetScript("OnClick", function(_, btn)
         if btn == "RightButton" and it.kind == "mine" then
           Lists.Delete(it.name)
@@ -210,7 +250,7 @@ function Lists.Fill()
       r:Hide()
     end
   end
-  menu:SetHeight(30 + math.max(1, #items) * 20 + 22)
+  menu:SetHeight(30 + math.max(1, #flat) * 20 + 22)
 end
 
 ------------------------------------------------------------------------

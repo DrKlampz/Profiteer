@@ -318,6 +318,31 @@ if C_AuctionHouse and hooksecurefunc then
   end
 end
 
+-- Live prices on their own: once per time the auction house is opened, as soon as the Crafts tab is showing and
+-- nothing else (a scan, the game's own search) is busy. Starred crafts come first.
+local auto = { pending = false, ticks = 0 }
+local function AutoTick()
+  if not auto.pending then return end
+  auto.ticks = auto.ticks + 1
+  if not (H.IsOpen() and CP.db and CP.db.settings.autoLive ~= false) or auto.ticks > 120 then auto.pending = false return end
+  C_Timer.After(2, AutoTick)
+  local at = CP.AHTab
+  local view = at and at.Current and at.Current()
+  if view ~= "crafts" or L.running then return end
+  if CP.Scanner and CP.Scanner.IsRunning and CP.Scanner:IsRunning() then return end
+  if not H.Ready() or GetTime() < roll.pausedUntil then return end
+  local ids = L.VisibleIds()
+  if #ids == 0 then return end
+  auto.pending = false
+  L.Start(ids)
+end
+
 local rev = CreateFrame("Frame")
 rev:RegisterEvent("AUCTION_HOUSE_SHOW")
-rev:SetScript("OnEvent", CP.Safe("rolling-start", function() CP.After(4, L.RollStart) end))
+rev:SetScript("OnEvent", CP.Safe("rolling-start", function()
+  CP.After(4, L.RollStart)
+  if CP.db and CP.db.settings.autoLive ~= false then
+    auto.pending, auto.ticks = true, 0
+    CP.After(5, AutoTick)
+  end
+end))

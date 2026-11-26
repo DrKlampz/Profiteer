@@ -10,9 +10,9 @@ local COLS = {
   { key = "prof",     label = "Profession",  w = 78,  align = "LEFT",  sortable = true },
   { key = "crafters", label = "Crafters",    w = 70,  align = "LEFT",  sortable = true },
   { key = "avgcost",  label = "Cost avg",    w = 85,  align = "RIGHT", sortable = true },
-  { key = "costnow",  label = "Cost now",    w = 85,  align = "RIGHT", sortable = true },
+  { key = "costnow",  label = "Cost now",    w = 120,  align = "RIGHT", sortable = true },
   { key = "avgsell",  label = "Sells avg",   w = 85,  align = "RIGHT", sortable = true },
-  { key = "sellnow",  label = "Sells now",   w = 85,  align = "RIGHT", sortable = true },
+  { key = "sellnow",  label = "Sells now",   w = 120,  align = "RIGHT", sortable = true },
   { key = "profit",   label = "Profit",      w = 85,  align = "RIGHT", sortable = true },
   { key = "profitnow", label = "Profit now", w = 85,  align = "RIGHT", sortable = true },
   { key = "ratio",    label = "ROI",         w = 50,  align = "RIGHT", sortable = true },
@@ -42,6 +42,44 @@ end
 LayoutCols(0)
 local function PaneW() return curTW + 12 end
 
+-- Quotron-style price tick: an arrow and the percent today's price is above or below the average.
+-- upIsGood: true for what you sell (a higher price is good), false for what you buy (a lower price is good).
+local TICK = "|TInterface\\AddOns\\Profiteer\\Media\\Tick_%s:11:11:0:0|t"
+local function Tick(now, avg, upIsGood)
+  if not now or not avg or avg <= 0 then return "" end
+  local pct = (now / avg - 1) * 100
+  if math.abs(pct) < 1 then return "  " .. TICK:format("flat") .. " |cff999999" .. "0%|r" end
+  local up = pct > 0
+  local good = (up == upIsGood)
+  local shown = math.abs(pct)
+  local txt = shown >= 100 and ("%d%%"):format(math.floor(shown + 0.5)) or (shown >= 10 and ("%d%%"):format(math.floor(shown + 0.5)) or ("%.1f%%"):format(shown))
+  return "  " .. TICK:format(up and "up" or "down") .. (good and " |cff40ff40" or " |cffff5050") .. txt .. "|r"
+end
+
+-- big counts shortened so they fit their columns (57227 -> 57k)
+local function Compact(n)
+  if type(n) ~= "number" then return tostring(n) end
+  if n >= 1000000 then return ("%.1fm"):format(n / 1000000) end
+  if n >= 10000 then return ("%dk"):format(math.floor(n / 1000 + 0.5)) end
+  return tostring(math.floor(n + 0.5))
+end
+-- today's lowest price is far above the average: a spike, not a price to count on
+local function Spiking(g) return g.liveSell and g.avgSell and g.avgSell > 0 and g.liveSell > g.avgSell * 1.5 end
+
+-- what each column means, shown in the tooltip over its heading
+local COLHELP = {
+  avgcost = "Materials for one craft at their average price over the last two weeks (today's price for items with fewer than 3 scans). Materials you would make from raw ones are averaged the same way.",
+  costnow = "Materials for one craft at today's lowest listings. The arrow and percent show how far today's price is from the average: green down-arrow = cheaper than average, red up-arrow = dearer.",
+  avgsell = "What one craft sells for after the auction house cut, at the item's average price over the last two weeks (the 14-day median).",
+  sellnow = "What one craft sells for after the cut, at today's lowest listing. The arrow and percent show how far today's price is from the average: green up-arrow = above average, red down-arrow = below. A \"!\" means a price spike: more than 50% above average.",
+  profit = "Profit the ranking is based on: the cautious sell price (the lower of today's next-lowest price and the average) minus the materials.",
+  profitnow = "Profit if you bought the materials and sold at today's lowest listings. Orange when today's price is a spike.",
+  ratio = "Profit divided by the materials cost.",
+  listed = "Units listed on the auction house (items, not listings).",
+  perday = "Estimated items sold per day, from listings that disappear between scans. Counts items, so busy stackable goods read high.",
+  make = "How many crafts the characters who know the recipe can make right now from their bags and bank.",
+  depth = "How many crafts are worth making before the materials' prices climb past what the result sells for.",
+}
 local rows = {}
 UI.offset = 0
 
@@ -97,10 +135,14 @@ local function ShowTooltip(self)
   GameTooltip:AddDoubleLine("Listings / units", ((p and p.n) or 0) .. " / " .. ((p and p.qty) or 0), 1, 1, 1, 1, 1, 1)
   local st = CP.History.Stats(g.id)
   if st and st.median and not dup then
-    GameTooltip:AddDoubleLine("Market median (" .. st.samples .. " scans)", CP.Money(st.median), 1, 1, 1, 1, 1, 1)
+    GameTooltip:AddDoubleLine("Average = 14-day median (" .. st.samples .. " scans)", CP.Money(st.median), 1, 1, 1, 1, 1, 1)
   end
   if st and st.perDay and not dup then
     GameTooltip:AddDoubleLine("Est. sales/day", string.format("%.1f", st.perDay), 1, 1, 1, 1, 1, 1)
+    if st.perDay >= 1000 then GameTooltip:AddLine("Counted in items, not listings: stacks that disappear between scans count as sold, so busy stackable goods (ammo, cloth) read very high.", 0.6, 0.6, 0.6, true) end
+  end
+  if Spiking(g) then
+    GameTooltip:AddLine(("Today's lowest price (%s) is far above the average (%s): a spike. Profit uses the cautious price, \"Profit now\" assumes the spike holds."):format(CP.Money(math.floor(g.liveSell)), CP.Money(math.floor(g.avgSell))), 1, 0.5, 0.25, true)
   end
   GameTooltip:AddDoubleLine("Sell price used (lower of reference and 14-day median)", g.sell and CP.Money(g.sell) or "none", 1, 1, 1, 1, 1, 1)
   GameTooltip:AddDoubleLine("Price data", CP.Age(p and p.time), 1, 1, 1, 0.7, 0.7, 0.7)
@@ -319,18 +361,18 @@ function UI.Update()
       row.cols.crafters:SetText(CraftersText(g))
       local ac, asell = g.avgCost or g.cost, g.avgSell or g.revenue
       row.cols.avgcost:SetText(CP.Money(ac))
-      row.cols.costnow:SetText(g.liveCost and (g.liveCost > ac * 1.1 and "|cffffa040" or (g.liveCost < ac * 0.9 and "|cff40ff40" or "")) .. CP.Money(g.liveCost) .. ((g.liveCost > ac * 1.1 or g.liveCost < ac * 0.9) and "|r" or "") or "|cff888888?|r")
+      row.cols.costnow:SetText(g.liveCost and (CP.Money(g.liveCost) .. Tick(g.liveCost, ac, false)) or "|cff888888?|r")
       row.cols.avgsell:SetText(CP.Money(math.floor(asell)))
-      row.cols.sellnow:SetText(g.liveSell and (g.liveSell < asell * 0.9 and "|cffffa040" or (g.liveSell > asell * 1.1 and "|cff40ff40" or "")) .. CP.Money(math.floor(g.liveSell)) .. ((g.liveSell < asell * 0.9 or g.liveSell > asell * 1.1) and "|r" or "") or "|cff888888-|r")
+      row.cols.sellnow:SetText(g.liveSell and (CP.Money(math.floor(g.liveSell)) .. Tick(g.liveSell, asell, true) .. (Spiking(g) and " |cffff8040!|r" or "")) or "|cff888888-|r")
       row.cols.profit:SetText(CP.Money(g.profit))
       if g.liveProfit then
-        row.cols.profitnow:SetText((g.liveProfit > 0 and "|cff40ff40" or "|cffff4040") .. CP.Money(math.floor(g.liveProfit)) .. "|r")
+        row.cols.profitnow:SetText((Spiking(g) and "|cffffa040" or (g.liveProfit > 0 and "|cff40ff40" or "|cffff4040")) .. CP.Money(math.floor(g.liveProfit)) .. "|r")
       else
         row.cols.profitnow:SetText("|cff888888-|r")
       end
       row.cols.ratio:SetText(profitColor .. math.floor(g.ratio * 100 + 0.5) .. "%|r")
-      row.cols.listed:SetText(g.listed < 10 and ("|cffffa040" .. g.listed .. "|r") or g.listed)
-      row.cols.perday:SetText(g.perDay and string.format("%.1f", g.perDay) or "|cff888888?|r")
+      row.cols.listed:SetText(g.listed < 10 and ("|cffffa040" .. g.listed .. "|r") or Compact(g.listed))
+      row.cols.perday:SetText(g.perDay and (g.perDay >= 10000 and Compact(g.perDay) or string.format("%.1f", g.perDay)) or "|cff888888?|r")
       row.cols.make:SetText(g.best > 0 and ("|cff40ff40" .. g.best .. "|r") or "|cff888888-|r")
       row.cols.depth:SetText(DepthText(g))
       row:Show()
@@ -570,6 +612,7 @@ function UI.Create()
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:SetText("Click to sort by " .. (self.label or ""), 1, 1, 1)
         GameTooltip:AddLine("Click again to reverse the order.", 0.8, 0.8, 0.8)
+        if COLHELP[self.key] then GameTooltip:AddLine(" ") GameTooltip:AddLine(COLHELP[self.key], 0.7, 0.85, 1, true) end
         GameTooltip:Show()
       end)
       h:SetScript("OnLeave", function() GameTooltip:Hide() end)

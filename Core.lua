@@ -44,6 +44,7 @@ local DEFAULTS = {
     deTips = true,         -- disenchant odds on weapon and armor tooltips
     recipeTips = true,     -- recipe item tooltips list which characters know the recipe
     autoScan = true,       -- scan when the AH opens (if data is older than 15 min)
+    autoLive = true,       -- run Live prices once when the Crafts tab is first shown after the AH opens
     rolling = true,        -- while the AH is open, keep re-checking the prices that matter, oldest first
     scanAll = true,         -- keep price history for every item in the auction house, not just recipe items
     replicateUnit = "total",-- "total": scanned buyout is the whole stack's price; "unit": per unit
