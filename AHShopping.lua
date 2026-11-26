@@ -175,6 +175,70 @@ function S.Add(id, want)
   S.Search()
 end
 
+-- The cheapest way to cover the whole craft: for each material that can be made, whether buying it or buying what it is
+-- made from costs less, with what you already hold used first. The list shows both ways; this says which one adds up.
+local function LadderCost(id, qty)
+  if qty <= 0 then return 0 end
+  local ladder = CP:Ladder(id)
+  if not ladder then
+    local c = CP:DirectCost(id)
+    return c and c * qty or nil
+  end
+  local total, left, last = 0, qty, 0
+  for _, step in ipairs(ladder) do
+    if left <= 0 then break end
+    local take = math.min(left, step[2])
+    total = total + take * step[1]
+    left = left - take
+    last = step[1]
+  end
+  if left > 0 then total = total + left * last end        -- past what is listed: assume the last price
+  return total
+end
+
+local function CopyTable(t) local o = {} for k, v in pairs(t) do o[k] = v end return o end
+
+local function Eval(id, qty, stock, out, depth)
+  local have = stock[id]
+  if have == nil then have = Have(id) end
+  local use = math.min(have, qty)
+  stock[id] = have - use
+  qty = qty - use
+  if qty <= 1e-9 then return 0 end
+  local vendor = CP.db.vendor[id]
+  if vendor then out.vendor = out.vendor + vendor * qty return vendor * qty end
+  local plan = depth < 4 and CP:MakePlan(id)
+  local buyC = LadderCost(id, math.ceil(qty - 1e-9))
+  if plan then
+    local stock2, out2 = CopyTable(stock), { buys = CopyTable(out.buys), vendor = out.vendor }
+    local mk = 0
+    for _, i in ipairs(plan.inputs) do mk = mk + Eval(i.id, i.count * qty / (plan.yield or 1), stock2, out2, depth + 1) end
+    if not buyC or mk < buyC then
+      for k, v in pairs(stock2) do stock[k] = v end
+      out.buys, out.vendor = out2.buys, out2.vendor
+      return mk
+    end
+  end
+  if buyC then
+    out.buys[id] = (out.buys[id] or 0) + math.ceil(qty - 1e-9)
+    return buyC
+  end
+  return 0
+end
+
+local function MakePlanFor(g, crafts)
+  local stock, out = {}, { buys = {}, vendor = 0 }
+  for _, rg in ipairs(g.reagents or {}) do
+    local _, _, id = CP:SlotCost(rg)
+    id = id or rg.id
+    if id then Eval(id, (rg.count or 1) * crafts, stock, out, 0) end
+  end
+  -- the real price: everything bought of one item is one walk up its price ladder
+  local total = out.vendor
+  for id, qty in pairs(out.buys) do total = total + (LadderCost(id, qty) or 0) end
+  return { buys = out.buys, total = total, crafts = crafts }
+end
+
 local function MatsOf(g)
   -- what to buy for a craft: the AH materials, as many crafts as the gold allows
   local out = {}
@@ -242,7 +306,8 @@ function S.ForCraft(g)
   local mats, d = MatsOf(g)
   if #mats == 0 then CP:Print("Nothing to buy at the auction house for " .. g.name .. " (vendor items or no price data).") return false end
   S.SetList(mats, "Materials for " .. g.name .. (d and d.crafts and d.crafts > 0 and (" (" .. d.crafts .. " crafts)") or ""),
-    { g = g, crafts = (d and d.crafts and d.crafts > 0) and d.crafts or 1 })
+    { g = g, crafts = (d and d.crafts and d.crafts > 0) and d.crafts or 1,
+      plan = select(2, pcall(MakePlanFor, g, (d and d.crafts and d.crafts > 0) and d.crafts or 1)) })
   return true
 end
 
@@ -387,6 +452,23 @@ function S.Draw()
   W.rp:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.55)
   W.ab:SetBackdropBorderColor(acc[1], acc[2], acc[3], 0.55)
   W.title:SetText(S.title or "Shopping list")
+  if W.plan then
+    local plan = S.context and type(S.context.plan) == "table" and S.context.plan
+    if plan then
+      local names = {}
+      for id, qty in pairs(plan.buys) do names[#names + 1] = { id = id, qty = qty } end
+      table.sort(names, function(a, b) return a.qty > b.qty end)
+      local parts = {}
+      for i = 1, math.min(4, #names) do parts[#parts + 1] = names[i].qty .. " " .. Name(names[i].id) end
+      local gold = GetMoney and GetMoney() or 0
+      local total = math.floor(plan.total)
+      local col = total <= gold and "|cff40ff40" or "|cffff6040"
+      W.plan:SetText(("Cheapest way for all %d crafts: %s  =  %s%s|r  |cff888888(you have %s)|r  |cff777777The other rows are alternatives, not extra.|r")
+        :format(plan.crafts, table.concat(parts, ", "), col, H.Money(total), H.Money(gold)))
+    else
+      W.plan:SetText("")
+    end
+  end
   if W.gold then W.gold:SetText("Your gold: |cffffd100" .. H.Money(GetMoney and GetMoney() or 0) .. "|r") end
   do
     local sum, known = 0, 0
@@ -446,7 +528,14 @@ function S.Draw()
       local low = scanned and scanned.min
       if idx == sel and state.results and state.results[1] and state.results[1].price then low = state.results[1].price end
       r.low:SetText(low and low > 0 and H.Money(low) or "|cff555555-|r")
-      r.need:SetText(need == 0 and "|cff40ff40done|r" or ("|cffffd100" .. need .. "|r |cff888888to buy|r"))
+      local plan = S.context and type(S.context.plan) == "table" and S.context.plan
+      if need == 0 then
+        r.need:SetText("|cff40ff40done|r")
+      elseif plan and not it.hdr and not plan.buys[it.id] then
+        r.need:SetText("|cff777777" .. need .. " or skip|r")        -- the cheaper way is the other rows
+      else
+        r.need:SetText("|cffffd100" .. need .. "|r |cff888888to buy|r")
+      end
       r.bar:SetWidth(math.max(0.01, math.min(1, have / math.max(1, want))) * (r:GetWidth() > 0 and r:GetWidth() or 240))
       r.bar:SetShown(have > 0)
       r.stripe:SetShown(idx % 2 == 0)
@@ -727,6 +816,8 @@ function S.Build(parent, w, h)
   W.title:SetPoint("TOPLEFT", 4, -2)
   W.title:SetWidth(w - 400)
   W.title:SetJustifyH("LEFT")
+  W.plan = H.Text(pane, "GameFontHighlightSmall")
+  W.plan:SetPoint("TOPLEFT", 4, -24) W.plan:SetWidth(w - 300) W.plan:SetJustifyH("LEFT")
   W.count = H.Text(pane, "GameFontDisableSmall")
   W.count:SetPoint("TOPRIGHT", -262, -8)
   W.craftsBtn = H.Button(pane, "Crafts  v", 78, 20)
