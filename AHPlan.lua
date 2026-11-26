@@ -50,17 +50,29 @@ local function Render()
   else
     L[#L + 1] = "Nothing to buy: you already have everything."
   end
+  local okU, demand = pcall(S.Usage, { g = g, crafts = crafts })
+  if not okU or type(demand) ~= "table" then demand = {} end
   for _, id in ipairs(plan.order) do
     local mp = CP:MakePlan(id)
     local from = {}
     for _, i in ipairs(mp and mp.inputs or {}) do from[#from + 1] = Name(i.id) end
     n = n + 1
     L[#L + 1] = ("|cffffd100%d. Make|r |cffffffff%d|r %s  |cff888888from %s|r"):format(n, plan.makes[id], Name(id), table.concat(from, " and "))
-    local on = GetItemCount and GetItemCount(id, true) or 0
-    if on > 0 then L[#L + 1] = ("      |cff888888your %d on hand are used first|r"):format(on) end
+    local need = math.ceil((demand[id] or plan.makes[id]) - 1e-9)
+    local made = plan.makes[id]
+    if need > made then
+      L[#L + 1] = ("      |cff888888you need %d %s in all, and you already have %d%s|r"):format(need, Name(id), need - made, "")
+    end
   end
   n = n + 1
   L[#L + 1] = ("|cffffd100%d. Make|r |cffffffff%d|r %s"):format(n, crafts, g.name)
+  local per = {}
+  for _, rg in ipairs(g.reagents or {}) do
+    local _, _, rid = CP:SlotCost(rg)
+    rid = rid or rg.id
+    if rid then per[#per + 1] = ("%d %s"):format(rg.count or 1, Name(rid)) end
+  end
+  if #per > 0 then L[#L + 1] = ("      |cff888888each one uses %s|r"):format(table.concat(per, ", ")) end
   L[#L + 1] = ""
   local gold = GetMoney and GetMoney() or 0
   local total = math.floor(plan.total or 0)

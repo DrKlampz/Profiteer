@@ -147,6 +147,9 @@ local function Usage(ctx)
   return demand, shown
 end
 
+S.Usage = Usage
+S.Have = Have
+
 local function UsageText(e)
   local demand, shown = Usage()
   if not (demand and shown and shown[e.id]) then return "" end

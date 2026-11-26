@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.42
+
+- Changed: the Plan tab now shows how much of each made material you need in all and how much of that you already have, and what one craft uses. For 37 Copper Modulators: 74 bolts use 74 bars, plus 37 bars in the craft, 111 bars in all, of which you smelt only what you do not already hold
+
 ## 0.12.41
 
 - Changed: the window the minimap button opens now shows only the Crafts, Shopping and Ledger tabs. Plan and Cancelling are in the auction house tabs. Clicking a craft in that window fills the Shopping tab
