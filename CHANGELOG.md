@@ -2,6 +2,7 @@
 
 ## 0.12.41
 
+- New: in the Shopping pane, when you open a craft's materials, the item you select now says where it goes. For example Copper Ore shows how much is for the Copper Bars the craft uses and how much is for the bars that become its Copper Bolts, with the total, what you have and what to buy. Bars you already hold are counted against the direct use first
 - New: a "Profit if bought" column next to "Buy up to" in the Crafts list. It shows the total profit you would make if you bought up to that many crafts' worth of materials, made them all and sold them. Orange when the buying stops because the auction house runs out or you run out of gold. You can sort by it
 
 ## 0.12.40

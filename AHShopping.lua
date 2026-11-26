@@ -79,7 +79,8 @@ end
 ------------------------------------------------------------------------
 -- the list
 ------------------------------------------------------------------------
-function S.SetList(entries, title)
+function S.SetList(entries, title, ctx)
+  S.context = ctx
   list = {}
   sel = 0
   for _, e in ipairs(entries) do
@@ -91,6 +92,79 @@ function S.SetList(entries, title)
   if W.list then W.list.offset = 0 end
   Draw()
   if H.IsOpen() then S.Search() end
+end
+
+-- Where each material goes for the craft on screen: how much of an ore is smelted into the bars the bolts need,
+-- how much into the bars the craft uses directly, and so on. Things you already have are used first.
+local function Usage()
+  local ctx = S.context
+  if not (ctx and ctx.g and ctx.g.reagents) then return nil end
+  -- sources[id] = ordered { {label =, amt =} }: how much of `id` each part of the craft needs, where a part is one of the
+  -- craft's own materials (the bars it uses directly, the bolts, and so on)
+  local sources, demand, order, seen = {}, {}, {}, {}
+  local function Add(id, label, amt)
+    if amt <= 1e-9 then return end
+    demand[id] = (demand[id] or 0) + amt
+    local list = sources[id]
+    if not list then list = {} sources[id] = list end
+    for _, x in ipairs(list) do if x.label == label then x.amt = x.amt + amt return end end
+    if label == id then table.insert(list, 1, { label = label, amt = amt }) else list[#list + 1] = { label = label, amt = amt } end
+  end
+  local function Visit(id)
+    if seen[id] then return end
+    seen[id] = true
+    local plan = CP:MakePlan(id)
+    if plan then for _, i in ipairs(plan.inputs) do Visit(i.id) end end
+    order[#order + 1] = id
+  end
+  for _, rg in ipairs(ctx.g.reagents) do
+    local _, src, id = CP:SlotCost(rg)
+    id = id or rg.id
+    if id and src ~= "vendor" then
+      Add(id, id, (rg.count or 1) * ctx.crafts)
+      Visit(id)
+    end
+  end
+  local shown = {}
+  for k = #order, 1, -1 do
+    local id = order[k]
+    shown[id] = {}
+    for _, x in ipairs(sources[id] or {}) do shown[id][#shown[id] + 1] = { label = x.label, amt = x.amt } end
+    local plan = demand[id] and CP:MakePlan(id)
+    if plan then
+      -- what you already hold covers the direct use first, then the rest
+      local stock = Have(id)
+      for _, x in ipairs(sources[id]) do
+        local cover = math.min(stock, x.amt)
+        stock = stock - cover
+        local remaining = x.amt - cover
+        if remaining > 1e-9 then
+          for _, i in ipairs(plan.inputs) do Add(i.id, x.label, i.count * remaining / (plan.yield or 1)) end
+        end
+      end
+    end
+  end
+  return demand, shown
+end
+
+local function UsageText(e)
+  local demand, shown = Usage()
+  if not (demand and shown and shown[e.id]) then return "" end
+  local list = shown[e.id]
+  if #list < 2 then return "" end                    -- one use: nothing to split
+  local lines = { "|cffffd100Where the " .. Name(e.id) .. " goes|r" }
+  for _, x in ipairs(list) do
+    local amt = math.ceil(x.amt - 1e-9)
+    if x.label == e.id then
+      lines[#lines + 1] = ("  |cffffffff%d|r used in the craft itself"):format(amt)
+    else
+      lines[#lines + 1] = ("  |cffffffff%d|r to make %s"):format(amt, Name(x.label))
+    end
+  end
+  local total = math.ceil(demand[e.id] - 1e-9)
+  local have = Have(e.id)
+  lines[#lines + 1] = ("  Total |cffffffff%d|r, you have |cffffffff%d|r, buy |cff40ff40%d|r"):format(total, have, math.max(0, total - have))
+  return table.concat(lines, "\n")
 end
 
 function S.Add(id, want)
@@ -159,7 +233,8 @@ end
 function S.ForCraft(g)
   local mats, d = MatsOf(g)
   if #mats == 0 then CP:Print("Nothing to buy at the auction house for " .. g.name .. " (vendor items or no price data).") return false end
-  S.SetList(mats, "Materials for " .. g.name .. (d and d.crafts and d.crafts > 0 and (" (" .. d.crafts .. " crafts)") or ""))
+  S.SetList(mats, "Materials for " .. g.name .. (d and d.crafts and d.crafts > 0 and (" (" .. d.crafts .. " crafts)") or ""),
+    { g = g, crafts = (d and d.crafts and d.crafts > 0) and d.crafts or 1 })
   return true
 end
 
@@ -386,6 +461,7 @@ function S.Draw()
   W.heroSub:SetText(("You have |cffffd100%d|r of |cffffd100%d|r"):format(have, want))
   W.heroBar:SetMinMaxValues(0, math.max(1, want))
   W.heroBar:SetValue(math.min(have, want))
+  if W.heroUse then W.heroUse:SetText(e.hdr and "" or UsageText(e)) end
   local scan = CP.db.prices[e.id]
   local res = state.results or {}
   if res[1] and scan and scan.ref and scan.ref > 0 then
@@ -781,6 +857,8 @@ function S.Build(parent, w, h)
   W.heroBar:SetStatusBarColor(0.25, 0.75, 0.3, 0.9)
   local hbBg = W.heroBar:CreateTexture(nil, "BACKGROUND") hbBg:SetAllPoints() hbBg:SetColorTexture(1, 1, 1, 0.12)
   W.heroMkt = H.Text(W.rp, "GameFontHighlightSmall") W.heroMkt:SetPoint("TOPLEFT", W.heroIcon, "BOTTOMLEFT", 0, -6)
+  W.heroUse = H.Text(W.rp, "GameFontHighlightSmall")
+  W.heroUse:SetPoint("TOPRIGHT", -14, -8) W.heroUse:SetWidth(430) W.heroUse:SetJustifyH("LEFT") W.heroUse:SetJustifyV("TOP")
 
   local hdr = { { "Price each", 8, 120 }, { "Listed", 130, 56 }, { "Total so far", 196, 70 }, { "Cost so far", 276, 130 } }
   for _, c in ipairs(hdr) do
