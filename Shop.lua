@@ -113,6 +113,10 @@ local function Route(fn, ...)
 end
 
 function Shop.ForCraft(g)
+  if not (CP.AHTab and CP.AHTab.IsEmbedded and CP.AHTab.IsEmbedded()) and CP.AHShopping and CP.UI and CP.UI.panes and CP.UI.panes.shopping then
+    if CP.AHShopping.ForCraft(g) then CP.UI.SetTab("shopping") end
+    return true
+  end
   if CP.AHPlan and CP.AHPlan.pane then
     CP.AHPlan.Open(g)
     if CP.AHTab and CP.AHTab.IsReady and CP.AHTab.IsReady() and CP.AH and CP.AH.IsOpen() then CP.AHTab.Go("plan") else CP.UI.SetTab("plan") end

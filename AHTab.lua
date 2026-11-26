@@ -300,7 +300,7 @@ local function Unembed()
   if f.bgTex then f.bgTex:Show() end
   if f.closeBtn then f.closeBtn:Show() end
   if f.titleFS then f.titleFS:Show() end
-  for _, t in pairs(CP.UI.tabs or {}) do t:Show() end
+  if CP.UI.LayoutTabs then CP.UI.LayoutTabs() end
   f:ClearAllPoints()
   f:SetPoint("CENTER")
   if CP.WinLook and CP.WinLook.Apply then CP.WinLook.Apply() end
@@ -311,6 +311,7 @@ local function Mark(key)
 end
 
 function AHTab.Current() return current end
+function AHTab.IsEmbedded() return embedded end
 function AHTab.IsReady() return tabs ~= nil and host ~= nil end
 
 function AHTab.Leave()

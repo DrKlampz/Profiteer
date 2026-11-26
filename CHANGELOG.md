@@ -2,6 +2,7 @@
 
 ## 0.12.41
 
+- Changed: the window the minimap button opens now shows only the Crafts, Shopping and Ledger tabs. Plan and Cancelling are in the auction house tabs. Clicking a craft in that window fills the Shopping tab
 - New: a Plan tab. Clicking a craft opens it there instead of the Shopping list. Type how many you want to make (or use the -10, +10, +100 buttons) and it lists, in order, what to buy at the auction house with the number of stacks, how many of each intermediate (bars, bolts) to make and from what, and how many of the craft to make, with the cost against your gold. "Shop for these" sends the buy list to the Shopping tab. The number starts at the most you can make with the gold you have
 - New: a craft's Shopping list now says the cheapest way to cover the whole craft and what it costs in total, in green when you can afford it and red when you cannot. The rows for a material and for what it is made from are alternatives, so the rows you do not need for that plan show "or skip" instead of an amount to buy. Everything bought of one item is priced as one walk up its price ladder
 - Fixed: in the Shopping pane the amount to buy for a material needed by more than one part of a craft was too low. Copper Ore for a Copper Modulator counted the bars and the bolts as the same ore and showed 464, when it is 660 (186 for the bars, 474 for the bolts) less what you have. The amount now adds up across the whole craft

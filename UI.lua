@@ -574,6 +574,17 @@ function UI.Create()
   MakeTab("cancelling", "Cancelling", 282)
   MakeTab("ledger", "Ledger", 368)
   UI.tabs = tabs
+  -- on its own (minimap button) the window shows only Crafts, Shopping and the Ledger; Plan and Cancelling live in the auction house
+  function UI.LayoutTabs()
+    local x = 24
+    for _, key in ipairs({ "crafts", "shopping", "ledger" }) do
+      local t = tabs[key]
+      t:ClearAllPoints() t:SetPoint("TOPLEFT", f, "TOPLEFT", x, -14) t:Show()
+      x = x + 86
+    end
+    tabs.plan:Hide() tabs.cancelling:Hide()
+  end
+  UI.LayoutTabs()
 
   -- Search box (Crafts tab): part of a craft, material, profession or character name
   local search = CreateFrame("EditBox", "ProfiteerSearch", f, "InputBoxTemplate")
@@ -813,6 +824,7 @@ end
 function UI.SetTab(key)
   if not UI.frame then return end
   if not (UI.tabs and UI.tabs[key]) then key = "crafts" end
+  if (key == "plan" or key == "cancelling") and not (CP.AHTab and CP.AHTab.IsEmbedded and CP.AHTab.IsEmbedded()) then key = "crafts" end
   UI.tab = key
   local crafts = key == "crafts"
   for _, w in ipairs(UI.craftWidgets or {}) do w:SetShown(crafts) end
