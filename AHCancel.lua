@@ -64,14 +64,12 @@ local function Read()
       if secs < g.secs then g.secs = secs g.left = TimeLeft(a) end
     end
   end
-  table.sort(auctions, function(x, y)
-    if (x.status == "undercut") ~= (y.status == "undercut") then return x.status == "undercut" end
-    return (x.id or 0) < (y.id or 0)
-  end)
+  C.Sort()
 end
 
 function C.Draw()
   if not pane then return end
+  if C.HeadMarks then C.HeadMarks() end
   rowsList.n = #auctions
   local maxOff = math.max(0, #auctions - rowsList.vis)
   if rowsList.offset > maxOff then rowsList.offset = maxOff end
@@ -145,6 +143,61 @@ local COLS = {
   { key = "stat",   label = "Status",         w = 70,  j = "RIGHT" },
   { key = "left",   label = "Left",           w = 45,  j = "RIGHT" },
 }
+
+-- Sorting: click a heading to sort by it, click again to reverse. With nothing chosen, undercut auctions come first.
+local SORT_VALUE = {
+  name   = function(a) return tostring((a.id and CP.ItemName(a.id)) or ""):lower() end,
+  qty    = function(a) return a.qty end,
+  mine   = function(a) return a.unit end,
+  low    = function(a) return a.low or -1 end,
+  gap    = function(a) return (a.status == "undercut" and a.low) and (a.unit - a.low) or -1 end,
+  relist = function(a) return (a.status == "undercut" and a.low) and math.max(1, a.low - 1) or -1 end,
+  total  = function(a) return a.unit * a.qty end,
+  stat   = function(a) return a.status == "undercut" and 1 or (a.status == "lowest" and 2 or 3) end,
+  left   = function(a) return a.secs or 0 end,
+}
+local function SortState()
+  local st = CP.db and CP.db.settings
+  return st and st.cancelSortKey, st and st.cancelSortDesc
+end
+function C.Sort()
+  local key, desc = SortState()
+  local val = key and SORT_VALUE[key]
+  table.sort(auctions, function(x, y)
+    if val then
+      local vx, vy = val(x), val(y)
+      if vx ~= vy then
+        if desc then return vx > vy end
+        return vx < vy
+      end
+    else
+      if (x.status == "undercut") ~= (y.status == "undercut") then return x.status == "undercut" end
+    end
+    if (x.id or 0) ~= (y.id or 0) then return (x.id or 0) < (y.id or 0) end
+    return (x.unit or 0) < (y.unit or 0)
+  end)
+end
+local function ClickHead(key)
+  local st = CP.db and CP.db.settings
+  if not st then return end
+  if st.cancelSortKey == key then
+    if st.cancelSortDesc then st.cancelSortKey, st.cancelSortDesc = nil, nil     -- third click: back to the default order
+    else st.cancelSortDesc = true end
+  else
+    st.cancelSortKey, st.cancelSortDesc = key, (key == "total" or key == "qty" or key == "gap" or key == "mine" or key == "low" or key == "relist") and true or false
+  end
+  C.Sort()
+  C.Draw()
+end
+function C.HeadMarks()
+  local key, desc = SortState()
+  for _, col in ipairs(COLS) do
+    local fs = C.heads and C.heads[col.key]
+    if fs then fs:SetText(col.label .. ((key == col.key) and (desc and " v" or " ^") or "")) end
+  end
+  if C.nameHead then C.nameHead:SetText("Item" .. ((key == "name") and (desc and " v" or " ^") or "")) end
+end
+
 local function Layout(w)
   if not (pane and C.heads and rowsList) then return end
   local pos = w - 24 - 6
@@ -156,9 +209,15 @@ local function Layout(w)
   end
   local nameW = math.max(120, pos - 22 - 4)
   C.nameHead:ClearAllPoints() C.nameHead:SetPoint("TOPLEFT", pane, "TOPLEFT", 22, -2) C.nameHead:SetWidth(nameW)
+  if C.headBtn then
+    local nb = C.headBtn.name
+    nb:ClearAllPoints() nb:SetPoint("TOPLEFT", pane, "TOPLEFT", 22, 0) nb:SetSize(nameW, 18)
+  end
   for _, col in ipairs(COLS) do
     local fs = C.heads[col.key]
     fs:ClearAllPoints() fs:SetPoint("TOPLEFT", pane, "TOPLEFT", col.x, -2) fs:SetWidth(col.w)
+    local hb = C.headBtn and C.headBtn[col.key]
+    if hb then hb:ClearAllPoints() hb:SetPoint("TOPLEFT", pane, "TOPLEFT", col.x, 0) hb:SetSize(col.w, 18) end
   end
   for _, r in ipairs(rowsList.rows) do
     r.name:SetWidth(nameW)
@@ -185,6 +244,23 @@ function C.Build(parent, w, h)
   C.nameHead = H.Text(pane, "GameFontNormalSmall")
   C.nameHead:SetText("Item")
   C.nameHead:SetJustifyH("LEFT")
+  C.headBtn = {}
+  local function MakeHead(key, tip)
+    local b = CreateFrame("Button", nil, pane)
+    b:SetFrameLevel((pane:GetFrameLevel() or 1) + 2)
+    local hl = b:CreateTexture(nil, "HIGHLIGHT") hl:SetAllPoints() hl:SetColorTexture(1, 1, 1, 0.12)
+    b:SetScript("OnClick", function() ClickHead(key) end)
+    b:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:SetText("Click to sort by " .. tip, 1, 1, 1)
+      GameTooltip:AddLine("Click again to reverse, a third time for the default order.", 0.8, 0.8, 0.8)
+      GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    C.headBtn[key] = b
+  end
+  MakeHead("name", "item name")
+  for _, col in ipairs(COLS) do MakeHead(col.key, col.label:lower()) end
   lf = CreateFrame("Frame", nil, pane)
   lf:SetPoint("TOPLEFT", 0, -20)
   lf:SetSize(w - 24, 15 * 20)

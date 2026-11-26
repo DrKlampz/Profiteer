@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.38
+
+- Cancelling tab: click any column heading to sort by it (item, quantity, your price, lowest, over by, undercut price, total value, status, time left). Click again to reverse, a third time for the default order (undercut auctions first). The choice is remembered
+
 ## 0.12.37
 
 - Cost now and Sells now show a ticker-style arrow and percent: how far today's lowest price is above or below the average. Green up-arrow on what you sell means a better price, red down-arrow a worse one; for materials a green down-arrow means cheaper than average and a red up-arrow dearer. A grey dash means within 1% of the average
