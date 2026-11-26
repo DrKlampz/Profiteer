@@ -42,6 +42,7 @@ local DEFAULTS = {
     minSales = 0,          -- hide crafts estimated to sell fewer than this per day
     tooltips = true,
     deTips = true,         -- disenchant odds on weapon and armor tooltips
+    openTips = true,       -- what clams, crates, lockboxes and scrolls gave you before, on their tooltips
     recipeTips = true,     -- recipe item tooltips list which characters know the recipe
     autoScan = true,       -- scan when the AH opens (if data is older than 15 min)
     autoLive = true,       -- run Live prices once when the Crafts tab is first shown after the AH opens

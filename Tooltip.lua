@@ -65,6 +65,10 @@ local function Safe(tip, id)
     local ok3, err3 = pcall(CP.Disenchant.Tip, tip, id)
     if not ok3 then CP.RecordError("disenchant tooltip", err3) end
   end
+  if CP.Opens then
+    local ok5, err5 = pcall(CP.Opens.Tip, tip, id)
+    if not ok5 then CP.RecordError("opens tooltip", err5) end
+  end
   if CP.CraftTip then
     local ok4, err4 = pcall(CP.CraftTip.Tip, tip, id)
     if not ok4 then CP.RecordError("craft tooltip", err4) end

@@ -46,6 +46,7 @@ local function Options()
             L.Koff("Open the Profiteer panel with the auction house", st, "ahAutoOpen"),
             L.Kon("Show Profiteer lines in item tooltips", st, "tooltips"),
             L.Kon("Show disenchant odds on weapon and armor tooltips", st, "deTips"),
+            L.Kon("Show what clams, crates, lockboxes and scrolls gave you before (learned from your own openings)", st, "openTips"),
             L.Kon("Tooltip warning when a vendor pays more than the auction house", st, "vendorWarn"),
             L.Kon("Tooltip for craftable items: materials, their prices and what it sells for", st, "craftTips"),
             L.Kon("Recipe items: show which of your characters know the recipe", st, "recipeTips"),

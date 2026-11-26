@@ -108,6 +108,20 @@ Next = function()
     Finish("Live prices stopped: the auction house closed. Updated " .. updated .. " items.")
     return
   end
+  -- the game answers one search at a time, so a run must not fire searches while another tab (Shopping, Selling,
+  -- Cancelling) is using the search results on screen: it waits here and carries on when you are back on Crafts
+  do
+    local at = CP.AHTab
+    local view = at and at.Current and at.Current()
+    if view and view ~= "crafts" and view ~= "ledger" then
+      Status("Live prices paused while you use another tab. It carries on when you go back to Crafts.")
+      if not L.pauseTimer then
+        L.pauseTimer = true
+        CP.After(1, function() L.pauseTimer = false if L.running and not cur then Next() end end)
+      end
+      return
+    end
+  end
   qi = qi + 1
   local id = q[qi]
   if not id then

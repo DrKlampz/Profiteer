@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.40
+
+- New: tooltips for things you open (clams, crates, lockboxes, bags of goods) and mage scrolls you decipher now show what they have given you and how often, with the average amount and what that is worth. The odds are learned from your own openings, because nobody publishes them for most of these. Until you have opened one, the tooltip says nothing is recorded yet. Turn it off in the options. Deciphered scrolls are read from your bags, and openings that gave nothing show as "Nothing" so the odds add up
+
+## 0.12.39
+
+- Fixed: the Shopping list for a craft could show the same material twice (for example Copper Ore with two different amounts). Each material is one row now
+- Fixed: the Shopping pane flashed and showed the wrong prices while Live prices was running. Live prices now pauses while you are on another tab and carries on when you go back to Crafts, and the Shopping pane ignores other items' search results
+
 ## 0.12.38
 
 - Cancelling tab: click any column heading to sort by it (item, quantity, your price, lowest, over by, undercut price, total value, status, time left). Click again to reverse, a third time for the default order (undercut auctions first). The choice is remembered

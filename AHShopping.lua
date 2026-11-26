@@ -106,8 +106,18 @@ local function MatsOf(g)
   local out = {}
   local d = CP:BuyDepth(g)
   if d and d.crafts and d.crafts > 0 then
+    local seenId = {}
     for _, sl in ipairs(d.mats) do
-      if not sl.flat and sl.units > 0 then out[#out + 1] = { id = sl.id, want = sl.units } end
+      if not sl.flat and sl.units > 0 then
+        local prev = seenId[sl.id]
+        if prev then
+          if prev.want < sl.units then prev.want = sl.units end   -- the same item twice is one row, not two
+        else
+          local e = { id = sl.id, want = sl.units }
+          out[#out + 1] = e
+          seenId[sl.id] = e
+        end
+      end
     end
   else
     for _, rg in ipairs(g.reagents or {}) do
@@ -901,6 +911,7 @@ ev:SetScript("OnEvent", CP.Safe("shopping-event", function(_, event, a, b)
     S.Draw()
   elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
     if not e then return end
+    if type(a) == "table" and a.itemID and a.itemID ~= e.id then return end   -- another item's search (Live prices): not ours
     state.kind = "item"
     local key = a
     state.results = ReadItems(key)

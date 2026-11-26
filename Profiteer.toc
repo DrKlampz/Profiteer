@@ -2,7 +2,7 @@
 ## Title: Profiteer
 ## Notes: Full AH scan, price history and tooltips, a recipe tracker, plus a ranking of what all your characters can craft by profit and ROI. Built for WoW Forever.
 ## Author: David
-## Version: 0.12.38
+## Version: 0.12.40
 ## IconTexture: Interface\AddOns\Profiteer\Media\icon
 ## SavedVariables: ProfiteerDB
 ## X-License: MIT
@@ -39,5 +39,6 @@ AHTab.lua
 CraftTip.lua
 Tooltip.lua
 Disenchant.lua
+Opens.lua
 Minimap.lua
 Probe.lua
