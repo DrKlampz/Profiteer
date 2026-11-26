@@ -114,7 +114,7 @@ end
 
 function Shop.ForCraft(g)
   if CP.AHPlan and CP.AHPlan.pane then
-    CP.AHPlan.Open(g, 1)
+    CP.AHPlan.Open(g)
     if CP.AHTab and CP.AHTab.IsReady and CP.AHTab.IsReady() and CP.AH and CP.AH.IsOpen() then CP.AHTab.Go("plan") else CP.UI.SetTab("plan") end
     return true
   end

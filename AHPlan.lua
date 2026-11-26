@@ -70,8 +70,32 @@ local function Render()
   W.out:SetText(table.concat(L, "\n"))
 end
 
+-- the most you can make with the gold you have, by the cheapest plan (everything you hold is used first)
+function P.MaxAffordable(g)
+  local S, gold = CP.AHShopping, GetMoney and GetMoney() or 0
+  local yield = g.yield or 1
+  local okd, d = pcall(CP.BuyDepth, CP, g)
+  local cap = (okd and d and d.crafts and d.crafts > 0) and d.crafts * 10 or 500
+  cap = math.min(math.max(cap, 200), 5000)
+  local function cost(c)
+    local ok, plan = pcall(S.MakePlanFor, g, c)
+    return ok and type(plan) == "table" and plan.total or nil
+  end
+  local lo, hi = 0, cap
+  while lo < hi do
+    local mid = math.ceil((lo + hi) / 2)
+    local c = cost(mid)
+    if c and c <= gold then lo = mid else hi = mid - 1 end
+  end
+  return math.max(1, lo) * yield
+end
+
 function P.Open(g, n)
   cur = g
+  if not n then
+    local ok, m = pcall(P.MaxAffordable, g)
+    n = ok and m or 1
+  end
   want = n or want or 1
   if want < 1 then want = 1 end
   if W.qty then W.qty:SetText(tostring(want)) end
