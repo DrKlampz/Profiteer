@@ -96,8 +96,8 @@ end
 
 -- Where each material goes for the craft on screen: how much of an ore is smelted into the bars the bolts need,
 -- how much into the bars the craft uses directly, and so on. Things you already have are used first.
-local function Usage()
-  local ctx = S.context
+local function Usage(ctx)
+  ctx = ctx or S.context
   if not (ctx and ctx.g and ctx.g.reagents) then return nil end
   -- sources[id] = ordered { {label =, amt =} }: how much of `id` each part of the craft needs, where a part is one of the
   -- craft's own materials (the bars it uses directly, the bolts, and so on)
@@ -225,6 +225,14 @@ local function MatsOf(g)
       for _, raw in ipairs(CP:RawMaterials(id)) do
         if not CP.db.vendor[raw.id] then Put(raw.id, math.ceil(raw.count * (rg.count or 1) * crafts), id) end
       end
+    end
+  end
+  -- the same material needed by several parts of the craft (ore for the bars and for the bolts) adds up: take each
+  -- row's amount from the full breakdown, with what you already hold used first
+  local ok, demand = pcall(Usage, { g = g, crafts = crafts })
+  if ok and demand then
+    for _, e in ipairs(out) do
+      if demand[e.id] then e.want = math.max(1, math.ceil(demand[e.id] - 1e-9)) end
     end
   end
   return out, d
