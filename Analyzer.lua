@@ -318,6 +318,13 @@ local SORTERS = {
     end
     return g.depth and g.depth.crafts or -1
   end,
+  depthprofit = function(g)
+    if g.depth == nil then
+      local ok, d = pcall(CP.BuyDepth, CP, g)
+      g.depth = ok and d or false
+    end
+    return g.depth and g.depth.profit or -1
+  end,
 }
 
 -- Vendor sell price of an item if the client already knows it

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.41
+
+- New: a "Profit if bought" column next to "Buy up to" in the Crafts list. It shows the total profit you would make if you bought up to that many crafts' worth of materials, made them all and sold them. Orange when the buying stops because the auction house runs out or you run out of gold. You can sort by it
+
 ## 0.12.40
 
 - New: tooltips for things you open (clams, crates, lockboxes, bags of goods) and mage scrolls you decipher now show what they have given you and how often, with the average amount and what that is worth. The odds are learned from your own openings, because nobody publishes them for most of these. Until you have opened one, the tooltip says nothing is recorded yet. Turn it off in the options. Deciphered scrolls are read from your bags, and openings that gave nothing show as "Nothing" so the odds add up

@@ -20,6 +20,7 @@ local COLS = {
   { key = "perday",   label = "Sold/day",    w = 60,  align = "RIGHT", sortable = true },
   { key = "make",     label = "Can make",    w = 64,  align = "RIGHT", sortable = true },
   { key = "depth",    label = "Buy up to",   w = 82,  align = "RIGHT", sortable = true },
+  { key = "depthprofit", label = "Profit if bought", w = 105, align = "RIGHT", sortable = true },
 }
 local TOTAL_W = 0
 for _, c in ipairs(COLS) do TOTAL_W = TOTAL_W + c.w + GAP end
@@ -79,6 +80,7 @@ local COLHELP = {
   perday = "Estimated items sold per day, from listings that disappear between scans. Counts items, so busy stackable goods read high.",
   make = "How many crafts the characters who know the recipe can make right now from their bags and bank.",
   depth = "How many crafts are worth making before the materials' prices climb past what the result sells for.",
+  depthprofit = "The total profit if you buy up to that many crafts' worth of materials, make them all and sell at the price used.",
 }
 local rows = {}
 UI.offset = 0
@@ -287,6 +289,16 @@ local function DepthText(g)
   return ((d.reason == "supply" or d.reason == "gold") and "|cffffa040" or "|cff40ff40") .. d.crafts .. (d.reason == "cap" and "+" or "") .. "|r"
 end
 
+-- "Profit if bought": what buying up to that many crafts' worth would earn in total
+local function DepthProfitText(g)
+  local _ = DepthText(g)                    -- makes sure g.depth is worked out
+  local d = g.depth
+  if not d then return "|cff888888?|r" end
+  if d.crafts == 0 then return "|cff888888-|r" end
+  local color = (d.reason == "supply" or d.reason == "gold") and "|cffffa040" or "|cff40ff40"
+  return color .. CP.Money(math.floor(d.profit)) .. "|r"
+end
+
 local function CraftersText(g)
   if g.notLearned then
     local who, seenW = {}, {}
@@ -353,6 +365,7 @@ function UI.Update()
       row.cols.perday:SetText("|cff888888?|r")
       row.cols.make:SetText(g.best > 0 and ("|cff40ff40" .. g.best .. "|r") or "|cff888888-|r")
       row.cols.depth:SetText("|cff888888-|r")
+      row.cols.depthprofit:SetText("|cff888888-|r")
       row:Show()
     elseif g then
       local profitColor = g.profit > 0 and "|cff40ff40" or "|cffff4040"
@@ -375,6 +388,7 @@ function UI.Update()
       row.cols.perday:SetText(g.perDay and (g.perDay >= 10000 and Compact(g.perDay) or string.format("%.1f", g.perDay)) or "|cff888888?|r")
       row.cols.make:SetText(g.best > 0 and ("|cff40ff40" .. g.best .. "|r") or "|cff888888-|r")
       row.cols.depth:SetText(DepthText(g))
+      row.cols.depthprofit:SetText(DepthProfitText(g))
       row:Show()
     else
       row:Hide()
