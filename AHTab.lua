@@ -4,7 +4,7 @@ local ADDON, CP = ...
 local AHTab = {}
 CP.AHTab = AHTab
 
-local KEYS = { { "plan", "Plan" }, { "shopping", "Shopping" }, { "cancelling", "Cancelling" }, { "crafts", "Crafts" }, { "ledger", "Ledger" } }
+local KEYS = { { "shopping", "Shopping" }, { "cancelling", "Cancelling" }, { "crafts", "Crafts" }, { "plan", "Plan" }, { "ledger", "Ledger" } }
 local tabs, host, hostBg
 local embedded = false
 local current
