@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.28
+
+- New ready-made shopping lists for every consumable, split by the profession that makes them and then by kind (for example Alchemy: Potions, Alchemy: Elixirs, Alchemy: Flasks, Cooking: Food and drink, First Aid: Bandages, Engineering: Other, Blacksmithing: Other for sharpening stones). They are built from every craft Profiteer knows plus the recipes your characters have opened, ordered by the skill needed, so new ones show up on their own. Also two mage-only scroll lists, with nothing a vendor sells: the learnable scrolls (Liminal Passage, Polymorph: Odd Melon, Reintegration, Minor Evocation, Comprehension, Arcane Accuracy, Arcane Power, Arcane Protection, Arcane Recovery, The Blade, Geomancy, Spatial Mending, Cryoblast) and the unread "Scroll: ..." drops you decipher with a Comprehension Charm. Pick them from the Shopping lists menu in the Shopping tab
+
+## 0.12.27
+
+- Fixed the look background (your chosen art and color) only flashing up for a moment when you switched to Profiteer's tabs in the auction house, then disappearing. It now stays
+
+- New: prices stay fresh while the auction house is open. Profiteer quietly re-checks the crafts shown, their materials and your saved shopping lists, oldest price first, one item every few seconds. It only runs while you are on the Crafts or Ledger tab, so it never replaces results you are reading or buying from, and it pauses while a scan or Live prices is running and for a few seconds after you search yourself. It never asks faster than the game allows. Turn it off in the options or with /pf rolling off
+
 ## 0.12.26
 
 - Internal update to the shared window look code. Nothing you will notice changed

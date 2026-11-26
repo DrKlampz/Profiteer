@@ -44,6 +44,7 @@ local DEFAULTS = {
     deTips = true,         -- disenchant odds on weapon and armor tooltips
     recipeTips = true,     -- recipe item tooltips list which characters know the recipe
     autoScan = true,       -- scan when the AH opens (if data is older than 15 min)
+    rolling = true,        -- while the AH is open, keep re-checking the prices that matter, oldest first
     scanAll = true,         -- keep price history for every item in the auction house, not just recipe items
     replicateUnit = "total",-- "total": scanned buyout is the whole stack's price; "unit": per unit
   },
@@ -595,6 +596,7 @@ local function PrintHelp()
   CP:Print("  /pf minlisted <n>    hide outputs with fewer than n units listed (now " .. s.minListed .. ")")
   CP:Print("  /pf minsales <n>     hide crafts estimated to sell fewer than n per day")
   CP:Print("  /pf basis safe|current  price basis for sales (now " .. s.priceBasis .. ")")
+  CP:Print("  /pf rolling on|off   keep re-checking prices while the AH is open (now " .. ((s.rolling ~= false) and "on" or "off") .. ")")
   CP:Print("  /pf autoscan on|off  scan automatically when the AH opens (now " .. (s.autoScan and "on" or "off") .. ")")
   CP:Print("  /pf unit total|unit  is a scanned buyout the whole stack's price (normal) or per unit? (now " .. s.replicateUnit .. ")")
   CP:Print("  /pf tooltip          toggle AH info on item tooltips")
@@ -707,6 +709,9 @@ SlashCmdList["PROFITEER"] = function(msg)
   elseif cmd == "scanall" then
     if arg == "on" or arg == "off" then s.scanAll = (arg == "on"); CP:Print("Whole-AH history " .. arg .. ". Applies from the next scan.")
     else CP:Print("usage: /pf scanall on|off  (now " .. (s.scanAll ~= false and "on" or "off") .. ")") end
+  elseif cmd == "rolling" then
+    if arg == "on" or arg == "off" then s.rolling = (arg == "on"); CP:Print("Rolling price refresh " .. arg); if s.rolling and CP.Live then CP.Live.RollStart() end
+    else CP:Print("usage: /pf rolling on|off (now " .. ((s.rolling ~= false) and "on" or "off") .. "; refreshed so far this session: " .. ((CP.Live and CP.Live.roll and CP.Live.roll.count) or 0) .. ")") end
   elseif cmd == "autoscan" then
     if arg == "on" or arg == "off" then s.autoScan = (arg == "on"); CP:Print("Auto-scan " .. arg)
     else CP:Print("usage: /pf autoscan on|off") end

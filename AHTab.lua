@@ -279,7 +279,8 @@ local function Embed()
   embedded = true
   Fit()
   f:Show()
-  CP.After(0.05, function() Fit() if embedded and f.lookBg then f.lookBg:Hide() end end)
+  -- the page keeps its own look background (it used to be hidden here, so it only flashed up when you switched tabs)
+  CP.After(0.05, function() Fit() end)
 end
 
 local function Unembed()

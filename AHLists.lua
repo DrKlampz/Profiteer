@@ -11,6 +11,8 @@ local BUILTIN = {
   { "Cloth, leather and hides", { 2589, 2592, 4306, 4338, 14047, 2996, 2997, 4305, 4339, 14048, 2934, 2318, 2319, 4234, 4304, 8170, 783, 4232, 4235, 8169, 8171 } },
   { "Gems", { 774, 818, 1210, 1206, 1705, 1529, 3864, 7909, 7910, 12361, 12364, 12363, 12799, 12800 } },
   { "Enchanting materials", { 10940, 11083, 11137, 11176, 16204, 10938, 10939, 10998, 11082, 11134, 11135, 11174, 11175, 10978, 11084, 11138, 11139, 11177, 11178, 14343, 14344, 20725 } },
+  { "Mage scrolls (learned, not sold by vendors)", { 213548, 213550, 211800, 213564, 215257, 211954, 211957, 211955, 211956, 211953, 217496, 223171, 220792, 217495 } },
+  { "Mage scrolls: unread (decipher with a Comprehension Charm)", { 211786, 211785, 211780, 211787, 211854, 211853, 211784, 211855, 213543, 213544, 213545, 213546, 213547 } },
   { "Fish and cooking", { 6291, 6303, 6289, 6361, 6308, 6359, 13754, 13758, 13760, 769, 731, 1015, 1080, 1081, 2672, 2673, 2674, 2675, 2677, 2886, 2678, 2692, 2287, 3173, 3667, 3712, 3730, 3731, 12037, 12202, 12203, 12204, 12205, 12208 } },
 }
 
@@ -27,6 +29,74 @@ local function Entries(ids, want)
       if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, id) end
     end
   end
+  return out
+end
+
+-- consumables: built from every craft the add-on knows about (all professions, plus the recipes your characters
+-- captured), keeping the ones the game classes as consumables, grouped by kind and ordered by the skill they need
+local KIND = { [1] = "Potions", [2] = "Elixirs", [3] = "Flasks", [4] = "Scrolls", [5] = "Food and drink", [7] = "Bandages" }
+local KIND_ORDER = { "Potions", "Elixirs", "Flasks", "Scrolls", "Food and drink", "Bandages", "Other" }
+local PROF_ORDER = { "Alchemy", "Cooking", "First Aid", "Engineering", "Blacksmithing", "Enchanting", "Leatherworking", "Tailoring", "Jewelcrafting", "Inscription", "Mining", "Smelting", "Poisons", "Other crafts" }
+local consumableCache, consumableCount
+
+local function ItemClass(id)
+  local fn = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+  if not fn then return nil end
+  local ok, _, _, _, _, _, classID, subID = pcall(fn, id)
+  if ok then return classID, subID end
+end
+
+local function Consumables()
+  local total = 0
+  for _, profs in pairs(CP.db and CP.db.recipes or {}) do
+    for _, list in pairs(profs) do total = total + #list end
+  end
+  if consumableCache and consumableCount == total then return consumableCache end
+  local best = {}   -- item id -> { lowest skill that crafts it, the profession }
+  local function note(id, skill, prof)
+    if not id or id == 0 then return end
+    local b = best[id]
+    if not b then best[id] = { skill = skill or 0, prof = prof }
+    elseif (skill or 0) < b.skill then b.skill, b.prof = skill or 0, prof end
+  end
+  for prof, crafts in pairs(CP.AllCrafts or {}) do
+    for _, c in ipairs(crafts) do note(c[2], c[3], prof) end
+  end
+  for _, profs in pairs(CP.db and CP.db.recipes or {}) do
+    for prof, list in pairs(profs) do
+      for _, r in ipairs(list) do note(r.id, nil, prof) end
+    end
+  end
+  local consumableClass = (Enum and Enum.ItemClass and Enum.ItemClass.Consumable) or 0
+  local buckets = {}   -- "Prof|Kind" -> { prof, kind, items }
+  for id, b in pairs(best) do
+    local cls, sub = ItemClass(id)
+    if cls == consumableClass then
+      local prof = b.prof or "Other crafts"
+      local kind = KIND[sub or 0] or "Other"
+      local key = prof .. "|" .. kind
+      local bk = buckets[key]
+      if not bk then bk = { prof = prof, kind = kind, items = {} } buckets[key] = bk end
+      bk.items[#bk.items + 1] = { id = id, skill = b.skill }
+    end
+  end
+  local function Rank(list, v) for i, x in ipairs(list) do if x == v then return i end end return #list + 1 end
+  local sorted = {}
+  for _, bk in pairs(buckets) do sorted[#sorted + 1] = bk end
+  table.sort(sorted, function(x, y)
+    local px, py = Rank(PROF_ORDER, x.prof), Rank(PROF_ORDER, y.prof)
+    if px ~= py then return px < py end
+    if px > #PROF_ORDER and x.prof ~= y.prof then return x.prof < y.prof end
+    return Rank(KIND_ORDER, x.kind) < Rank(KIND_ORDER, y.kind)
+  end)
+  local out = {}
+  for _, bk in ipairs(sorted) do
+    table.sort(bk.items, function(x, y) if x.skill ~= y.skill then return x.skill < y.skill end return x.id < y.id end)
+    local ids = {}
+    for _, e in ipairs(bk.items) do ids[#ids + 1] = e.id end
+    out[#out + 1] = { bk.prof .. ": " .. bk.kind, ids }
+  end
+  consumableCache, consumableCount = out, total
   return out
 end
 
@@ -121,6 +191,7 @@ function Lists.Fill()
   table.sort(names, function(a, b) return a:lower() < b:lower() end)
   for _, n in ipairs(names) do add(n, "mine", Mine()[n]) end
   for _, b in ipairs(BUILTIN) do add(b[1], "built", Entries(b[2])) end
+  for _, b in ipairs(Consumables()) do add(b[1], "built", Entries(b[2])) end
   for i = 1, math.max(#items, #menu.rows) do
     local it, r = items[i], Row(i)
     if it then

@@ -142,7 +142,10 @@ end
 local ev = CreateFrame("Frame")
 for _, e in ipairs({ "COMMODITY_SEARCH_RESULTS_UPDATED", "ITEM_SEARCH_RESULTS_UPDATED", "AUCTION_HOUSE_THROTTLED_SYSTEM_READY", "AUCTION_HOUSE_CLOSED" }) do ev:RegisterEvent(e) end
 ev:SetScript("OnEvent", CP.Safe("live-event", function(_, event, a)
-  if not L.running then return end
+  if not L.running then
+    if L.RollEvent then L.RollEvent(event, a) end
+    return
+  end
   if event == "AUCTION_HOUSE_CLOSED" then
     Finish("Live prices stopped: the auction house closed. Updated " .. (done - failed) .. " items.")
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
@@ -154,3 +157,124 @@ ev:SetScript("OnEvent", CP.Safe("live-event", function(_, event, a)
     Advance()
   end
 end))
+
+------------------------------------------------------------------------
+-- Rolling refresh: while the auction house is open and nothing else is using it, keep re-checking the items that
+-- matter (the crafts shown, their materials and your saved shopping lists), oldest price first, one every few
+-- seconds. It stays out of the way: it pauses while a scan or a Live prices run is going and for a few seconds
+-- after you search yourself, and it never asks faster than the game allows.
+------------------------------------------------------------------------
+local ROLL_EVERY = 3          -- seconds between checks
+local ROLL_MIN_AGE = 120      -- do not re-check an item more often than this
+local ROLL_TIMEOUT = 6
+local ROLL_MAX_ITEMS = 120
+local roll = { cur = nil, token = 0, tried = {}, pausedUntil = 0, ours = false, active = false, count = 0 }
+L.roll = roll
+
+local function WatchIds()
+  local seen, out = {}, {}
+  local function add(id) if id and not seen[id] then seen[id] = true; out[#out + 1] = id end end
+  local res = (CP.UI and CP.UI.results) or {}
+  for i = 1, math.min(#res, 25) do
+    local g = res[i]
+    if g then
+      add(g.id)
+      for _, rg in ipairs(g.reagents or {}) do add(rg.id) end
+    end
+  end
+  for _, list in pairs(CP.db.shopLists or {}) do
+    for _, e in ipairs(list) do add(e.id) end
+  end
+  while #out > ROLL_MAX_ITEMS do table.remove(out) end
+  return out
+end
+
+local function PickOldest()
+  local now = time()
+  local best, bestT
+  for _, id in ipairs(WatchIds()) do
+    local e = CP.db.prices[id]
+    local t = (e and e.time) or 0
+    if (now - t) >= ROLL_MIN_AGE and (now - (roll.tried[id] or 0)) >= ROLL_MIN_AGE then
+      if not bestT or t < bestT then best, bestT = id, t end
+    end
+  end
+  return best
+end
+
+local function RollOn()
+  return CP.db and CP.db.settings and CP.db.settings.rolling ~= false
+end
+
+local function Busy()
+  if L.running then return true end
+  -- a search replaces the results on screen (the Shopping list you are reading or buying from, the price you are
+  -- posting at), so the rolling refresh only runs while you are looking at a view that does not depend on them
+  local at = CP.AHTab
+  local view = at and at.Current and at.Current()
+  if view ~= "crafts" and view ~= "ledger" then return true end
+  if CP.Scanner and CP.Scanner.IsRunning and CP.Scanner:IsRunning() then return true end
+  if GetTime() < roll.pausedUntil then return true end
+  return false
+end
+
+local function RollTick()
+  if not roll.active then return end
+  if not (RollOn() and C_AuctionHouse and H.IsOpen()) then roll.active = false return end
+  C_Timer.After(ROLL_EVERY, RollTick)
+  if roll.cur or Busy() or not H.Ready() then return end
+  local id = PickOldest()
+  if not id then return end
+  roll.tried[id] = time()
+  roll.cur = id
+  roll.token = roll.token + 1
+  local my = roll.token
+  local sorts = { { sortOrder = Enum.AuctionHouseSortOrder.Price, reverseSort = false } }
+  roll.ours = true
+  local ok, err = pcall(C_AuctionHouse.SendSearchQuery, C_AuctionHouse.MakeItemKey(id), sorts, true)
+  roll.ours = false
+  if not ok then roll.cur = nil CP.RecordError("rolling refresh search", err) return end
+  C_Timer.After(ROLL_TIMEOUT, function() if roll.token == my then roll.cur = nil end end)
+end
+
+function L.RollEvent(event, a)
+  if event == "AUCTION_HOUSE_CLOSED" then roll.cur = nil roll.active = false return end
+  local id = roll.cur
+  if not id then return end
+  if event == "COMMODITY_SEARCH_RESULTS_UPDATED" then
+    if a ~= id then return end
+    ReadCommodity(id)
+  elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
+    if not (type(a) == "table" and a.itemID == id) then return end
+    ReadItems(a)
+  else
+    return
+  end
+  roll.cur = nil
+  roll.token = roll.token + 1
+  roll.count = roll.count + 1
+  -- redraw the lists at most every 20 seconds so rows do not jump around while you read them
+  if not roll.redraw then
+    roll.redraw = true
+    CP.After(20, function() roll.redraw = false if CP.Refresh and H.IsOpen() then CP:Refresh() end end)
+  end
+end
+
+function L.RollStart()
+  if roll.active or not RollOn() then return end
+  roll.active = true
+  C_Timer.After(ROLL_EVERY, RollTick)
+end
+
+-- a search you start yourself pauses the rolling refresh for a moment
+if C_AuctionHouse and hooksecurefunc then
+  for _, fn in ipairs({ "SendBrowseQuery", "SendSearchQuery", "SendSellSearchQuery" }) do
+    if C_AuctionHouse[fn] then
+      hooksecurefunc(C_AuctionHouse, fn, function() if not roll.ours and not L.running then roll.pausedUntil = GetTime() + 10 end end)
+    end
+  end
+end
+
+local rev = CreateFrame("Frame")
+rev:RegisterEvent("AUCTION_HOUSE_SHOW")
+rev:SetScript("OnEvent", CP.Safe("rolling-start", function() CP.After(4, L.RollStart) end))
