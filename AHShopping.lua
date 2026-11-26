@@ -210,12 +210,17 @@ local function Eval(id, qty, stock, out, depth)
   local plan = depth < 4 and CP:MakePlan(id)
   local buyC = LadderCost(id, math.ceil(qty - 1e-9))
   if plan then
-    local stock2, out2 = CopyTable(stock), { buys = CopyTable(out.buys), vendor = out.vendor }
+    local order2 = {}
+    for k, v in ipairs(out.order) do order2[k] = v end
+    local stock2, out2 = CopyTable(stock), { buys = CopyTable(out.buys), vendor = out.vendor, makes = CopyTable(out.makes), order = order2 }
     local mk = 0
     for _, i in ipairs(plan.inputs) do mk = mk + Eval(i.id, i.count * qty / (plan.yield or 1), stock2, out2, depth + 1) end
     if not buyC or mk < buyC then
       for k, v in pairs(stock2) do stock[k] = v end
-      out.buys, out.vendor = out2.buys, out2.vendor
+      out.buys, out.vendor, out.makes, out.order = out2.buys, out2.vendor, out2.makes, out2.order
+      local n = math.ceil(qty - 1e-9)
+      if not out.makes[id] then out.order[#out.order + 1] = id end
+      out.makes[id] = (out.makes[id] or 0) + n
       return mk
     end
   end
@@ -226,8 +231,8 @@ local function Eval(id, qty, stock, out, depth)
   return 0
 end
 
-local function MakePlanFor(g, crafts)
-  local stock, out = {}, { buys = {}, vendor = 0 }
+function S.MakePlanFor(g, crafts)
+  local stock, out = {}, { buys = {}, vendor = 0, makes = {}, order = {} }
   for _, rg in ipairs(g.reagents or {}) do
     local _, _, id = CP:SlotCost(rg)
     id = id or rg.id
@@ -236,7 +241,38 @@ local function MakePlanFor(g, crafts)
   -- the real price: everything bought of one item is one walk up its price ladder
   local total = out.vendor
   for id, qty in pairs(out.buys) do total = total + (LadderCost(id, qty) or 0) end
-  return { buys = out.buys, total = total, crafts = crafts }
+  return { buys = out.buys, total = total, crafts = crafts, makes = out.makes, order = out.order, g = g }
+end
+
+function S.StepsText(plan)
+  local lines = { "|cffffd100What to do|r" }
+  local n = 0
+  local buys = {}
+  for id, qty in pairs(plan.buys) do buys[#buys + 1] = { id = id, qty = qty } end
+  table.sort(buys, function(a, b) return a.qty > b.qty end)
+  if #buys > 0 then
+    local parts = {}
+    for _, b in ipairs(buys) do parts[#parts + 1] = ("|cffffffff%d|r %s"):format(b.qty, Name(b.id)) end
+    n = n + 1
+    lines[#lines + 1] = ("%d. Buy %s"):format(n, table.concat(parts, ", "))
+  end
+  for _, id in ipairs(plan.order) do
+    local mp = CP:MakePlan(id)
+    local from = {}
+    for _, i in ipairs(mp and mp.inputs or {}) do from[#from + 1] = Name(i.id) end
+    n = n + 1
+    lines[#lines + 1] = ("%d. Make |cffffffff%d|r %s  |cff888888from %s|r"):format(n, plan.makes[id], Name(id), table.concat(from, " and "))
+  end
+  n = n + 1
+  lines[#lines + 1] = ("%d. Make |cffffffff%d|r %s"):format(n, plan.crafts, plan.g and plan.g.name or "the craft")
+  -- what is not being bought, and why
+  local skip = {}
+  for id in pairs(plan.makes) do
+    local on = Have(id)
+    if on > 0 then skip[#skip + 1] = ("your %d %s are used first"):format(on, Name(id)) end
+  end
+  if #skip > 0 then lines[#lines + 1] = "|cff888888Note: " .. table.concat(skip, "; ") .. ".|r" end
+  return table.concat(lines, "\n")
 end
 
 local function MatsOf(g)
@@ -307,7 +343,7 @@ function S.ForCraft(g)
   if #mats == 0 then CP:Print("Nothing to buy at the auction house for " .. g.name .. " (vendor items or no price data).") return false end
   S.SetList(mats, "Materials for " .. g.name .. (d and d.crafts and d.crafts > 0 and (" (" .. d.crafts .. " crafts)") or ""),
     { g = g, crafts = (d and d.crafts and d.crafts > 0) and d.crafts or 1,
-      plan = select(2, pcall(MakePlanFor, g, (d and d.crafts and d.crafts > 0) and d.crafts or 1)) })
+      plan = select(2, pcall(S.MakePlanFor, g, (d and d.crafts and d.crafts > 0) and d.crafts or 1)) })
   return true
 end
 

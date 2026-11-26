@@ -29,6 +29,7 @@ SearchWatch.lua
 Leveling.lua
 AllCrafts.lua
 AHShopping.lua
+AHPlan.lua
 AHLists.lua
 AHSelling.lua
 AHCancel.lua

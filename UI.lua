@@ -569,9 +569,10 @@ function UI.Create()
     tabs[key] = t
   end
   MakeTab("crafts", "Crafts", 24)
-  MakeTab("shopping", "Shopping", 110)
-  MakeTab("cancelling", "Cancelling", 196)
-  MakeTab("ledger", "Ledger", 282)
+  MakeTab("plan", "Plan", 110)
+  MakeTab("shopping", "Shopping", 196)
+  MakeTab("cancelling", "Cancelling", 282)
+  MakeTab("ledger", "Ledger", 368)
   UI.tabs = tabs
 
   -- Search box (Crafts tab): part of a craft, material, profession or character name
@@ -746,7 +747,7 @@ function UI.Create()
   for _, h in ipairs(headers) do UI.craftWidgets[#UI.craftWidgets + 1] = h end
   CP.Ledger.BuildPanel(f, PaneW(), BASE_H - 48 - 52)
   UI.panes = {}
-  for key, mod in pairs({ shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
+  for key, mod in pairs({ plan = CP.AHPlan, shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
     if mod and mod.Build then
       local ok, p = pcall(mod.Build, f, PaneW(), BASE_H - 52 - 12)
       if ok and p then p:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -52) UI.panes[key] = p else CP.RecordError("build " .. key, p) end
@@ -766,7 +767,7 @@ function UI.SetHeight(fh)
   ROWS = math.max(6, math.min(MAXROWS, math.floor((fh - 70 - 80) / ROW_H)))
   if UI.slider then UI.slider:SetHeight(ROWS * ROW_H) end
   if CP.Ledger.panel and CP.Ledger.resize then CP.Ledger.resize(fh - 48 - 52, PaneW()) end
-  for key, mod in pairs({ shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
+  for key, mod in pairs({ plan = CP.AHPlan, shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
     if mod and mod.Resize and UI.panes and UI.panes[key] then pcall(mod.Resize, PaneW(), fh - 52 - 12) end
   end
   if UI.tab == "crafts" then UI.Update() end
@@ -803,7 +804,7 @@ function UI.SetWidth(w)
   if UI.statusFS then UI.statusFS:SetWidth(math.max(200, curTW - 380)) end
   local ph = (UI.curH or BASE_H)
   if CP.Ledger.panel and CP.Ledger.resize then CP.Ledger.resize(ph - 48 - 52, PaneW()) end
-  for key, mod in pairs({ shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
+  for key, mod in pairs({ plan = CP.AHPlan, shopping = CP.AHShopping, cancelling = CP.AHCancel }) do
     if mod and mod.Resize and UI.panes and UI.panes[key] then pcall(mod.Resize, PaneW(), ph - 52 - 12) end
   end
 end

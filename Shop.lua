@@ -113,6 +113,11 @@ local function Route(fn, ...)
 end
 
 function Shop.ForCraft(g)
+  if CP.AHPlan and CP.AHPlan.pane then
+    CP.AHPlan.Open(g, 1)
+    if CP.AHTab and CP.AHTab.IsReady and CP.AHTab.IsReady() and CP.AH and CP.AH.IsOpen() then CP.AHTab.Go("plan") else CP.UI.SetTab("plan") end
+    return true
+  end
   if Route(CP.AHShopping.ForCraft, g) then return true end
   local names, unresolved = Shop.Materials(g)
   if unresolved > 0 then
