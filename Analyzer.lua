@@ -58,6 +58,96 @@ function CP:SellPrice(id)
   return cur
 end
 
+-- Live prices: what the auction house shows right now (the lowest listing at the last look), with no averaging,
+-- no two-week median and no lowball protection. Shown beside the prices the ranking uses.
+function CP:LiveBuy(id)
+  local p = self.db.prices[id]
+  local ah = p and p.min
+  local v = self.db.vendor[id]
+  if v and (not ah or v <= ah) then return v end
+  return ah
+end
+-- Average buy price: what the item has typically cost over the last two weeks (median of the scans), the current
+-- lowest listing when there is not enough history, or the vendor price.
+function CP:AvgBuy(id)
+  local p = self.db.prices[id]
+  local v = self.db.vendor[id]
+  local st = CP.History and CP.History.Stats and CP.History.Stats(id)
+  local avg = (st and st.median and st.samples >= 3) and st.median or (p and p.min)
+  if v and (not avg or v <= avg) then return v end
+  return avg
+end
+
+-- cheapest way to get one of an item with the given buy price (buy it, or make it from materials priced the same way)
+function CP:ReagentBy(id, priceFn, depth, seen)
+  depth, seen = depth or 0, seen or {}
+  local best = priceFn(self, id)
+  if depth < 4 and not seen[id] then
+    local plan = self:MakePlan(id)
+    if plan then
+      seen[id] = true
+      local total = 0
+      for _, i in ipairs(plan.inputs) do
+        local c
+        for _, alt in ipairs(i.ids or { i.id }) do
+          local ac = self:ReagentBy(alt, priceFn, depth + 1, seen)
+          if ac and (not c or ac < c) then c = ac end
+        end
+        if not c then total = nil break end
+        total = total + c * i.count
+      end
+      seen[id] = nil
+      if total and (not best or total / plan.yield < best) then best = total / plan.yield end
+    end
+  end
+  return best
+end
+function CP:LiveReagent(id) return self:ReagentBy(id, CP.LiveBuy) end
+function CP:AvgReagent(id) return self:ReagentBy(id, CP.AvgBuy) end
+function CP:LiveSlotBuy(rg)
+  local best
+  for _, id in ipairs(rg.ids or { rg.id }) do
+    local c = self:LiveReagent(id)
+    if c and (not best or c < best) then best = c end
+  end
+  return best
+end
+function CP:AvgSlotBuy(rg)
+  local best
+  for _, id in ipairs(rg.ids or { rg.id }) do
+    local c = self:AvgReagent(id)
+    if c and (not best or c < best) then best = c end
+  end
+  return best
+end
+-- cost of one craft's materials and net sale of what it makes, both at today's lowest listings (nil if any is unlisted)
+function CP:LiveCraft(g)
+  local cost = 0
+  for _, rg in ipairs(g.reagents or {}) do
+    local c = self:LiveSlotBuy(rg)
+    if not c then cost = nil break end
+    cost = cost + c * rg.count
+  end
+  local p = self.db.prices[g.id]
+  local sell = p and p.min and p.min * (g.yield or 1) * (1 - (self.db.settings.ahCut or 0.05)) or nil
+  return cost, sell
+end
+
+-- the same two figures at the average (14-day median) price; where an item has too little history they use today's
+function CP:AvgCraft(g)
+  local cost = 0
+  for _, rg in ipairs(g.reagents or {}) do
+    local c = self:AvgSlotBuy(rg)
+    if not c then cost = nil break end
+    cost = cost + c * rg.count
+  end
+  local st = CP.History and CP.History.Stats and CP.History.Stats(g.id)
+  local p = self.db.prices[g.id]
+  local unit = (st and st.median and st.samples >= 3) and st.median or (p and (p.ref or p.min))
+  local sell = unit and unit * (g.yield or 1) * (1 - (self.db.settings.ahCut or 0.05)) or nil
+  return cost, sell
+end
+
 -- A reagent slot may accept several items (e.g. quality tiers): cost it with
 -- the cheapest option. Returns cost per unit, source, and the item chosen.
 function CP:SlotCost(rg)
@@ -206,6 +296,11 @@ local SORTERS = {
   name   = function(g) return g.name:lower() end,
   cost   = function(g) return g.cost end,
   revenue = function(g) return g.revenue end,
+  avgcost = function(g) return g.avgCost or math.huge end,
+  avgsell = function(g) return g.avgSell or -1 end,
+  profitnow = function(g) return g.liveProfit or -math.huge end,
+  costnow = function(g) return g.liveCost or math.huge end,
+  sellnow = function(g) return g.liveSell or -1 end,
   profit = function(g) return g.profit end,
   ratio  = function(g) return g.ratio end,
   listed = function(g) return g.listed end,
@@ -314,6 +409,8 @@ function CP:BuildResults()
       g.unpriced, g.why = true, why
       g.cost = (not missing and cost > 0) and cost or nil
       g.sell = sell
+      g.liveCost, g.liveSell = self:LiveCraft(g)
+      g.avgCost, g.avgSell = self:AvgCraft(g)
       g.listed = p and p.qty or 0
       local st = CP.History.Stats(g.id)
       g.perDay = st and st.perDay
@@ -330,6 +427,9 @@ function CP:BuildResults()
     else
       g.cost = cost
       g.sell = sell
+      g.liveCost, g.liveSell = self:LiveCraft(g)
+      g.avgCost, g.avgSell = self:AvgCraft(g)
+      g.liveProfit = (g.liveCost and g.liveSell) and (g.liveSell - g.liveCost) or nil
       g.revenue = sell * g.yield * (1 - s.ahCut)
       g.profit = g.revenue - cost
       g.ratio = g.profit / cost

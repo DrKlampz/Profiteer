@@ -9,9 +9,12 @@ local COLS = {
   { key = "name",     label = "Item",        w = 142, align = "LEFT",  sortable = true },
   { key = "prof",     label = "Profession",  w = 78,  align = "LEFT",  sortable = true },
   { key = "crafters", label = "Crafters",    w = 70,  align = "LEFT",  sortable = true },
-  { key = "cost",     label = "Cost",        w = 85,  align = "RIGHT", sortable = true },
-  { key = "revenue",  label = "Sells (net)", w = 85,  align = "RIGHT", sortable = true },
+  { key = "avgcost",  label = "Cost avg",    w = 85,  align = "RIGHT", sortable = true },
+  { key = "costnow",  label = "Cost now",    w = 85,  align = "RIGHT", sortable = true },
+  { key = "avgsell",  label = "Sells avg",   w = 85,  align = "RIGHT", sortable = true },
+  { key = "sellnow",  label = "Sells now",   w = 85,  align = "RIGHT", sortable = true },
   { key = "profit",   label = "Profit",      w = 85,  align = "RIGHT", sortable = true },
+  { key = "profitnow", label = "Profit now", w = 85,  align = "RIGHT", sortable = true },
   { key = "ratio",    label = "ROI",         w = 50,  align = "RIGHT", sortable = true },
   { key = "listed",   label = "Listed",      w = 45,  align = "RIGHT", sortable = true },
   { key = "perday",   label = "Sold/day",    w = 60,  align = "RIGHT", sortable = true },
@@ -64,8 +67,12 @@ local function ShowTooltip(self)
   GameTooltip:AddLine("Reagents", 1, 0.82, 0)
   for _, rg in ipairs(g.reagents) do
     local c, src, id = CP:SlotCost(rg)
+    local lv = CP:LiveReagent(id)
     GameTooltip:AddDoubleLine(rg.count .. "x " .. CP.ItemName(id),
       CP.Money(c and c * rg.count) .. (rg.count > 1 and c and (" |cff888888@ " .. CP.Money(c) .. " each|r") or "") .. " |cff888888(" .. (src == "made" and "from raw materials" or src or "?") .. ")|r", 1, 1, 1, 1, 1, 1)
+    if lv and c and math.abs(lv - c) >= 1 then
+      GameTooltip:AddDoubleLine("   lowest listing now", CP.Money(lv) .. " each", 0.7, 0.7, 0.7, 0.7, 0.7, 0.7)
+    end
     if CP:MakePlan(id) then
       local parts = {}
       for _, raw in ipairs(CP:RawMaterials(id)) do
@@ -85,7 +92,8 @@ local function ShowTooltip(self)
   GameTooltip:AddLine(" ")
   local p = CP.db.prices[g.id]
   if not dup then GameTooltip:AddDoubleLine("AH lowest", CP.Money(p and p.min), 1, 1, 1, 1, 1, 1) end
-  GameTooltip:AddDoubleLine("AH reference", CP.Money(p and p.ref), 1, 1, 1, 1, 1, 1)
+  if not dup then GameTooltip:AddDoubleLine("Sells now (lowest listing, net of AH cut)", g.liveSell and CP.Money(math.floor(g.liveSell)) or "none", 1, 1, 1, 1, 1, 1) end
+  GameTooltip:AddDoubleLine("AH reference (next-lowest price)", CP.Money(p and p.ref), 1, 1, 1, 1, 1, 1)
   GameTooltip:AddDoubleLine("Listings / units", ((p and p.n) or 0) .. " / " .. ((p and p.qty) or 0), 1, 1, 1, 1, 1, 1)
   local st = CP.History.Stats(g.id)
   if st and st.median and not dup then
@@ -94,7 +102,7 @@ local function ShowTooltip(self)
   if st and st.perDay and not dup then
     GameTooltip:AddDoubleLine("Est. sales/day", string.format("%.1f", st.perDay), 1, 1, 1, 1, 1, 1)
   end
-  GameTooltip:AddDoubleLine("Sell price used", g.sell and CP.Money(g.sell) or "none", 1, 1, 1, 1, 1, 1)
+  GameTooltip:AddDoubleLine("Sell price used (lower of reference and 14-day median)", g.sell and CP.Money(g.sell) or "none", 1, 1, 1, 1, 1, 1)
   GameTooltip:AddDoubleLine("Price data", CP.Age(p and p.time), 1, 1, 1, 0.7, 0.7, 0.7)
   GameTooltip:AddLine(" ")
   local d = CP:BuyDepth(g)
@@ -292,9 +300,12 @@ function UI.Update()
       row.cols.name:SetText((g.tracked and "|cffffd100*|r " or "") .. "|cff9d9d9d" .. g.name .. "|r")
       row.cols.prof:SetText("|cff9d9d9d" .. tostring(g.prof or "") .. "|r")
       row.cols.crafters:SetText(CraftersText(g))
-      row.cols.cost:SetText(g.cost and CP.Money(g.cost) or "|cff888888?|r")
-      row.cols.revenue:SetText("|cff888888-|r")
+      row.cols.avgcost:SetText(g.avgCost and CP.Money(g.avgCost) or "|cff888888?|r")
+      row.cols.costnow:SetText(g.liveCost and CP.Money(g.liveCost) or "|cff888888?|r")
+      row.cols.avgsell:SetText(g.avgSell and CP.Money(math.floor(g.avgSell)) or "|cff888888-|r")
+      row.cols.sellnow:SetText(g.liveSell and CP.Money(math.floor(g.liveSell)) or "|cff888888-|r")
       row.cols.profit:SetText("|cff888888-|r")
+      row.cols.profitnow:SetText("|cff888888-|r")
       row.cols.ratio:SetText("|cff888888-|r")
       row.cols.listed:SetText("|cff8888880|r")
       row.cols.perday:SetText("|cff888888?|r")
@@ -306,9 +317,17 @@ function UI.Update()
       row.cols.name:SetText((g.tracked and "|cffffd100*|r " or "") .. g.name)
       row.cols.prof:SetText(tostring(g.prof or ""))
       row.cols.crafters:SetText(CraftersText(g))
-      row.cols.cost:SetText(CP.Money(g.cost))
-      row.cols.revenue:SetText(CP.Money(g.revenue))
+      local ac, asell = g.avgCost or g.cost, g.avgSell or g.revenue
+      row.cols.avgcost:SetText(CP.Money(ac))
+      row.cols.costnow:SetText(g.liveCost and (g.liveCost > ac * 1.1 and "|cffffa040" or (g.liveCost < ac * 0.9 and "|cff40ff40" or "")) .. CP.Money(g.liveCost) .. ((g.liveCost > ac * 1.1 or g.liveCost < ac * 0.9) and "|r" or "") or "|cff888888?|r")
+      row.cols.avgsell:SetText(CP.Money(math.floor(asell)))
+      row.cols.sellnow:SetText(g.liveSell and (g.liveSell < asell * 0.9 and "|cffffa040" or (g.liveSell > asell * 1.1 and "|cff40ff40" or "")) .. CP.Money(math.floor(g.liveSell)) .. ((g.liveSell < asell * 0.9 or g.liveSell > asell * 1.1) and "|r" or "") or "|cff888888-|r")
       row.cols.profit:SetText(CP.Money(g.profit))
+      if g.liveProfit then
+        row.cols.profitnow:SetText((g.liveProfit > 0 and "|cff40ff40" or "|cffff4040") .. CP.Money(math.floor(g.liveProfit)) .. "|r")
+      else
+        row.cols.profitnow:SetText("|cff888888-|r")
+      end
       row.cols.ratio:SetText(profitColor .. math.floor(g.ratio * 100 + 0.5) .. "%|r")
       row.cols.listed:SetText(g.listed < 10 and ("|cffffa040" .. g.listed .. "|r") or g.listed)
       row.cols.perday:SetText(g.perDay and string.format("%.1f", g.perDay) or "|cff888888?|r")
@@ -319,6 +338,14 @@ function UI.Update()
       row:Hide()
     end
   end
+end
+
+-- what the last Live prices run did, appended to the status line under the list (a redraw rewrites that line)
+local function LiveNote()
+  local l = CP.Live and CP.Live.last
+  if not l then return "" end
+  return ("  Live prices: %d of %d updated %s%s"):format(l.updated or 0, l.total or 0, CP.Age(l.time),
+    (l.failed or 0) > 0 and (", " .. l.failed .. " got no answer") or "")
 end
 
 function UI.SetStatus(text)
@@ -394,10 +421,10 @@ function UI.Rebuild()
     if not CP.Scanner:IsRunning() then
       local q = (UI.query or ""):gsub("%s", "")
       if q ~= "" then
-        UI.SetStatus(("%d of %d crafts match \"%s\". Last scan: %s"):format(#UI.results, #all, UI.query, CP.Age(CP.db.lastScan)))
+        UI.SetStatus(("%d of %d crafts match \"%s\". Last scan: %s"):format(#UI.results, #all, UI.query, CP.Age(CP.db.lastScan)) .. LiveNote())
       else
         UI.SetStatus(("%d priced, %d more with no AH price (grey, at the bottom) of %d crafts. Last scan: %s")
-          :format(UI.nPriced or 0, #all - (UI.nPriced or 0), total, CP.Age(CP.db.lastScan)))
+          :format(UI.nPriced or 0, #all - (UI.nPriced or 0), total, CP.Age(CP.db.lastScan)) .. LiveNote())
       end
     end
   end

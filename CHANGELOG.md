@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.12.33
+
+- Crafts list: new "Profit now" column, what one craft would make if you bought the materials and sold the result at today's lowest listings (green profit, red loss). It sits beside Profit, which still uses the cautious price. Sortable
+
+## 0.12.32
+
+- Crafts list: the Cost and Sells columns now show the real average, the 14-day median of what the item has been listed at (today's price where there are fewer than 3 scans), beside the live "now" columns. Before, "Sells" showed the lower of the average and today's price, so it matched the live price whenever the market was below its average, which was most of the time. Materials made from raw materials are averaged the same way
+- Profit and ROI still use the cautious price (the lower of the average and the next-lowest listing), so a one-day price spike cannot inflate a craft; the columns can now differ from it, and the tooltip says which price was used
+- Sells now shows green when today's price is more than 10% above the average and orange when more than 10% below; Cost now the other way round (green cheaper, orange dearer)
+
+## 0.12.31
+
+- Live prices: your starred (favorite) crafts are looked up first, the finished item and every material, so they are always covered when the run is capped. Then come shopping-list items you favorited in the auction house, then the crafts shown. A run now covers up to 100 items
+
+## 0.12.30
+
+- Live prices: the result is now shown under the list and stays there ("Live prices: 38 of 40 updated 1m ago, 2 got no answer"). Before, the list redrawing at the end wrote over the message, so it looked as if nothing had happened
+- Live prices: an item the auction house does not answer, or that the server drops, is asked for again at the end instead of being given up on, and a run no longer stalls waiting for a "ready" signal that already went by. Items that still got no answer are written to the issue log by name
+
+## 0.12.29
+
+- Crafts list: new "Cost now" and "Sells now" columns show today's lowest listings (materials bought or made the cheapest way, and the finished item net of the AH cut) next to the figures profit is worked out from. "Cost" and "Sells (net)" are not live: the sell side uses the lower of the AH reference price (the next-lowest price, so one lowball listing cannot skew it) and the 14-day median. A "now" figure shows orange when it is worse than the one used
+- Craft tooltip: each material shows its lowest listing now when it differs, and the sell block lists the lowest listing, the reference price, the median and the price used, each labeled
+- The new columns can be sorted
+
 ## 0.12.28
 
 - New ready-made shopping lists for every consumable, split by the profession that makes them and then by kind (for example Alchemy: Potions, Alchemy: Elixirs, Alchemy: Flasks, Cooking: Food and drink, First Aid: Bandages, Engineering: Other, Blacksmithing: Other for sharpening stones). They are built from every craft Profiteer knows plus the recipes your characters have opened, ordered by the skill needed, so new ones show up on their own. Also two mage-only scroll lists, with nothing a vendor sells: the learnable scrolls (Liminal Passage, Polymorph: Odd Melon, Reintegration, Minor Evocation, Comprehension, Arcane Accuracy, Arcane Power, Arcane Protection, Arcane Recovery, The Blade, Geomancy, Spatial Mending, Cryoblast) and the unread "Scroll: ..." drops you decipher with a Comprehension Charm. Pick them from the Shopping lists menu in the Shopping tab
