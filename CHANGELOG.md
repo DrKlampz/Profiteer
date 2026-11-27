@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.44
+
+- Fixed the sale sound always playing the game's vendor coin sound whatever you picked: when the game did not confirm a sound file had played, Profiteer assumed it failed and played the fallback instead
+
 ## 0.12.43
 
 - Fixed "<character> no longer has Cooking, so those recipes were removed" appearing for a profession the character still has: when a section of the skills list was collapsed, its skills were counted as missing. Now Profiteer skips the check when the list is incomplete, and only removes a profession after it is missing twice in a row 30 seconds apart (the game's list is sometimes briefly wrong)
