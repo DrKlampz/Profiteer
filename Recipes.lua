@@ -222,7 +222,8 @@ local function CurrentProfessions()
     local ok, n = pcall(GetNumSkillLines)
     if ok and type(n) == "number" then
       for i = 1, n do
-        local ok2, name, header = pcall(GetSkillLineInfo, i)
+        local ok2, name, header, isExpanded = pcall(GetSkillLineInfo, i)
+        if ok2 and header and isExpanded == false then return nil end   -- a collapsed section hides skills: the list is not complete, so don't judge by it
         if ok2 and type(name) == "string" and not header then have[name] = true any = true end
       end
     end
