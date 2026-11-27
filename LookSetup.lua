@@ -77,7 +77,7 @@ CP.WinLook.Setup({
     media = "Interface\\AddOns\\Profiteer\\Media\\",
     db = function() return ProfiteerDB end,
     windows = {
-        { id = "main", name = "Main window", global = "ProfiteerFrame", strip = "backdrop", hide = { "bgTex" },
+        { id = "main", name = "Main window", global = "ProfiteerFrame", strip = "backdrop", hide = { "bgTex" }, close = function(f) return f.closeBtn end,
           apply = function(frame, _, on)
               if frame and frame.fitScale then
                 local fit = frame.fitScale
@@ -88,8 +88,8 @@ CP.WinLook.Setup({
                 end
               end
           end },
-        { id = "report", name = "Report box", global = "ProfiteerReportFrame", strip = "backdrop" },
-        { id = "level", name = "Level up window", global = "ProfiteerLevelFrame", strip = "backdrop" },
+        { id = "report", name = "Report box", global = "ProfiteerReportFrame", strip = "backdrop", close = function(f) return f.closeBtn end },
+        { id = "level", name = "Level up window", global = "ProfiteerLevelFrame", strip = "backdrop", close = function(f) return f.closeBtn end },
         { id = "ah", name = "Auction house", global = "AuctionHouseFrame", strip = "template", defaultOn = true, skinAll = true,
           -- the game's own Browse page (search, categories, results) is left exactly as the game draws it
           skinSkip = function(obj)

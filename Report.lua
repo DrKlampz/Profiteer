@@ -132,6 +132,7 @@ function R.Open(title, lines, hint)
     R.hint:SetPoint("TOP", 0, -38)
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", -6, -6)
+    f.closeBtn = close
 
     local scroll = CreateFrame("ScrollFrame", nil, f)
     scroll:SetPoint("TOPLEFT", 24, -58)

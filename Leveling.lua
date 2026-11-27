@@ -213,6 +213,7 @@ local function Create()
   title:SetText("Level up")
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", -6, -6)
+  f.closeBtn = close
 
   f.prof = f:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
   f.prof:SetPoint("TOPLEFT", 24, -44)
