@@ -2,7 +2,7 @@
 
 ## 0.12.43
 
-- Fixed "<character> no longer has Cooking, so those recipes were removed" appearing for a profession the character still has: when a section of the skills list was collapsed, its skills were counted as missing. Now Profiteer skips the check when the list is incomplete
+- Fixed "<character> no longer has Cooking, so those recipes were removed" appearing for a profession the character still has: when a section of the skills list was collapsed, its skills were counted as missing. Now Profiteer skips the check when the list is incomplete, and only removes a profession after it is missing twice in a row 30 seconds apart (the game's list is sometimes briefly wrong)
 
 ## 0.12.42
 

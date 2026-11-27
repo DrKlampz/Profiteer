@@ -231,20 +231,36 @@ local function CurrentProfessions()
   return any and have or nil
 end
 
+local missingOnce = {}
 local function DropOldProfessions()
   local d, ck = CP.db, CP.charKey
   if not (d and ck) then return end
   local have = CurrentProfessions()
   if not have then return end
-  local dropped = {}
+  local dropped, missing, recheck = {}, {}, false
   for _, tbl in ipairs({ d.recipes, d.unlearned, d.rnames }) do
     local mine = tbl and tbl[ck]
-    if mine then
-      for prof in pairs(mine) do
-        if not have[prof] then mine[prof] = nil dropped[prof] = true end
-      end
+    if mine then for prof in pairs(mine) do if not have[prof] then missing[prof] = true end end end
+  end
+  for prof in pairs(missing) do
+    local key = ck .. "\1" .. prof
+    if missingOnce[key] then
+      dropped[prof] = true   -- missing twice in a row, 30 seconds apart: really gone
+    else
+      missingOnce[key] = true   -- first sighting: the game's list can be briefly wrong, so look again before deleting
+      recheck = true
     end
   end
+  for key in pairs(missingOnce) do
+    local k, prof = key:match("^(.-)\1(.*)$")
+    if k == ck and not missing[prof] then missingOnce[key] = nil end
+  end
+  for prof in pairs(dropped) do
+    for _, tbl in ipairs({ d.recipes, d.unlearned, d.rnames }) do
+      if tbl and tbl[ck] then tbl[ck][prof] = nil end
+    end
+  end
+  if recheck then CP.After(30, function() pcall(DropOldProfessions) end) end
   if next(dropped) then
     local names = {}
     for p in pairs(dropped) do names[#names + 1] = p end
