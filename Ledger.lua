@@ -700,7 +700,7 @@ function L.Rows(period, ck)
   end
   row("Days with activity", #keys)
   row("Net cash flow (everything in minus everything out)", Signed(net))
-  row("Net before buying stock", Signed(net - (-(tot.ahBuys or 0)) - (-(tot.vendorBuys or 0))), "buying is stock, not loss")
+  row("Net before buying stock", Signed(net - (tot.ahBuys or 0) - (tot.vendorBuys or 0)), "buying is stock, not loss")   -- buys are stored as negatives: take them out of what went out
   if #keys > 0 then
     local best, worst
     for _, k in ipairs(keys) do
@@ -822,7 +822,8 @@ function L.Rows(period, ck)
   local overhead = fees + (dep - depBack) + -(tot.repairs or 0) + -(tot.flights or 0) + -(tot.training or 0) + -(tot.bank or 0)
   head("OVERHEAD (cost of doing business)", "Amount", "% of sales")
   row("AH fees", M(fees), Pct(fees, sales))
-  row("Deposits not returned", M(math.max(0, dep - depBack)), Pct(math.max(0, dep - depBack), sales))
+  -- paid minus returned, exactly as it is counted in the total below (it is negative when this period returned deposits paid earlier)
+  row("Deposits kept (paid minus returned)", M(dep - depBack), Pct(dep - depBack, sales))
   if (tot.repairs or 0) ~= 0 then row("Repairs", M(-tot.repairs), Pct(-tot.repairs, sales)) end
   if (tot.flights or 0) ~= 0 then row("Flights", M(-tot.flights), Pct(-tot.flights, sales)) end
   if (tot.training or 0) ~= 0 then row("Training", M(-tot.training), Pct(-tot.training, sales)) end
