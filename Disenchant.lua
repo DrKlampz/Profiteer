@@ -58,7 +58,7 @@ local seen = {}
 local function Note(id, why)
   if seen[id] then return end
   seen[id] = true
-  if CP.Issue then pcall(CP.Issue, "warn", "disenchant odds", "item " .. tostring(id) .. " skipped: " .. why) end
+  if CP.Issue then pcall(CP.Issue, "note", "disenchant odds", "item " .. tostring(id) .. " skipped: " .. why) end
 end
 
 -- everything the odds depend on, asked in the ways the game offers (any one of them can come back empty)

@@ -6,7 +6,7 @@ local ADDON, CP = ...
 local O = {}
 CP.Opens = O
 
-local function Trace(msg) if CP.Issue then pcall(CP.Issue, "warn", "opens trace", msg) end end
+local function Trace(msg) if CP.Issue then pcall(CP.Issue, "note", "opens trace", msg) end end
 local function Secret(v) return issecretvalue and issecretvalue(v) end
 local function Store()
   if not (CP.db and CP.db.settings) then return nil end

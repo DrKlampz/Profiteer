@@ -180,11 +180,11 @@ local function Sale(why)
     if now - lastAt < 3 then return end              -- one sound per sale, whichever trigger saw it first
     lastAt = now
     K.lastTrigger = why
-    if CP.Issue then CP.Issue("warn", "sale sound", "played because of: " .. why) end
+    if CP.Issue then CP.Issue("note", "sale sound", "played because of: " .. why) end
     K.Play()
 end
 
-local function Trace(msg) if CP.Issue then CP.Issue("warn", "sale sound trace", msg) end end
+local function Trace(msg) if CP.Issue then CP.Issue("note", "sale sound trace", msg) end end
 
 -- owned auctions that are sold: ids we have already announced
 local announced, primed = {}, false

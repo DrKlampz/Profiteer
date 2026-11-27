@@ -38,7 +38,7 @@ local function FlushTrace(why)
   local parts = {}
   for ev, n in pairs(t.counts) do parts[#parts + 1] = ("%s x%d"):format((ev:gsub("^AUCTION_HOUSE_", "")), n) end
   table.sort(parts)
-  CP.Issue("warn", "scan trace", ("%s%s"):format(why and (why .. "; ") or "", table.concat(parts, ", ")))
+  CP.Issue("note", "scan trace", ("%s%s"):format(why and (why .. "; ") or "", table.concat(parts, ", ")))
 end
 
 -- Which add-on (or the game's own auction window) sends each request during a scan? Written into the same summary line.
@@ -79,7 +79,7 @@ function S:Abort(reason)
   FlushTrace("stopped: " .. tostring(reason))
   st.running = false
   if CP.db then CP.db.lastAbort = { t = time(), reason = tostring(reason), state = st.state, n = st.n } end
-  if CP.Issue then CP.Issue("warn", "scan stopped", tostring(reason) .. " (state " .. tostring(st.state) .. ")") end
+  if CP.Issue then CP.Issue("note", "scan stopped", tostring(reason) .. " (state " .. tostring(st.state) .. ")") end
   CP:Print("Scan stopped: " .. reason)
   Status("Scan stopped: " .. reason)
   S.StartCountdown()
@@ -133,7 +133,7 @@ local function Finish()
   local prevN = CP.db.lastN or 0
   if prevN > 0 and (st.n or 0) < prevN * 0.5 then
     for id, e in pairs(CP.db.prices or {}) do prices[id] = e end
-    if CP.Issue then CP.Issue("warn", "partial scan", ("read %d auctions, last time %d: kept older prices for items it did not list"):format(st.n or 0, prevN)) end
+    if CP.Issue then CP.Issue("note", "partial scan", ("read %d auctions, last time %d: kept older prices for items it did not list"):format(st.n or 0, prevN)) end
     FlushTrace("partial list")
   end
   if not (prevN > 0 and (st.n or 0) < prevN * 0.5) then CP.db.lastN = st.n or 0 end
@@ -272,7 +272,7 @@ function S.RawTest()
   local C = C_AuctionHouse
   local t0 = GetTime()
   local function log(msg)
-    if CP.Issue then CP.Issue("warn", "raw scan test", ("%3ds  %s"):format(math.floor(GetTime() - t0), msg)) end
+    if CP.Issue then CP.Issue("note", "raw scan test", ("%3ds  %s"):format(math.floor(GetTime() - t0), msg)) end
   end
   local function ready() if C.IsThrottledMessageSystemReady then local ok, r = pcall(C.IsThrottledMessageSystemReady) return ok and tostring(r) or "error" end return "n/a" end
   local function num() local ok, n = pcall(C.GetNumReplicateItems) return ok and n or "error" end

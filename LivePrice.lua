@@ -22,7 +22,7 @@ local function Finish(msg)
   if L.button then L.button:SetText("Live prices") end
   L.last = { time = time(), updated = updated, failed = failed, total = L.total }
   if failed > 0 and CP.Issue then
-    CP.Issue("warn", "live prices", ("updated %d, no answer for %d: %s"):format(updated, failed, table.concat(failedNames, ", ")))
+    CP.Issue("note", "live prices", ("updated %d, no answer for %d: %s"):format(updated, failed, table.concat(failedNames, ", ")))
   end
   -- redraw first: the redraw rewrites the status line under the list, so the result has to be written after it
   CP:Refresh()

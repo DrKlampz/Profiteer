@@ -36,7 +36,7 @@ local function Begin(name)
     local scan = CP.Scanner and CP.Scanner.IsRunning and CP.Scanner:IsRunning()
     local live = CP.Live and CP.Live.running
     if CP.Issue then
-      CP.Issue("warn", "search stuck", ("%s from %s got no answer in 12 s. queueReady=%s, full scan running=%s, live prices running=%s, events: %s")
+      CP.Issue("note", "search stuck", ("%s from %s got no answer in 12 s. queueReady=%s, full scan running=%s, live prices running=%s, events: %s")
         :format(name, who, QueueReady(), tostring(scan and true or false), tostring(live and true or false), Summary() ~= "" and Summary() or "none"))
     end
   end)
@@ -57,10 +57,10 @@ f:SetScript("OnEvent", function(_, ev)
   counts[ev] = (counts[ev] or 0) + 1
   if ev == "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED" then
     local n = C_AuctionHouse and C_AuctionHouse.GetNumBrowseResults and C_AuctionHouse.GetNumBrowseResults()
-    if CP.Issue then CP.Issue("warn", "browse answer", ("%s from %s answered with %s results (queueReady=%s)"):format(pending.name, pending.who, tostring(n), QueueReady())) end
+    if CP.Issue then CP.Issue("note", "browse answer", ("%s from %s answered with %s results (queueReady=%s)"):format(pending.name, pending.who, tostring(n), QueueReady())) end
     pending = nil
   elseif ev == "AUCTION_HOUSE_BROWSE_FAILURE" then
-    if CP.Issue then CP.Issue("warn", "browse failed", ("%s from %s: the game reported a browse failure (queueReady=%s)"):format(pending.name, pending.who, QueueReady())) end
+    if CP.Issue then CP.Issue("note", "browse failed", ("%s from %s: the game reported a browse failure (queueReady=%s)"):format(pending.name, pending.who, QueueReady())) end
     pending = nil
   elseif ev == "ITEM_SEARCH_RESULTS_UPDATED" or ev == "COMMODITY_SEARCH_RESULTS_UPDATED" or ev == "AUCTION_HOUSE_CLOSED" then pending = nil end
 end)
