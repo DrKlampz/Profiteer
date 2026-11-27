@@ -5,6 +5,7 @@
 - Fixed the sale sound always playing the game's vendor coin sound whatever you picked: when the game did not confirm a sound file had played, Profiteer assumed it failed and played the fallback instead
 - Ledger: "Net before buying stock" took your purchases off a second time instead of adding them back (it was too low by twice what you bought). Fixed. The Overhead section's deposits line now shows deposits paid minus deposits returned, exactly as counted in the total, so the lines always add up to Total overhead
 - Fixed the close button (X) on Profiteer's windows ignoring the shared Look options (style, size, color, hidden) that every other add-on's windows follow. The main window, report box and level-up window now name their close button to the Look system
+- Materials a vendor sells (thread, flux, vials and the like) now show up in the shopping list, the Plan tab and the search when the auction house has them cheaper than the vendor. Before, any material a vendor sold was skipped, even when the auction house listed it for less. Where the vendor is the same price or cheaper, it is still left to the vendor
 
 ## 0.12.43
 

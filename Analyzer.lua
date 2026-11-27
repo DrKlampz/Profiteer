@@ -14,6 +14,16 @@ function CP:DirectCost(id)
   return nil
 end
 
+-- The vendor price when a vendor sells the item AND that is not more than the auction house charges, else nil.
+-- An item a vendor sells but the auction house lists cheaper is bought at the auction house.
+function CP:VendorBest(id)
+  local v = self.db.vendor[id]
+  if not v then return nil end
+  local _, src = self:DirectCost(id)
+  if src == "vendor" then return v end
+  return nil
+end
+
 -- Cost of making one of an item from its materials (bar from ore, bolt from cloth ...),
 -- each material costed the cheapest way. nil if any material has no price.
 function CP:MakeCost(id, depth, seen)

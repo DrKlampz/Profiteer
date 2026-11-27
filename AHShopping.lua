@@ -209,7 +209,11 @@ local function Eval(id, qty, stock, out, depth)
   qty = qty - use
   if qty <= 1e-9 then return 0 end
   local vendor = CP.db.vendor[id]
-  if vendor then out.vendor = out.vendor + vendor * qty return vendor * qty end
+  if vendor then
+    -- a vendor sells it, but the auction house may be cheaper for this many: then it is bought there
+    local ahC = CP:Ladder(id) and LadderCost(id, math.ceil(qty - 1e-9))
+    if not (ahC and ahC < vendor * qty) then out.vendor = out.vendor + vendor * qty return vendor * qty end
+  end
   local plan = depth < 4 and CP:MakePlan(id)
   local buyC = LadderCost(id, math.ceil(qty - 1e-9))
   if plan then
@@ -326,7 +330,7 @@ local function MatsOf(g)
       local need = (rg.count or 1) * crafts
       Put(id, need)
       for _, raw in ipairs(CP:RawMaterials(id)) do
-        if not CP.db.vendor[raw.id] then Put(raw.id, math.ceil(raw.count * (rg.count or 1) * crafts), id) end
+        if not CP:VendorBest(raw.id) then Put(raw.id, math.ceil(raw.count * (rg.count or 1) * crafts), id) end
       end
     end
   end
@@ -383,7 +387,7 @@ function S.ForList(results, label)
         rows[#rows + 1] = { id = id, want = need }
         if CP:MakePlan(id) then
           for _, raw in ipairs(CP:RawMaterials(id)) do
-            if not CP.db.vendor[raw.id] then
+            if not CP:VendorBest(raw.id) then
               rows[#rows + 1] = { id = raw.id, want = math.ceil(raw.count * need - 1e-9), lvl = 1 }
             end
           end

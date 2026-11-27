@@ -24,7 +24,7 @@ end
 function Shop.Materials(g)
   local names, unresolved, seen = {}, 0, {}
   local function add(id)
-    if CP.db.vendor[id] then return end   -- a vendor sells it: buy it there, no AH search
+    if CP:VendorBest(id) then return end   -- a vendor sells it for no more than the AH: buy it there, no AH search
     local n = ItemNameOrNil(id)
     if not n then unresolved = unresolved + 1 return end
     if not seen[n] then seen[n] = true; names[#names + 1] = n end
