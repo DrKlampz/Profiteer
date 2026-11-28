@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.46
+
+- Fixed the shopping list and Plan tab not counting what the current character carries: on some clients the game's item count was not available, so a craft's materials in your own bags were listed as "to buy". The count now also uses this character's saved inventory
+
 ## 0.12.45
 
 - Cross-faction auction house awareness: Profiteer now knows your faction and which faction's auction house you are standing at. At the other faction's house it says so in chat and on the status line, since prices there are separate from your own faction's. It also warns when the prices you have were scanned at the other faction's house. The neutral auction houses are shared and never count as cross-faction

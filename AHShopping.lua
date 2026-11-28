@@ -14,7 +14,13 @@ local W = {}
 
 local function Name(id) return CP.ItemName and CP.ItemName(id) or ("item " .. tostring(id)) end
 local function Have(id)
-  local n = GetItemCount and GetItemCount(id, true) or 0
+  -- what this character holds: the game's count where the client has one (it is not always the global function),
+  -- and never less than this character's own saved inventory, which the bag scan keeps current
+  local n = 0
+  if GetItemCount then n = GetItemCount(id, true) or 0
+  elseif C_Item and C_Item.GetItemCount then n = C_Item.GetItemCount(id, true) or 0 end
+  local mine = CP.charKey and CP.db and CP.db.inventory and CP.db.inventory[CP.charKey] and CP:Have(CP.charKey, id) or 0
+  if mine > n then n = mine end
   if CP.db and CP.db.inventory then
     for key in pairs(CP.db.inventory) do
       if key ~= CP.charKey then n = n + CP:Have(key, id) end
