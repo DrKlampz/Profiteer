@@ -55,12 +55,36 @@ local function AddInfo(tip, id)
   end
 end
 
+-- Which of your characters hold this item (bags and bank, from each one's last inventory scan)
+local function AddOwned(tip, id)
+  if not CP.db or not CP.db.settings.tooltips or not id or not CP.db.inventory then return end
+  local rows, total = {}, 0
+  for key, inv in pairs(CP.db.inventory) do
+    local b, k = (inv.bags and inv.bags[id]) or 0, (inv.bank and inv.bank[id]) or 0
+    if b + k > 0 then
+      local parts = {}
+      if b > 0 then parts[#parts + 1] = b .. " in bags" end
+      if k > 0 then parts[#parts + 1] = k .. " in bank" end
+      rows[#rows + 1] = { name = tostring(CP.ShortName and CP.ShortName(key) or key), n = b + k, txt = table.concat(parts, ", "), me = key == CP.charKey }
+      total = total + b + k
+    end
+  end
+  if #rows == 0 then return end
+  table.sort(rows, function(a, c) if a.n ~= c.n then return a.n > c.n end return a.name < c.name end)
+  tip:AddDoubleLine("Your characters hold", tostring(total), 0.2, 1, 0.6, 1, 1, 1)
+  for _, r in ipairs(rows) do
+    tip:AddDoubleLine("  " .. r.name .. (r.me and " (this one)" or ""), r.txt, 0.8, 0.8, 0.8, 1, 1, 1)
+  end
+end
+
 -- Tooltip code must never throw (it would break every item tooltip), and
 -- must tolerate values the client declines to reveal.
 local function Safe(tip, id)
   if issecretvalue and issecretvalue(id) then return end
   local ok, err = pcall(AddInfo, tip, id)
   if not ok then CP.RecordError("tooltip", err) end
+  local okO, errO = pcall(AddOwned, tip, id)
+  if not okO then CP.RecordError("owned tooltip", errO) end
   if CP.Disenchant and CP.db and CP.db.settings and CP.db.settings.tooltips then
     local ok3, err3 = pcall(CP.Disenchant.Tip, tip, id)
     if not ok3 then CP.RecordError("disenchant tooltip", err3) end

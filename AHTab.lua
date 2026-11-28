@@ -529,6 +529,15 @@ local ev = CreateFrame("Frame")
 CP.Register(ev, "AUCTION_HOUSE_SHOW")
 ev:SetScript("OnEvent", CP.Safe("ah-tab", function()
   if not CP.db then return end
+  if CP.AHSource then
+    CP.AHSource.here = CP.AHSource.Current()
+    if CP.AHSource.IsCross() then
+      CP:Print(("You are at the %s auction house, the other faction's (you are %s). Prices here are separate from your own faction's."):format(CP.AHSource.here, CP.AHSource.Primary()))
+    else
+      local m = CP.AHSource.Mismatch()
+      if m then CP:Print(m) end
+    end
+  end
   AHTab.started = false
   current = nil   -- every visit starts fresh, on the tab chosen in the options (not wherever the last visit ended)
   AHTab.Size()

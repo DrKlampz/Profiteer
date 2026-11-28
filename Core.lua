@@ -241,7 +241,7 @@ end
 local REALM_KEYS = {
   recipes = true, unlearned = true, prices = true, inventory = true, chars = true, history = true,
   ledger = true, ledgerChars = true, ledgerItems = true, ledgerDC = true, worth = true,
-  myAuctions = true, mailGold = true, rnames = true, listings = true, lastScan = true, lastReplicate = true,
+  myAuctions = true, mailGold = true, rnames = true, listings = true, lastScan = true, lastReplicate = true, lastScanAH = true,
 }
 local CHAR_KEYED = { "recipes", "unlearned", "inventory", "chars", "myAuctions", "mailGold", "ledgerChars", "rnames" }
 local DAY_KEYED_BY_CHAR = { "worth", "ledgerDC" }   -- [day][charKey]

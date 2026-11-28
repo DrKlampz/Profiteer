@@ -398,6 +398,9 @@ end
 
 -- what the last Live prices run did, appended to the status line under the list (a redraw rewrites that line)
 local function LiveNote()
+  if CP.AHSource and CP.AHSource.IsCross and CP.AHSource.IsCross() then return "  |cffff8040Cross-faction auction house.|r" end
+  local m = CP.AHSource and CP.AHSource.Mismatch and CP.AHSource.Mismatch()
+  if m then return "  |cffff8040Scanned at the other faction's auction house.|r" end
   local l = CP.Live and CP.Live.last
   if not l then return "" end
   return ("  Live prices: %d of %d updated %s%s"):format(l.updated or 0, l.total or 0, CP.Age(l.time),

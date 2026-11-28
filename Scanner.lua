@@ -1,4 +1,33 @@
 local ADDON, CP = ...
+
+-- Which faction's auction house you are standing at ("Horde", "Alliance" or "Neutral"), from the auctioneer.
+-- Prices are kept per realm, so a scan at one faction's house is noted and you are told when you stand at the other.
+CP.AHSource = {}
+function CP.AHSource.Current()
+  for _, unit in ipairs({ "npc", "target" }) do
+    local ok, f = pcall(UnitFactionGroup, unit)
+    if ok and type(f) == "string" and f ~= "" and not (issecretvalue and issecretvalue(f)) then return f end
+  end
+  return "Neutral"
+end
+-- Your own faction (Horde/Alliance) is your primary auction house.
+function CP.AHSource.Primary()
+  local ok, f = pcall(UnitFactionGroup, "player")
+  if ok and type(f) == "string" and f ~= "" and not (issecretvalue and issecretvalue(f)) then return f end
+end
+-- true while you stand at the other faction's auction house (the neutral ones are shared, so they don't count)
+function CP.AHSource.IsCross()
+  local p, h = CP.AHSource.Primary(), CP.AHSource.here
+  return (p and (h == "Horde" or h == "Alliance") and h ~= p) and true or false
+end
+-- nil when nothing to say, else the sentence: the prices on hand came from a different faction's auction house
+function CP.AHSource.Mismatch()
+  local d = CP.db
+  if not d then return nil end
+  local was, here = d.lastScanAH, CP.AHSource.here
+  if not was or not here or was == here then return nil end
+  return ("These prices were last scanned at the %s auction house and you are at the %s one. They may differ here until you scan again. (If your realm shares one auction house between factions, ignore this.)"):format(was, here)
+end
 local S = {}
 CP.Scanner = S
 
@@ -184,6 +213,7 @@ local function Finish()
   end
 
   CP.db.lastScan = now
+  CP.db.lastScanAH = CP.AHSource.Current()   -- which faction's auction house these prices came from
   st.running = false
   CP:Print(("Scan complete: %d auctions, %d items priced, %d recipe items tracked. (server wait %ds, reading %.1fs)"):format(st.n or 0, priced, tracked, st.waited or 0, st.readT or 0))
   if CP.db then CP.db.lastTiming = { waited = st.waited or 0, read = st.readT or 0, n = st.n or 0, t = time() } end
@@ -325,6 +355,7 @@ frame:SetScript("OnEvent", CP.Safe("scanner", function(_, event, ...)
       CP.After(1.5, function() if AHOpen() then S:Start() end end)
     end
   elseif event == "AUCTION_HOUSE_CLOSED" then
+    CP.AHSource.here = nil
     ahOpen = false
   elseif event == "REPLICATE_ITEM_LIST_UPDATE" then
     if CP.db then CP.db.lastReplyAt = time() end

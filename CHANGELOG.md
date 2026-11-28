@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.45
+
+- Cross-faction auction house awareness: Profiteer now knows your faction and which faction's auction house you are standing at. At the other faction's house it says so in chat and on the status line, since prices there are separate from your own faction's. It also warns when the prices you have were scanned at the other faction's house. The neutral auction houses are shared and never count as cross-faction
+- Item tooltips now list which of your characters hold the item, with how many are in bags and in the bank, so you can see which alt has what
+
 ## 0.12.44
 
 - Fixed the sale sound always playing the game's vendor coin sound whatever you picked: when the game did not confirm a sound file had played, Profiteer assumed it failed and played the fallback instead
